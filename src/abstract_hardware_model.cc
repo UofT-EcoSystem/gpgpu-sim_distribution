@@ -896,6 +896,8 @@ void simt_stack::update( simt_mask_t &thread_done, addr_vector_t &next_pc, addre
 
 void core_t::execute_warp_inst_t(warp_inst_t &inst, unsigned warpId)
 {
+    if(inst.op_pipe==SP__OP) {
+    } 
     for ( unsigned t=0; t < m_warp_size; t++ ) {
         if( inst.active(t) ) {
             if(warpId==(unsigned (-1)))

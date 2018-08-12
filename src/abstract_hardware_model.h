@@ -884,7 +884,7 @@ public:
     void do_atomic(bool forceDo=false);
     void do_atomic( const active_mask_t& access_mask, bool forceDo=false );
     void clear() 
-    { 
+    {
         m_empty=true; 
     }
     void issue( const active_mask_t &mask, unsigned warp_id, unsigned long long cycle, int dynamic_warp_id ) 
@@ -1017,9 +1017,7 @@ public:
     void print( FILE *fout ) const;
     unsigned get_uid() const { return m_uid; }
 
-
 protected:
-
     unsigned m_uid;
     bool m_empty;
     bool m_cache_hit;

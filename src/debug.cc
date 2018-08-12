@@ -109,6 +109,9 @@ void gpgpu_sim::gpgpu_debug()
             done = false; 
          }
       } else {
+//            ptx_thread_info *thread = m_sc[sid]->get_functional_thread(hw_thread_id);
+            
+
           /*
          for( unsigned sid=0; sid < m_n_shader; sid++ ) { 
             unsigned hw_thread_id = -1;

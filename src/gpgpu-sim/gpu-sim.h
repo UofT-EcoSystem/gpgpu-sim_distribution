@@ -495,7 +495,13 @@ private:
 
 public:
    unsigned long long  gpu_sim_insn;
+   unsigned long long  gpu_sim_sp_insn;
+   unsigned long long  gpu_sim_sfu_insn;
+   unsigned long long  gpu_sim_mem_insn;
    unsigned long long  gpu_tot_sim_insn;
+   unsigned long long  gpu_tot_sim_sp_insn;
+   unsigned long long  gpu_tot_sim_sfu_insn;
+   unsigned long long  gpu_tot_sim_mem_insn;
    unsigned long long  gpu_sim_insn_last_update;
    unsigned gpu_sim_insn_last_update_sid;
 

@@ -714,6 +714,19 @@ __host__ cudaError_t CUDARTAPI cudaMemcpyAsync(void *dst, const void *src, size_
 }
 
 
+__host__ cudaError_t CUDARTAPI cudaMemcpyPeerAsync(void *dst, int dstDevice, const void *src, int srcDevice, size_t count, cudaStream_t stream)
+{
+//	struct CUstream_st *s = (struct CUstream_st *)stream;
+//	switch( kind ) {
+//	case cudaMemcpyHostToDevice: g_stream_manager->push( stream_operation(src,(size_t)dst,count,s) ); break;
+//	case cudaMemcpyDeviceToHost: g_stream_manager->push( stream_operation((size_t)src,dst,count,s) ); break;
+//	case cudaMemcpyDeviceToDevice: g_stream_manager->push( stream_operation((size_t)src,(size_t)dst,count,s) ); break;
+//	default:
+//		abort();
+//	}
+	return g_last_cudaError = cudaSuccess;
+}
+
 __host__ cudaError_t CUDARTAPI cudaMemcpyToArrayAsync(struct cudaArray *dst, size_t wOffset, size_t hOffset, const void *src, size_t count, enum cudaMemcpyKind kind, cudaStream_t stream)
 {
 	cuda_not_implemented(__my_func__,__LINE__);
@@ -814,6 +827,17 @@ __host__ cudaError_t CUDARTAPI cudaGetDeviceProperties(struct cudaDeviceProp *pr
 	} else {
 		return g_last_cudaError = cudaErrorInvalidDevice;
 	}
+}
+
+__host__ cudaError_t CUDARTAPI cudaDeviceGetAttribute (int* value, cudaDeviceAttr attr, int device) 
+{
+	switch (attr)
+	{
+		case cudaDevAttrComputeCapabilityMajor: *value = 2;
+		case cudaDevAttrComputeCapabilityMinor: *value = 2;
+	
+	}
+	return g_last_cudaError = cudaSuccess;
 }
 
 __host__ cudaError_t CUDARTAPI cudaChooseDevice(int *device, const struct cudaDeviceProp *prop)
@@ -2156,6 +2180,35 @@ __host__ cudaError_t CUDARTAPI cudaFuncSetCacheConfig(const char *func, enum cud
 __host__ cudaError_t CUDARTAPI cudaDeviceSetLimit(enum cudaLimit limit, size_t value) {
     return g_last_cudaError = cudaSuccess;
 }
+
+__host__ cudaError_t CUDARTAPI cudaDeviceSetSharedMemConfig(cudaSharedMemConfig config) {
+    return g_last_cudaError = cudaSuccess;
+
+}
+
+__host__ cudaError_t CUDARTAPI cudaDeviceCanAccessPeer (int* canAccessPeer, int device, int peerDevice) {
+    return g_last_cudaError = cudaSuccess;
+}
+
+__host__ cudaError_t CUDARTAPI cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags ( int* numBlocks, const void *func, int  blockSize, size_t dynamicSMemSize, unsigned int  flags ) {
+    return g_last_cudaError = cudaSuccess;
+}
+
+__host__ cudaError_t CUDARTAPI cudaDeviceEnablePeerAccess ( int peerDevice, unsigned int flags ) 
+{
+    return g_last_cudaError = cudaSuccess;
+}
+
+__host__ cudaError_t CUDARTAPI cudaMemGetInfo (size_t * free, size_t * total )
+{
+    return g_last_cudaError = cudaSuccess;
+}
+
+__host__ __device__ cudaError_t CUDARTAPI cudaDeviceGetSharedMemConfig ( cudaSharedMemConfig ** pConfig )
+{
+    return g_last_cudaError = cudaSuccess;
+}
+
 #endif
 
 #endif

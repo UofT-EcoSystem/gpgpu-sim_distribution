@@ -166,6 +166,8 @@ def fileInput(cl_files=None):
             recentfile = '.'
         else:
             raise e
+    except IndexError:
+        recentfile = '.'
 
     bAddFileBrowse = Tk.Button(addFile, text = "Browse", command = (lambda: eAddFile.insert(0,Fd.askopenfilename(initialdir=recentfile ))))
     bAddFileBrowse.pack(side = Tk.LEFT)
