@@ -64,6 +64,10 @@ void gpgpu_functional_sim_config::reg_options(class OptionParser * opp)
 	                 &m_experimental_lib_support,
 	                 "Try to extract code from cuda libraries [Broken because of unknown cudaGetExportTable]",
 	                 "0");
+	option_parser_register(opp, "-gpgpu_experimental_lib_support_file", OPT_CSTR,
+	                 &m_experimental_lib_support_file,
+	                 "Name of library",
+	                 "_cuobjdump_lib");
     option_parser_register(opp, "-gpgpu_ptx_convert_to_ptxplus", OPT_BOOL,
                  &m_ptx_convert_to_ptxplus,
                  "Convert SASS (native ISA) to ptxplus and run ptxplus",

@@ -472,6 +472,7 @@ public:
     bool convert_to_ptxplus() const { return m_ptx_convert_to_ptxplus; }
     bool use_cuobjdump() const { return m_ptx_use_cuobjdump; }
     bool experimental_lib_support() const { return m_experimental_lib_support; }
+    char* experimental_lib_support_file() const { return m_experimental_lib_support_file; }
 
     int         get_ptx_inst_debug_to_file() const { return g_ptx_inst_debug_to_file; }
     const char* get_ptx_inst_debug_file() const  { return g_ptx_inst_debug_file; }
@@ -483,6 +484,7 @@ private:
     int m_ptx_convert_to_ptxplus;
     int m_ptx_use_cuobjdump;
     int m_experimental_lib_support;
+    char* m_experimental_lib_support_file;
     unsigned m_ptx_force_max_capability;
 
     int   g_ptx_inst_debug_to_file;

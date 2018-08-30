@@ -1448,7 +1448,7 @@ void extract_code_using_cuobjdump(){
 		std::getline(libsf, line);
 		std::cout << "DOING: " << line << std::endl;
 		int cnt=1;
-		while(libsf.good()){
+		while (0) { //while(libsf.good()){
 			std::stringstream libcodfn;
 			libcodfn << "_cuobjdump_complete_lib_" << cnt << "_";
 			cmd.str(""); //resetting
@@ -1468,6 +1468,10 @@ void extract_code_using_cuobjdump(){
 			fclose(cuobjdump_in);
 			std::getline(libsf, line);
 		}
+		cuobjdump_in = fopen(context->get_device()->get_gpgpu()->get_config().experimental_lib_support_file(), "r");
+		cuobjdump_parse();
+		fclose(cuobjdump_in);
+
 		libSectionList = cuobjdumpSectionList;
 
 		//Restore the original section list
