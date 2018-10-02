@@ -352,6 +352,9 @@ class _cuda_device_id *GPGPUSim_Init()
 #if (CUDART_VERSION >= 2010)
 		prop->multiProcessorCount = the_gpu->get_config().num_shader();
 #endif
+    prop->l2CacheSize = the_gpu->getMemoryConfig()->m_L2_config.get_num_lines() \
+                        * the_gpu->getMemoryConfig()->m_L2_config.get_line_sz() \
+                        * the_gpu->getMemoryConfig()->m_n_mem_sub_partition;
 		the_gpu->set_prop(prop);
 		the_device = new _cuda_device_id(the_gpu);
 	}
@@ -743,8 +746,35 @@ __host__ cudaError_t CUDARTAPI cudaMemcpyFromArrayAsync(void *dst, const struct 
 
 __host__ cudaError_t CUDARTAPI cudaMemcpy2DAsync(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width, size_t height, enum cudaMemcpyKind kind, cudaStream_t stream)
 {
-	cuda_not_implemented(__my_func__,__LINE__);
-	return g_last_cudaError = cudaErrorUnknown;
+	////CUctx_st *context = GPGPUSim_Context();
+	////gpgpu_t *gpu = context->get_device()->get_gpgpu();
+	size_t size = spitch*height;
+	////gpgpusim_ptx_assert( (dpitch==spitch), "different src and dst pitch not supported yet" );
+	////if( kind == cudaMemcpyHostToDevice )
+	////	gpu->memcpy_to_gpu( (size_t)dst, src, size );
+	////else if( kind == cudaMemcpyDeviceToHost )
+	////	gpu->memcpy_from_gpu( dst, (size_t)src, size );
+	////else if( kind == cudaMemcpyDeviceToDevice )
+	////	gpu->memcpy_gpu_to_gpu( (size_t)dst, (size_t)src, size);
+	////else {
+	////	printf("GPGPU-Sim PTX: cudaMemcpy2DAsync - ERROR : unsupported cudaMemcpyKind\n");
+	////	abort();
+	////}
+  // Michael
+  struct CUstream_st *s = (struct CUstream_st *)stream;
+ 
+  size_t count=size;
+	switch( kind ) {
+	case cudaMemcpyHostToDevice: g_stream_manager->push( stream_operation(src,(size_t)dst,count,s) ); break;
+	case cudaMemcpyDeviceToHost: g_stream_manager->push( stream_operation((size_t)src,dst,count,s) ); break;
+	case cudaMemcpyDeviceToDevice: g_stream_manager->push( stream_operation((size_t)src,(size_t)dst,count,s) ); break;
+	default:
+		abort();
+	}
+	return g_last_cudaError = cudaSuccess;
+	return g_last_cudaError = cudaSuccess;
+	//cuda_not_implemented(__my_func__,__LINE__);
+	//return g_last_cudaError = cudaErrorUnknown;
 }
 
 
@@ -1475,7 +1505,7 @@ void extract_code_using_cuobjdump(){
 		libSectionList = cuobjdumpSectionList;
 
 		//Restore the original section list
-		cuobjdumpSectionList = tmpsl;
+		//cuobjdumpSectionList = tmpsl;
 	}
 }
 
