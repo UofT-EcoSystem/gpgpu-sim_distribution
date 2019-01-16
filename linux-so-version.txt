@@ -1,4 +1,2 @@
-libcudart.so.9.1{
-};
-libcuda.so.1{
+libcudart.so.9.0{
 };

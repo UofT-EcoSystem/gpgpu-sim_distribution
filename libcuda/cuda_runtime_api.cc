@@ -122,7 +122,7 @@
 #endif
 
 #define __CUDA_RUNTIME_API_H__
-#include "cuda.h" // Michael
+
 #include "host_defines.h"
 #include "builtin_types.h"
 #include "driver_types.h"
@@ -378,6 +378,9 @@ struct _cuda_device_id *GPGPUSim_Init()
 		prop->textureAlignment = 0;
 //        * TODO: Update the .config and xml files of all GPU config files with new value of sharedMemPerBlock and regsPerBlock 
 	        prop->sharedMemPerBlock = the_gpu->shared_mem_per_block();
+    prop->l2CacheSize = the_gpu->getMemoryConfig()->m_L2_config.get_num_lines() \
+                        * the_gpu->getMemoryConfig()->m_L2_config.get_line_sz() \
+                        * the_gpu->getMemoryConfig()->m_n_mem_sub_partition;
 #if (CUDART_VERSION > 5050)
 		prop->regsPerMultiprocessor = the_gpu->num_registers_per_core();
   	        prop->sharedMemPerMultiprocessor = the_gpu->shared_mem_size();
@@ -389,9 +392,6 @@ struct _cuda_device_id *GPGPUSim_Init()
 #if (CUDART_VERSION >= 2010)
 		prop->multiProcessorCount = the_gpu->get_config().num_shader();
 #endif
-    prop->l2CacheSize = the_gpu->getMemoryConfig()->m_L2_config.get_num_lines() \
-                        * the_gpu->getMemoryConfig()->m_L2_config.get_line_sz() \
-                        * the_gpu->getMemoryConfig()->m_n_mem_sub_partition;
 #if (CUDART_VERSION >= 4000)
 		prop->maxThreadsPerMultiProcessor = the_gpu->threads_per_core();
 #endif
@@ -829,19 +829,6 @@ __host__ cudaError_t CUDARTAPI cudaMemcpyAsync(void *dst, const void *src, size_
 }
 
 
-__host__ cudaError_t CUDARTAPI cudaMemcpyPeerAsync(void *dst, int dstDevice, const void *src, int srcDevice, size_t count, cudaStream_t stream)
-{
-//	struct CUstream_st *s = (struct CUstream_st *)stream;
-//	switch( kind ) {
-//	case cudaMemcpyHostToDevice: g_stream_manager->push( stream_operation(src,(size_t)dst,count,s) ); break;
-//	case cudaMemcpyDeviceToHost: g_stream_manager->push( stream_operation((size_t)src,dst,count,s) ); break;
-//	case cudaMemcpyDeviceToDevice: g_stream_manager->push( stream_operation((size_t)src,(size_t)dst,count,s) ); break;
-//	default:
-//		abort();
-//	}
-	return g_last_cudaError = cudaSuccess;
-}
-
 __host__ cudaError_t CUDARTAPI cudaMemcpyToArrayAsync(struct cudaArray *dst, size_t wOffset, size_t hOffset, const void *src, size_t count, enum cudaMemcpyKind kind, cudaStream_t stream)
 {
 	if(g_debug_execution >= 3){
@@ -990,18 +977,6 @@ __host__ cudaError_t CUDARTAPI cudaGetDeviceProperties(struct cudaDeviceProp *pr
 	}
 }
 
-<<<<<<< HEAD
-__host__ cudaError_t CUDARTAPI cudaDeviceGetAttribute (int* value, cudaDeviceAttr attr, int device) 
-{
-	switch (attr)
-	{
-		case cudaDevAttrComputeCapabilityMajor: *value = 2;
-		case cudaDevAttrComputeCapabilityMinor: *value = 2;
-	
-	}
-	return g_last_cudaError = cudaSuccess;
-}
-=======
 #if (CUDART_VERSION > 5000)
 __host__ cudaError_t CUDARTAPI cudaDeviceGetAttribute(int *value, enum cudaDeviceAttr attr, int device)
 {
@@ -1194,7 +1169,6 @@ __host__ cudaError_t CUDARTAPI cudaDeviceGetAttribute(int *value, enum cudaDevic
         }
 }
 #endif
->>>>>>> upstream/dev
 
 __host__ cudaError_t CUDARTAPI cudaChooseDevice(int *device, const struct cudaDeviceProp *prop)
 {
@@ -1498,17 +1472,6 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 	return g_last_cudaError = cudaSuccess;
 }
 
-<<<<<<< HEAD
-//__host__ CUresult CUDARTAPI cuLaunchKernel () 
-//{
-//  printf("empty");
-//	return CUDA_SUCCESS;
-//}
-__host__ CUresult CUDARTAPI cuLaunchKernel ( CUfunction f, unsigned int  gridDimX, unsigned int  gridDimY, unsigned int  gridDimZ, unsigned int  blockDimX, unsigned int  blockDimY, unsigned int  blockDimZ, unsigned int  sharedMemBytes, CUstream hStream, void** kernelParams, void** extra )
-//cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
-{
-  printf("cuLaunchKernel :)\n");
-=======
 
 __host__ cudaError_t CUDARTAPI cudaLaunchKernel ( const char* hostFun, dim3 gridDim, dim3 blockDim, const void** args, size_t sharedMem, cudaStream_t stream )
 {
@@ -1519,29 +1482,11 @@ __host__ cudaError_t CUDARTAPI cudaLaunchKernel ( const char* hostFun, dim3 grid
 	kernel_config &config = g_cuda_launch_stack.back();
 	config.set_arg(args[0],432,0);//standard interface for cutlass library #TODO Implementing a generalized kernel
 
->>>>>>> upstream/dev
 	CUctx_st* context = GPGPUSim_Context();
 	char *mode = getenv("PTX_SIM_MODE_FUNC");
 	if( mode )
 		sscanf(mode,"%u", &g_ptx_sim_mode);
 	gpgpusim_ptx_assert( !g_cuda_launch_stack.empty(), "empty launch stack" );
-<<<<<<< HEAD
-	kernel_config config = g_cuda_launch_stack.back();
-	struct CUstream_st *stream = config.get_stream();
-	printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n", f,
-			g_ptx_sim_mode?"functional simulation":"performance simulation", stream?stream->get_uid():0 );
-	//kernel_info_t *grid = gpgpu_cuda_ptx_sim_init_grid(hostFun,config.get_args(),config.grid_dim(),config.block_dim(),context);
-	//std::string kname = grid->name();
-	//dim3 gridDim = config.grid_dim();
-	//dim3 blockDim = config.block_dim();
-	//printf("GPGPU-Sim PTX: pushing kernel \'%s\' to stream %u, gridDim= (%u,%u,%u) blockDim = (%u,%u,%u) \n",
-	//		kname.c_str(), stream?stream->get_uid():0, gridDim.x,gridDim.y,gridDim.z,blockDim.x,blockDim.y,blockDim.z );
-	//stream_operation op(grid,g_ptx_sim_mode,stream);
-	//g_stream_manager->push(op);
-	//g_cuda_launch_stack.pop_back();
-	return CUDA_SUCCESS;
-}
-=======
 	kernel_config config1 = g_cuda_launch_stack.back();
 	struct CUstream_st *stream1 = config1.get_stream();
 	printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n", hostFun,
@@ -1563,7 +1508,6 @@ __host__ cudaError_t CUDARTAPI cudaLaunchKernel ( const char* hostFun, dim3 grid
 	return g_last_cudaError = cudaSuccess;
 }
 
->>>>>>> upstream/dev
 /*******************************************************************************
  *                                                                              *
  *                                                                              *
@@ -1608,9 +1552,6 @@ __host__ __device__ cudaError_t CUDARTAPI cudaStreamCreateWithFlags(cudaStream_t
 	return cudaStreamCreate(stream);
 }
 
-__host__ __device__ cudaError_t CUDARTAPI cudaStreamCreateWithPriority(cudaStream_t *stream, unsigned int flags) {
-	return cudaStreamCreate(stream); // Michael
-}
 __host__ cudaError_t CUDARTAPI cudaStreamDestroy(cudaStream_t stream)
 {
 	if(g_debug_execution >= 3){
@@ -1832,17 +1773,11 @@ int dummy0() {
     }
 return 0; }
 
-<<<<<<< HEAD
-//typedef struct CUuuid_st {                                /**< CUDA definition of UUID */
-//    char bytes[16];
-//} CUuuid;
-=======
 int dummy1() {
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
 return 2 << 20; }
->>>>>>> upstream/dev
 
 typedef int (*ExportedFunction)();
 
@@ -2201,45 +2136,6 @@ void extract_code_using_cuobjdump(){
             printf("Parsing file %s\n", fname);
             cuobjdump_in = fopen(fname, "r");
 
-<<<<<<< HEAD
-		//Save the original section list
-		std::list<cuobjdumpSection*> tmpsl = cuobjdumpSectionList;
-		cuobjdumpSectionList.clear();
-
-		std::string line;
-		std::getline(libsf, line);
-		std::cout << "DOING: " << line << std::endl;
-		int cnt=1;
-		while (0) { //while(libsf.good()){
-			std::stringstream libcodfn;
-			libcodfn << "_cuobjdump_complete_lib_" << cnt << "_";
-			cmd.str(""); //resetting
-			cmd << "$CUDA_INSTALL_PATH/bin/cuobjdump -ptx -elf -sass ";
-			cmd << line;
-			cmd << " > ";
-			cmd << libcodfn.str();
-			std::cout << "Running cuobjdump on " << line << std::endl;
-			std::cout << "Using command: " << cmd.str() << std::endl;
-			result = system(cmd.str().c_str());
-			if(result) {printf("ERROR: Failed to execute: %s\n", command); exit(1);}
-			std::cout << "Done" << std::endl;
-
-			std::cout << "Trying to parse " << libcodfn.str() << std::endl;
-			cuobjdump_in = fopen(libcodfn.str().c_str(), "r");
-			cuobjdump_parse();
-			fclose(cuobjdump_in);
-			std::getline(libsf, line);
-		}
-		cuobjdump_in = fopen(context->get_device()->get_gpgpu()->get_config().experimental_lib_support_file(), "r");
-		cuobjdump_parse();
-		fclose(cuobjdump_in);
-
-		libSectionList = cuobjdumpSectionList;
-
-		//Restore the original section list
-		//cuobjdumpSectionList = tmpsl;
-	}
-=======
             cuobjdump_parse();
             fclose(cuobjdump_in);
             printf("Done parsing!!!\n");
@@ -2302,7 +2198,6 @@ void extract_code_using_cuobjdump(){
         printf("GPGPU-Sim PTX: overriding cuobjdump with '%s' (CUOBJDUMP_SIM_FILE is set)\n", override_cuobjdump);
         snprintf(fname,1024, "%s",override_cuobjdump);
     }
->>>>>>> upstream/dev
 }
 
 //! Read file into char*
@@ -2655,23 +2550,6 @@ void** CUDARTAPI __cudaRegisterFatBinary( void *fatCubin )
 		if (sizeof(void*) == 4) 
 			printf("GPGPU-Sim PTX: FatBin file name extraction has not been tested on 32-bit system.\n"); 
 
-<<<<<<< HEAD
-		#if (CUDART_VERSION <= 4000)
-		// FatBin handle from the .fatbin.c file (one of the intermediate files generated by NVCC)
-		typedef struct {int m; int v; const unsigned long long* d; char* f;} __fatDeviceText __attribute__ ((aligned (8))); 
-		__fatDeviceText * fatDeviceText = (__fatDeviceText *) fatCubin;
-
-		// Extract the source code file name that generate the given FatBin. 
-		// - Obtains the pointer to the actual fatbin structure from the FatBin handle (fatCubin).
-		// - An integer inside the fatbin structure contains the relative offset to the source code file name.
-		// - This offset differs among different CUDA and GCC versions. 
-		char * pfatbin = (char*) fatDeviceText->d; 
-		int offset = *((int*)(pfatbin+48)); 
-		char * filename = (pfatbin+16+offset); 
-		#else
-		const char * filename = "default";
-		#endif
-=======
         // This code will get the CUDA version the app was compiled with.
         // We need this to determine how to handle the parsing of the binary.
         // Making this a runtime variable based on the app, enables GPGPU-Sim compiled
@@ -2696,7 +2574,6 @@ void** CUDARTAPI __cudaRegisterFatBinary( void *fatCubin )
             filename = "default";
 #endif
 
->>>>>>> upstream/dev
 		// The extracted file name is associated with a fat_cubin_handle passed
 		// into cudaLaunch().  Inside cudaLaunch(), the associated file name is
 		// used to find the PTX/SASS section from cuobjdump, which contains the
@@ -3235,35 +3112,6 @@ __host__ cudaError_t CUDARTAPI cudaDeviceSetLimit(enum cudaLimit limit, size_t v
     }
     return g_last_cudaError = cudaSuccess;
 }
-
-__host__ cudaError_t CUDARTAPI cudaDeviceSetSharedMemConfig(cudaSharedMemConfig config) {
-    return g_last_cudaError = cudaSuccess;
-
-}
-
-__host__ cudaError_t CUDARTAPI cudaDeviceCanAccessPeer (int* canAccessPeer, int device, int peerDevice) {
-    return g_last_cudaError = cudaSuccess;
-}
-
-__host__ cudaError_t CUDARTAPI cudaOccupancyMaxActiveBlocksPerMultiprocessorWithFlags ( int* numBlocks, const void *func, int  blockSize, size_t dynamicSMemSize, unsigned int  flags ) {
-    return g_last_cudaError = cudaSuccess;
-}
-
-__host__ cudaError_t CUDARTAPI cudaDeviceEnablePeerAccess ( int peerDevice, unsigned int flags ) 
-{
-    return g_last_cudaError = cudaSuccess;
-}
-
-__host__ cudaError_t CUDARTAPI cudaMemGetInfo (size_t * free, size_t * total )
-{
-    return g_last_cudaError = cudaSuccess;
-}
-
-__host__ __device__ cudaError_t CUDARTAPI cudaDeviceGetSharedMemConfig ( cudaSharedMemConfig ** pConfig )
-{
-    return g_last_cudaError = cudaSuccess;
-}
-
 #endif
 
 #endif

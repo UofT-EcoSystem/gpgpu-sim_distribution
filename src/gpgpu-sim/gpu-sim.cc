@@ -432,9 +432,6 @@ void shader_core_config::reg_options(class OptionParser * opp)
     option_parser_register(opp, "-gpgpu_num_sched_per_core", OPT_INT32, &gpgpu_num_sched_per_core, 
                             "Number of warp schedulers per core", 
                             "1");
-    option_parser_register(opp, "-gpgpu_num_insn_buff_per_core", OPT_INT32, &gpgpu_num_insn_buff_per_core, 
-                            "Number of instruction buffer per core", 
-                            "1");
     option_parser_register(opp, "-gpgpu_max_insn_issue_per_warp", OPT_INT32, &gpgpu_max_insn_issue_per_warp,
     		            "Max number of instructions that can be issued per warp in one cycle by scheduler (either 1 or 2)",
 			    "2");
@@ -467,11 +464,8 @@ void shader_core_config::reg_options(class OptionParser * opp)
                             "Number of tensor_core units (default=1)",
                             "1");
     option_parser_register(opp, "-gpgpu_num_mem_units", OPT_INT32, &gpgpu_num_mem_units,
-                            "Number of ldst units (default=1) WARNING: not hooked up to anything",
+                            "Number if ldst units (default=1) WARNING: not hooked up to anything",
                              "1");
-    option_parser_register(opp, "-gpgpu_unit_scale_ratio", OPT_INT32, &gpgpu_unit_scale_ratio,
-                            "Number of hardware units that each software unit is modelling",
-                             "16");
     option_parser_register(opp, "-gpgpu_scheduler", OPT_CSTR, &gpgpu_scheduler_string,
                                 "Scheduler configuration: < lrr | gto | two_level_active > "
                                 "If two_level_active:<num_active_warps>:<inner_prioritization>:<outer_prioritization>"
@@ -726,13 +720,7 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
     m_power_stats = new power_stat_t(m_shader_config,average_pipeline_duty_cycle,active_sms,m_shader_stats,m_memory_config,m_memory_stats);
 
     gpu_sim_insn = 0;
-    gpu_sim_sp_insn = 0;
-    gpu_sim_sfu_insn = 0;
-    gpu_sim_mem_insn = 0;
     gpu_tot_sim_insn = 0;
-    gpu_tot_sim_sp_insn = 0;
-    gpu_tot_sim_sfu_insn = 0;
-    gpu_tot_sim_mem_insn = 0;
     gpu_tot_issued_cta = 0;
     m_total_cta_launched = 0;
     gpu_deadlock = false;
@@ -868,9 +856,6 @@ void gpgpu_sim::init()
     // run a CUDA grid on the GPU microarchitecture simulator
     gpu_sim_cycle = 0;
     gpu_sim_insn = 0;
-    gpu_sim_sp_insn = 0;
-    gpu_sim_sfu_insn = 0;
-    gpu_sim_mem_insn = 0;
     last_gpu_sim_insn = 0;
     m_total_cta_launched=0;
     partiton_reqs_in_parallel = 0;
@@ -912,9 +897,6 @@ void gpgpu_sim::update_stats() {
     m_memory_stats->memlatstat_lat_pw();
     gpu_tot_sim_cycle += gpu_sim_cycle;
     gpu_tot_sim_insn += gpu_sim_insn;
-    gpu_tot_sim_sp_insn += gpu_sim_sp_insn;
-    gpu_tot_sim_sfu_insn += gpu_sim_sfu_insn;
-    gpu_tot_sim_mem_insn += gpu_sim_mem_insn;
     gpu_tot_issued_cta += m_total_cta_launched;
     partiton_reqs_in_parallel_total += partiton_reqs_in_parallel;
     partiton_replys_in_parallel_total += partiton_replys_in_parallel;
@@ -928,11 +910,6 @@ void gpgpu_sim::update_stats() {
     partiton_reqs_in_parallel_util = 0;
     gpu_sim_cycle_parition_util = 0;
     gpu_sim_insn = 0;
-    gpu_sim_sp_insn = 0;
-    gpu_sim_sfu_insn = 0;
-    gpu_sim_mem_insn = 0;
-
-
     m_total_cta_launched = 0;
     gpu_occupancy = occupancy_stats();
 }
@@ -1102,16 +1079,10 @@ void gpgpu_sim::gpu_print_stat()
    fprintf(statfout, "%s", kernel_info_str.c_str()); 
 
    printf("gpu_sim_cycle = %lld\n", gpu_sim_cycle);
-   printf("gpu_sim_insn = %lld\n", gpu_sim_insn);;
-   printf("gpu_sim_sp_insn = %lld\n", gpu_sim_sp_insn);;
-   printf("gpu_sim_sfu_insn = %lld\n", gpu_sim_sfu_insn);;
-   printf("gpu_sim_mem_insn = %lld\n", gpu_sim_mem_insn);
+   printf("gpu_sim_insn = %lld\n", gpu_sim_insn);
    printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn / gpu_sim_cycle);
    printf("gpu_tot_sim_cycle = %lld\n", gpu_tot_sim_cycle+gpu_sim_cycle);
    printf("gpu_tot_sim_insn = %lld\n", gpu_tot_sim_insn+gpu_sim_insn);
-   printf("gpu_tot_sim_sp_insn = %lld\n", gpu_tot_sim_sp_insn+gpu_sim_sp_insn);
-   printf("gpu_tot_sim_sfu_insn = %lld\n", gpu_tot_sim_sfu_insn+gpu_sim_sfu_insn);
-   printf("gpu_tot_sim_mem_insn = %lld\n", gpu_tot_sim_mem_insn+gpu_sim_mem_insn);
    printf("gpu_tot_ipc = %12.4f\n", (float)(gpu_tot_sim_insn+gpu_sim_insn) / (gpu_tot_sim_cycle+gpu_sim_cycle));
    printf("gpu_tot_issued_cta = %lld\n", gpu_tot_issued_cta + m_total_cta_launched);
    printf("gpu_occupancy = %.4f\% \n", gpu_occupancy.get_occ_fraction() * 100);
@@ -1750,7 +1721,6 @@ void gpgpu_sim::cycle()
                shader_print_scheduler_stat( stdout, false );
          }
       }
-      //if (gpu_sim_cycle > 500) {
 
       if (!(gpu_sim_cycle % 50000)) {
          // deadlock detection 
@@ -1767,7 +1737,6 @@ void gpgpu_sim::cycle()
       //launch device kernel
       launch_one_device_kernel();
 #endif
-     //printf("Cycle %d \n", gpu_sim_insn);
    }
 }
 

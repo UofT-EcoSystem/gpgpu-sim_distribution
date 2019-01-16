@@ -1109,7 +1109,6 @@ public:
         }
     }
 protected:
-    pipelined_simd_unit( register_set* result_port, const shader_core_config *config, unsigned max_latency, shader_core_ctx *core , bool is_ldst);
     unsigned m_pipeline_depth;
     warp_inst_t **m_pipeline_reg;
     register_set *m_result_port;
@@ -1251,12 +1250,7 @@ public:
         case MEMORY_BARRIER_OP: break;
         default: return false;
         }
-        for (unsigned j = 0 ; j < m_mem_units; j++) {
-            if (m_dispatch_reg[j]->empty()) {
-                return true;
-            }
-        }
-        return false;
+        return m_dispatch_reg->empty();
     }
 
     virtual void active_lanes_in_pipeline();
@@ -1315,12 +1309,7 @@ protected:
    class shader_core_ctx *m_core;
    unsigned m_sid;
    unsigned m_tpc;
-   unsigned m_mem_units;
-   unsigned m_cycle_ratio;
-   std::vector<warp_inst_t*> m_dispatch_reg;
 
-   std::vector<warp_inst_t **> m_pipeline_reg;
-   std::vector<std::bitset<MAX_ALU_LATENCY>> occupied;
    tex_cache *m_L1T; // texture cache
    read_only_cache *m_L1C; // constant cache
    l1_cache *m_L1D; // data cache
@@ -1329,8 +1318,8 @@ protected:
    opndcoll_rfu_t *m_operand_collector;
    Scoreboard *m_scoreboard;
 
-   std::vector<mem_fetch *> m_next_global;
-   std::vector<warp_inst_t> m_next_wb;
+   mem_fetch *m_next_global;
+   warp_inst_t m_next_wb;
    unsigned m_writeback_arb; // round-robin arbiter for writeback contention between L1T, L1C, shared
    unsigned m_num_writeback_clients;
 
@@ -1469,7 +1458,6 @@ struct shader_core_config : public core_config
     bool gpgpu_dwf_reg_bankconflict;
 
     int gpgpu_num_sched_per_core;
-    int gpgpu_num_insn_buff_per_core;
     int gpgpu_max_insn_issue_per_warp;
     bool gpgpu_dual_issue_diff_exec_units;
 
@@ -1959,7 +1947,6 @@ public:
 	 void inc_simt_to_mem(unsigned n_flits){ m_stats->n_simt_to_mem[m_sid] += n_flits; }
 	 bool check_if_non_released_reduction_barrier(warp_inst_t &inst);
 
-    unsigned m_cycle_ratio;
 	private:
 	 unsigned inactive_lanes_accesses_sfu(unsigned active_count,double latency){
       return  ( ((32-active_count)>>1)*latency) + ( ((32-active_count)>>3)*latency) + ( ((32-active_count)>>3)*latency);
@@ -2029,7 +2016,7 @@ public:
     // decode/dispatch
     std::vector<shd_warp_t>   m_warp;   // per warp information array
     barrier_set_t             m_barriers;
-    std::vector<ifetch_buffer_t>           m_inst_fetch_buffer;
+    ifetch_buffer_t           m_inst_fetch_buffer;
     std::vector<register_set> m_pipeline_reg;
     Scoreboard               *m_scoreboard;
     opndcoll_rfu_t            m_operand_collector;
@@ -2059,6 +2046,7 @@ public:
     // is that the dynamic_warp_id is a running number unique to every warp
     // run on this shader, where the warp_id is the static warp slot.
     unsigned m_dynamic_warp_id;
+
     //Jin: concurrent kernels on a sm
 public:
     bool can_issue_1block(kernel_info_t & kernel);
@@ -2070,7 +2058,6 @@ private:
     unsigned int m_occupied_shmem; 
     unsigned int m_occupied_regs;
     unsigned int m_occupied_ctas;
-    unsigned int m_cycle_mask;
     std::bitset<MAX_THREAD_PER_SM> m_occupied_hwtid;
     std::map<unsigned int, unsigned int> m_occupied_cta_to_hwtid; 
 
