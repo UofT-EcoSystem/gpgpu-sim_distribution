@@ -354,8 +354,10 @@ struct _cuda_device_id *GPGPUSim_Init()
 
 		cudaDeviceProp *prop = (cudaDeviceProp *) calloc(sizeof(cudaDeviceProp),1);
 		snprintf(prop->name,256,"GPGPU-Sim_v%s", g_gpgpusim_version_string );
-		prop->major = 5;
-		prop->minor = 2;
+//		prop->major = 5;
+//		prop->minor = 2;
+		prop->major = 7;
+		prop->minor = 0;
 		prop->totalGlobalMem = 0x80000000 /* 2 GB */;
 		prop->memPitch = 0;
 		if(prop->major >= 2) {
