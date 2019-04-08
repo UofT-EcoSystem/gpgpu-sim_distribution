@@ -39,6 +39,10 @@ cscope*
 tags
 regression.sh
 
+.cproject
+.project
+.settings/
+
 #gcov
 *.gcov
 *.gcda
