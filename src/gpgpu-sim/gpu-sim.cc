@@ -637,6 +637,7 @@ bool gpgpu_sim::get_more_cta_left() const
 
 kernel_info_t *gpgpu_sim::select_kernel()
 {
+	// pick the current running kernel
     if(m_running_kernels[m_last_issued_kernel] &&
         !m_running_kernels[m_last_issued_kernel]->no_more_ctas_to_run()) {
         unsigned launch_uid = m_running_kernels[m_last_issued_kernel]->get_uid(); 
@@ -648,6 +649,7 @@ kernel_info_t *gpgpu_sim::select_kernel()
         return m_running_kernels[m_last_issued_kernel];
     }
 
+    // pick a new kernel
     for(unsigned n=0; n < m_running_kernels.size(); n++ ) {
         unsigned idx = (n+m_last_issued_kernel+1)%m_config.max_concurrent_kernel;
         if( kernel_more_cta_left(m_running_kernels[idx]) ){

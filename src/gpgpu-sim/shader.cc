@@ -846,7 +846,7 @@ void shader_core_ctx::func_exec_inst( warp_inst_t &inst )
     execute_warp_inst_t(inst);
     if( inst.is_load() || inst.is_store() )
     {
-	inst.generate_mem_accesses();
+    	inst.generate_mem_accesses();
         //inst.print_m_accessq();	
     }	
 }
@@ -1127,7 +1127,7 @@ void scheduler_unit::cycle()
                                     previous_issued_inst_exec_type = exec_unit_type_t::SFU;
                                 }
                             }                         
-                             else if ( (pI->op == TENSOR_CORE_OP) && !(diff_exec_units && previous_issued_inst_exec_type == exec_unit_type_t::SP) ) {
+                             else if ( (pI->op == TENSOR_CORE_OP) && !(diff_exec_units && previous_issued_inst_exec_type == exec_unit_type_t::TENSOR) ) {
                                 if( tensor_core_pipe_avail ) {
                                     m_shader->issue_warp(*m_tensor_core_out,pI,active_mask,warp_id,m_id);
                                     issued++;
@@ -2907,6 +2907,9 @@ unsigned int shader_core_config::max_cta( const kernel_info_t &k ) const
    unsigned int result_shmem = (unsigned)-1;
    if (kernel_info->smem > 0)
       result_shmem = gpgpu_shmem_size / kernel_info->smem;
+//	   result_shmem = gpgpu_shmem_size / 69632;
+
+//   printf("shared memory of the kernel: %d\n", kernel_info->smem);
 
    //Limit by register count, rounded up to multiple of 4.
    unsigned int result_regs = (unsigned)-1;
@@ -2953,8 +2956,10 @@ unsigned int shader_core_config::max_cta( const kernel_info_t &k ) const
     	//For Volta, we assign the remaining shared memory to L1 cache
     	//For more info, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#shared-memory-7-x
     	unsigned total_shmed = kernel_info->smem * result;
+//    	unsigned total_shmed = 69632 * result;
     	assert(total_shmed >=0 && total_shmed <= gpgpu_shmem_size);
-    	assert(gpgpu_shmem_size == 98304); //Volta has 96 KB shared
+    	// FIXME: this assertion might fail if the cache has been reconfigured by a concurrent kernel
+//    	assert(gpgpu_shmem_size == 98304); //Volta has 96 KB shared
     	assert(m_L1D_config.get_nset() == 4);  //Volta L1 has four sets
     	if(total_shmed < gpgpu_shmem_size){
     		if(total_shmed == 0)

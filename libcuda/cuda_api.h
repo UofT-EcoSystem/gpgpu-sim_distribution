@@ -70,7 +70,7 @@ typedef uint64_t cuuint64_t;
         #error "Unsupported value of CUDA_FORCE_API_VERSION"
     #endif
 #else
-    #define __CUDA_API_VERSION 8000
+    #define __CUDA_API_VERSION 9000
 #endif /* CUDA_FORCE_API_VERSION */
 
 #if defined(__CUDA_API_VERSION_INTERNAL) || defined(CUDA_API_PER_THREAD_DEFAULT_STREAM)
@@ -200,7 +200,7 @@ typedef uint64_t cuuint64_t;
 /**
  * CUDA API version number
  */
-#define CUDA_VERSION 8000
+#define CUDA_VERSION 9000
 
 #ifdef __cplusplus
 extern "C" {
@@ -234,9 +234,11 @@ typedef struct CUgraphicsResource_st *CUgraphicsResource; /**< CUDA graphics int
 typedef unsigned long long CUtexObject;                   /**< An opaque value that represents a CUDA texture object */
 typedef unsigned long long CUsurfObject;                  /**< An opaque value that represents a CUDA surface object */
 
+#if __CUDA_API_VERSION <= 9100
 typedef struct CUuuid_st {                                /**< CUDA definition of UUID */
     char bytes[16];
 } CUuuid;
+#endif
 
 
 #if __CUDA_API_VERSION >= 4010
