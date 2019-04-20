@@ -590,6 +590,10 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
    for(n=0; n < m_running_kernels.size(); n++ ) {
        if( (NULL==m_running_kernels[n]) || m_running_kernels[n]->done() ) {
            m_running_kernels[n] = kinfo;
+           printf("\n\n\nLaunching kernel @ sim_cycle: %d + total: %d!!\n\n\n", gpu_sim_cycle, gpu_tot_sim_cycle);
+
+           // block the next kernel launch for default_launch_wait_cycle
+           m_blocked_launch_cycle = default_launch_wait_cycle;
            break;
        }
    }
@@ -598,6 +602,10 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
 
 bool gpgpu_sim::can_start_kernel()
 {
+   if (m_blocked_launch_cycle != 0) {
+	   return false;
+   }
+
    for(unsigned n=0; n < m_running_kernels.size(); n++ ) {
        if( (NULL==m_running_kernels[n]) || m_running_kernels[n]->done() ) 
            return true;
@@ -759,6 +767,8 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
    //Jin: functional simulation for CDP
    m_functional_sim = false;
    m_functional_sim_kernel = NULL;
+
+   m_blocked_launch_cycle = 0;
 }
 
 int gpgpu_sim::shared_mem_size() const
@@ -1634,6 +1644,7 @@ void gpgpu_sim::cycle()
           raise(SIGTRAP); // Debug breakpoint
       }
 	 gpu_sim_cycle++;
+	 dec_wait_cycle();
 	
       if( g_interactive_debugger_enabled ) 
          gpgpu_debug();

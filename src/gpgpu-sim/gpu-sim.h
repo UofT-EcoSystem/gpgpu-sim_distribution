@@ -479,7 +479,11 @@ public:
     */
     simt_core_cluster * getSIMTCluster();
 
-
+    // Serina: let stream_manager decrement this
+    void dec_wait_cycle() {
+ 	   if (m_blocked_launch_cycle>0)
+ 		   --m_blocked_launch_cycle;
+    }
 private:
    // clocks
    void reinit_clock_domains(void);
@@ -503,6 +507,11 @@ private:
 
    std::vector<kernel_info_t*> m_running_kernels;
    unsigned m_last_issued_kernel;
+
+   // FIXME: read from config instead
+   const unsigned default_launch_wait_cycle = 64;
+   //block the next kernel launch until the previous one is done first round scheduling
+   unsigned m_blocked_launch_cycle;
 
    std::list<unsigned> m_finished_kernel;
    // m_total_cta_launched == per-kernel count. gpu_tot_issued_cta == global count.
