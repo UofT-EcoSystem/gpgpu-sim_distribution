@@ -221,6 +221,7 @@ public:
        m_num_cores_running--; 
    }
    bool running() const { return m_num_cores_running>0; }
+   unsigned num_running() { return m_num_cores_running; }
    bool done() const 
    {
        return no_more_ctas_to_run() && !running();

@@ -675,6 +675,56 @@ kernel_info_t *gpgpu_sim::select_kernel()
     return NULL;
 }
 
+bool gpgpu_sim::candidate_kernel(kernel_info_t* victim, kernel_info_t* candidate) {
+	const unsigned max_cta_gpu = m_config.gpu_max_cta_opt
+			                     * m_shader_config->n_simt_clusters
+			                     * m_shader_config->n_simt_cores_per_cluster;
+
+	unsigned num_running_kernels = 0;
+	unsigned candidate_idx = -1;
+	unsigned victim_idx = -1;
+	unsigned min_cta = max_cta_gpu;
+	unsigned max_cta = 0;
+
+	for (unsigned n = 0; n < m_running_kernels.size(); n++) {
+		unsigned idx = (n + m_last_issued_kernel + 1)
+							% m_config.max_concurrent_kernel;
+		if (m_running_kernels[idx]) {
+			num_running_kernels++;
+		}
+		// always pick the kernel with the least number of running ctas
+		if (kernel_more_cta_left(m_running_kernels[idx])
+				&& m_running_kernels[idx]->num_running() < min_cta) {
+			min_cta = m_running_kernels[idx]->num_running();
+			candidate_idx = idx;
+		} else if (m_running_kernels[idx] > max_cta) {
+			max_cta = m_running_kernels[idx]->num_running();
+			victim_idx = idx;
+		}
+	}
+
+	if (num_running_kernels < 2) {
+		// nothing to preempt
+		return false;
+	}
+
+	// FIXME: this might never happen becuz the candidate kernel consumes so much resource
+	// that we can't get half of the ctas to run on the gpu
+	const unsigned cta_per_kernel = max_cta_gpu / num_running_kernels;
+
+	if (candidate_idx != victim_idx && m_running_kernels[candidate_idx]->num_running() < cta_per_kernel) {
+		printf(">>>>>>>>>>>>>>>>> candidate kernel:%d \n",
+				m_running_kernels[candidate_idx]->get_uid());
+
+		victim = m_running_kernels[victim_idx];
+		candidate = m_running_kernels[candidate_idx];
+
+		return true;
+	}
+
+	return false;
+}
+
 unsigned gpgpu_sim::finished_kernel()
 {
     if( m_finished_kernel.empty() ) 
@@ -1487,6 +1537,16 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     init_warps( free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel.get_uid());
     m_n_active_cta++;
 
+    // store kernel to cta info
+    unsigned kernel_id = kernel.get_uid();
+    if (m_kernel2ctas.find(kernel_id) == m_kernel2ctas.end()) {
+    	// this core is running this kernel for the first time
+    	m_kernel2ctas[kernel_id] = std::list<unsigned>();
+    	m_kernel2ctas[kernel_id].push_back(free_cta_hw_id);
+    } else {
+    	m_kernel2ctas[kernel_id].push_back(free_cta_hw_id);
+    }
+
     shader_CTA_count_log(m_sid, 1);
     SHADER_DPRINTF(LIVENESS, "GPGPU-Sim uArch: cta:%2u, start_tid:%4u, end_tid:%4u, initialized @(%lld,%lld)\n", 
         free_cta_hw_id, start_thread, end_thread, gpu_sim_cycle, gpu_tot_sim_cycle );
@@ -1760,6 +1820,78 @@ void shader_core_ctx::dump_warp_state( FILE *fout ) const
    fprintf(fout, "per warp functional simulation status:\n");
    for (unsigned w=0; w < m_config->max_warps_per_shader; w++ ) 
        m_warp[w].print(fout);
+}
+
+bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candidate) {
+	if (is_preemption_wip())
+		return false;
+
+	// first, calculate how many ctas of victim needs to be swapped out to
+	// allocate one block of candidate
+
+	unsigned int vic_padded_cta_size = victim->threads_per_cta();
+	unsigned int can_padded_cta_size = candidate->threads_per_cta();
+
+	const unsigned int warp_size = m_config->warp_size;
+
+	if (vic_padded_cta_size%warp_size)
+		vic_padded_cta_size = ((vic_padded_cta_size/warp_size)+1)*(warp_size);
+
+	if (can_padded_cta_size%warp_size)
+		can_padded_cta_size = ((can_padded_cta_size/warp_size)+1)*(warp_size);
+
+	const struct gpgpu_ptx_sim_info *vic_info = ptx_sim_kernel_info(victim->entry());
+	const struct gpgpu_ptx_sim_info *can_info = ptx_sim_kernel_info(candidate->entry());
+
+	unsigned num_ctas = 1;
+	unsigned prev_ctas;
+
+	// iteratively determine how many ctas of victim are needed
+	while(true) {
+		// 1. check hw thread slots
+
+		// 2. check cta slots
+
+		// 3. check shared memory usage
+
+		// 4. check register usage
+
+	}
+
+	const unsigned smem_ratio = ceil((float)vic_info->smem / can_info->smem);
+	const unsigned reg_ratio =
+
+	if(kernel_info->smem > m_config->gpgpu_shmem_size)
+		return false;
+
+	unsigned int used_regs = padded_cta_size * ((kernel_info->regs+3)&~3);
+	if(m_occupied_regs + used_regs > m_config->gpgpu_shader_registers)
+		return false;
+
+	if(m_occupied_ctas +1 > m_config->max_cta_per_core)
+		return false;
+
+
+
+
+
+
+
+
+	// second, check if this core can afford to swap out ALL victim ctas
+	if (m_kernel2ctas[victim_id] && m_kernel2ctas[victim_id].size() >= num_ctas) {
+		// preempt the back of the list (younger TBs)
+		unsigned num_preempted = 0;
+		for (auto rit = m_kernel2ctas[victim_id].rbegin(); rit != m_kernel2ctas[victim_id].rend(); ++rit) {
+			m_preempted_ctas.push_back(*rit);
+			++num_preempted;
+
+			if (num_preempted == num_ctas)
+				return true;
+		}
+	}
+
+	return false;
 }
 
 

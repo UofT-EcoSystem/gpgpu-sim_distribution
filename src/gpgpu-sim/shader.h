@@ -2053,6 +2053,10 @@ public:
     bool occupy_shader_resource_1block(kernel_info_t & kernel, bool occupy);
     void release_shader_resource_1block(unsigned hw_ctaid, kernel_info_t & kernel);
     int find_available_hwtid(unsigned int cta_size, bool occupy);
+
+    // handle partial context switching
+    bool is_preemption_wip() { return !m_preempted_ctas.empty(); }
+    bool preempt_ctas(kernel_info_t* victim, kernel_info_t* candidate);
 private:
     unsigned int m_occupied_n_threads; 
     unsigned int m_occupied_shmem; 
@@ -2060,6 +2064,10 @@ private:
     unsigned int m_occupied_ctas;
     std::bitset<MAX_THREAD_PER_SM> m_occupied_hwtid;
     std::map<unsigned int, unsigned int> m_occupied_cta_to_hwtid; 
+
+    // need to store kernel to cta info
+    std::map<unsigned, std::list<unsigned>> m_kernel2ctas;
+    std::list<unsigned> m_preempted_ctas;
 
 
 };

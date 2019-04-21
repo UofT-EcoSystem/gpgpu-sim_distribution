@@ -2431,6 +2431,13 @@ void shader_core_ctx::register_cta_thread_exit( unsigned cta_num, kernel_info_t 
 
       //Jin: for concurrent kernels on sm
       release_shader_resource_1block(cta_num, *kernel);
+
+      // erase cta id from kernel to cta mapping
+      auto cta_it = std::find(m_kernel2ctas[kernel->get_uid()].begin(),
+    		                  m_kernel2ctas[kernel->get_uid()].end(),
+							  cta_num);
+      m_kernel2ctas[kernel->get_uid()].erase(cta_it);
+
       kernel->dec_running();
       if( !m_gpu->kernel_more_cta_left(kernel) ) {
           if( !kernel->running() ) {
@@ -3818,9 +3825,26 @@ unsigned simt_core_cluster::issue_block2core()
         kernel_info_t * kernel;
          //Jin: fetch kernel according to concurrent kernel setting
         if(m_config->gpgpu_concurrent_kernel_sm) {//concurrent kernel on sm 
-            //always select latest issued kernel
-            kernel_info_t *k = m_gpu->select_kernel();
-            kernel = k;
+        	// first, check if there is a candidate kernel that should initiate preemption
+        	kernel_info_t* victim, *candidate;
+        	bool should_preempt = m_gpu->candidate_kernel(victim, candidate);
+
+        	if (should_preempt) {
+        		if (m_core[core]->can_issue_1block(*candidate)) {
+        			kernel = candidate;
+        		} else {
+        			if (m_core[core]->)
+        			// check what is the victim kernel and how many ctas need to be swapped out
+        			// mark preemption if not already mark
+
+        			continue;
+        		}
+        	} else {
+        		//always select latest issued kernel
+        		kernel_info_t *k = m_gpu->select_kernel();
+        		kernel = k;
+        	}
+
         }
         else {
             //first select core kernel, if no more cta, get a new kernel
