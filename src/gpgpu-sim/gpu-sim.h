@@ -450,7 +450,7 @@ public:
    bool kernel_more_cta_left(kernel_info_t *kernel) const;
    bool hit_max_cta_count() const;
    kernel_info_t *select_kernel();
-   bool gpgpu_sim::candidate_kernel(kernel_info_t* victim, kernel_info_t* candidate);
+   bool candidate_kernel(kernel_info_t* victim, kernel_info_t* candidate);
 
    const gpgpu_sim_config &get_config() const { return m_config; }
    void gpu_print_stat();

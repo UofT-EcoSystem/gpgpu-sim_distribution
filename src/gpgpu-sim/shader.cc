@@ -3833,13 +3833,14 @@ unsigned simt_core_cluster::issue_block2core()
         		if (m_core[core]->can_issue_1block(*candidate)) {
         			kernel = candidate;
         		} else {
-        			if (m_core[core]->)
         			// check what is the victim kernel and how many ctas need to be swapped out
-        			// mark preemption if not already mark
+        			// do nothing if preemption is already in progress
+        			m_core[core]->preempt_ctas(victim, candidate);
 
         			continue;
         		}
-        	} else {
+        	}
+        	else {
         		//always select latest issued kernel
         		kernel_info_t *k = m_gpu->select_kernel();
         		kernel = k;

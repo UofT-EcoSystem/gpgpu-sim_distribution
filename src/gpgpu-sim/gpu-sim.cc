@@ -697,7 +697,7 @@ bool gpgpu_sim::candidate_kernel(kernel_info_t* victim, kernel_info_t* candidate
 				&& m_running_kernels[idx]->num_running() < min_cta) {
 			min_cta = m_running_kernels[idx]->num_running();
 			candidate_idx = idx;
-		} else if (m_running_kernels[idx] > max_cta) {
+		} else if (m_running_kernels[idx]->num_running() > max_cta) {
 			max_cta = m_running_kernels[idx]->num_running();
 			victim_idx = idx;
 		}
@@ -1331,21 +1331,40 @@ bool shader_core_ctx::can_issue_1block(kernel_info_t & kernel) {
    } 
 }
 
-int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy) {
+int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy, bool from_top) {
    
    unsigned int step;
-   for(step = 0; step < m_config->n_thread_per_shader; 
-        step += cta_size) {
 
-        unsigned int hw_tid;
-        for(hw_tid = step; hw_tid < step + cta_size;
-            hw_tid++) {
-            if(m_occupied_hwtid.test(hw_tid))
-                break;
-        }
-        if(hw_tid == step + cta_size) //consecutive non-active
-            break;
+
+   if (from_top) {
+	   for(step = 0; step < m_config->n_thread_per_shader;
+			   step += cta_size) {
+
+		   unsigned int hw_tid;
+		   for(hw_tid = step; hw_tid < step + cta_size;
+				   hw_tid++) {
+			   if(m_occupied_hwtid.test(hw_tid))
+				   break;
+		   }
+		   if(hw_tid == step + cta_size) //consecutive non-active
+			   break;
+	   }
+   } else {
+	   for(step = m_config->n_thread_per_shader-cta_size; step >= 0;
+			   step -= cta_size) {
+
+		   unsigned int hw_tid;
+		   for(hw_tid = step; hw_tid < step + cta_size;
+				   hw_tid++) {
+			   if(m_occupied_hwtid.test(hw_tid))
+				   break;
+		   }
+		   if(hw_tid == step + cta_size) //consecutive non-active
+			   break;
+	   }
    }
+
+
    if(step >= m_config->n_thread_per_shader) //didn't find
      return -1;
    else {
@@ -1369,7 +1388,7 @@ bool shader_core_ctx::occupy_shader_resource_1block(kernel_info_t & k, bool occu
    if(m_occupied_n_threads + padded_cta_size > m_config->n_thread_per_shader)
      return false;
 
-   if(find_available_hwtid(padded_cta_size, false) == -1)
+   if(find_available_hwtid(padded_cta_size, false, k.allocate_from_top()) == -1)
      return false;
 
    const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(kernel);
@@ -1454,15 +1473,35 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     unsigned free_cta_hw_id=(unsigned)-1;
 
     unsigned max_cta_per_core;
-    if(!m_config->gpgpu_concurrent_kernel_sm)
+    if(!m_config->gpgpu_concurrent_kernel_sm) {
         max_cta_per_core = kernel_max_cta_per_shader;
-    else
+
+        // cta slot 2-way allocation
+        if(kernel.allocate_from_top()) {
+        	for (unsigned i=0;i<max_cta_per_core;i++ ) {
+        		if( m_cta_status[i]==0 ) {
+        			free_cta_hw_id=i;
+        			break;
+        		}
+        	}
+        } else {
+        	for (unsigned i=max_cta_per_core-1;i>=0;i-- ) {
+        		if( m_cta_status[i]==0 ) {
+        			free_cta_hw_id=i;
+        			break;
+        		}
+        	}
+        }
+    }
+    else {
         max_cta_per_core = m_config->max_cta_per_core;
-    for (unsigned i=0;i<max_cta_per_core;i++ ) {
-      if( m_cta_status[i]==0 ) {
-         free_cta_hw_id=i;
-         break;
-      }
+
+        for (unsigned i=0;i<max_cta_per_core;i++ ) {
+        	if( m_cta_status[i]==0 ) {
+        		free_cta_hw_id=i;
+        		break;
+        	}
+        }
     }
     assert( free_cta_hw_id!=(unsigned)-1 );
 
@@ -1483,7 +1522,7 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         end_thread  = start_thread +  cta_size;
     }
     else {
-        start_thread = find_available_hwtid(padded_cta_size, true);
+        start_thread = find_available_hwtid(padded_cta_size, true, kernel.allocate_from_top());
         assert((int)start_thread != -1);
         end_thread = start_thread + cta_size;
         assert(m_occupied_cta_to_hwtid.find(free_cta_hw_id) == m_occupied_cta_to_hwtid.end());
@@ -1541,7 +1580,8 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     unsigned kernel_id = kernel.get_uid();
     if (m_kernel2ctas.find(kernel_id) == m_kernel2ctas.end()) {
     	// this core is running this kernel for the first time
-    	m_kernel2ctas[kernel_id] = std::list<unsigned>();
+    	m_kernel2ctas[kernel_id] = std::vector<unsigned>();
+    	m_kernel2ctas[kernel_id].reserve(m_config->max_cta_per_core);
     	m_kernel2ctas[kernel_id].push_back(free_cta_hw_id);
     } else {
     	m_kernel2ctas[kernel_id].push_back(free_cta_hw_id);
@@ -1826,6 +1866,9 @@ bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candida
 	if (is_preemption_wip())
 		return false;
 
+	if (m_kernel2ctas.count(victim->get_uid()) == 0)
+		return false;
+
 	// first, calculate how many ctas of victim needs to be swapped out to
 	// allocate one block of candidate
 
@@ -1843,55 +1886,64 @@ bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candida
 	const struct gpgpu_ptx_sim_info *vic_info = ptx_sim_kernel_info(victim->entry());
 	const struct gpgpu_ptx_sim_info *can_info = ptx_sim_kernel_info(candidate->entry());
 
+	const unsigned vic_smem = vic_info->smem;
+	const unsigned can_smem = can_info->smem;
+	const unsigned vic_reg = vic_padded_cta_size * ((vic_info->regs+3)&~3);
+	const unsigned can_reg = can_padded_cta_size * ((can_info->regs+3)&~3);
+
 	unsigned num_ctas = 1;
-	unsigned prev_ctas;
 
 	// iteratively determine how many ctas of victim are needed
-	while(true) {
-		// 1. check hw thread slots
+	while(num_ctas <= m_kernel2ctas[victim->get_uid()].size()) {
 
-		// 2. check cta slots
+		// check shared memory usage
+		if (m_occupied_shmem - num_ctas * vic_smem + can_smem < m_config->gpgpu_shmem_size)
+			// check register usage
+			if (m_occupied_regs - num_ctas * vic_reg + can_reg < m_config->gpgpu_shader_registers)
+				// check hw thread slots
+				if(m_occupied_n_threads - num_ctas * vic_padded_cta_size + can_padded_cta_size < m_config->n_thread_per_shader)
+					break;
 
-		// 3. check shared memory usage
-
-		// 4. check register usage
-
+		++num_ctas;
 	}
 
-	const unsigned smem_ratio = ceil((float)vic_info->smem / can_info->smem);
-	const unsigned reg_ratio =
-
-	if(kernel_info->smem > m_config->gpgpu_shmem_size)
-		return false;
-
-	unsigned int used_regs = padded_cta_size * ((kernel_info->regs+3)&~3);
-	if(m_occupied_regs + used_regs > m_config->gpgpu_shader_registers)
-		return false;
-
-	if(m_occupied_ctas +1 > m_config->max_cta_per_core)
+	// give up now if we didn't find the number of victim ctas enough for one candidate cta
+	if (num_ctas > m_kernel2ctas[victim->get_uid()].size())
 		return false;
 
 
+	// mark preempted ctas
+	unsigned start_tid, end_tid;
+	std::vector<unsigned>::iterator start_cta_it, end_cta_it;
 
+	// sort victim ctas list (ascending order)
+	std::sort(m_kernel2ctas[victim->get_uid()].begin(), m_kernel2ctas[victim->get_uid()].end());
 
+	if (victim->allocate_from_top()) {
+		start_cta_it = m_kernel2ctas[victim->get_uid()].end() - num_ctas;
+		start_tid = m_occupied_cta_to_hwtid[*start_cta_it];
 
+		end_cta_it = m_kernel2ctas[victim->get_uid()].end() - 1;
+		end_tid = m_occupied_cta_to_hwtid[*end_cta_it] + vic_padded_cta_size;
 
+	} else {
+		start_cta_it = m_kernel2ctas[victim->get_uid()].begin();
+		start_tid = m_occupied_cta_to_hwtid[*start_cta_it];
 
-
-	// second, check if this core can afford to swap out ALL victim ctas
-	if (m_kernel2ctas[victim_id] && m_kernel2ctas[victim_id].size() >= num_ctas) {
-		// preempt the back of the list (younger TBs)
-		unsigned num_preempted = 0;
-		for (auto rit = m_kernel2ctas[victim_id].rbegin(); rit != m_kernel2ctas[victim_id].rend(); ++rit) {
-			m_preempted_ctas.push_back(*rit);
-			++num_preempted;
-
-			if (num_preempted == num_ctas)
-				return true;
-		}
+		end_cta_it = m_kernel2ctas[victim->get_uid()].begin() + num_ctas - 1;
+		end_tid = m_occupied_cta_to_hwtid[*end_cta_it] + vic_padded_cta_size;
 	}
 
-	return false;
+	// FIXME: can increase the number of preempted cta to find contiguous tids
+	// check if the range of tids belongs to victim kernel or simply idle
+	for (unsigned tid = start_tid; tid < end_tid; ++tid) {
+		if (m_occupied_hwtid.test(tid) && (m_thread[tid]->get_kernel().get_uid() != victim->get_uid()))
+			return false;
+	}
+
+	m_preempted_ctas = std::vector<unsigned>(start_cta_it, end_cta_it+1);
+
+	return true;
 }
 
 
