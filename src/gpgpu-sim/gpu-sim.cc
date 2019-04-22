@@ -1578,6 +1578,7 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     }
 
     if (kernel.has_preempted_cta()) {
+    	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>> Restore preempted cta for kernel %s on shader %d\n", kernel.name().c_str(), this->get_sid());
     	preempted_cta_context context = kernel.m_preempted_queue.front();
     	m_thread[start_thread]->m_shared_mem->load(context.shared_mem);
     }
@@ -1877,8 +1878,12 @@ void shader_core_ctx::dump_warp_state( FILE *fout ) const
 }
 
 bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candidate) {
-	if (is_preemption_wip())
+	if (is_preemption_wip()) {
+		if ((gpu_sim_cycle+ gpu_tot_sim_cycle) % 10000 == 0)
+			printf(">>>>>>>>>>>>>>>>>>>>> WIP: victim %s for candidate %s on shader %d\n", victim->name().c_str(), candidate->name().c_str(), this->m_sid);
+
 		return false;
+	}
 
 	if (m_kernel2ctas.count(victim->get_uid()) == 0)
 		return false;
@@ -1954,6 +1959,8 @@ bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candida
 		if (m_occupied_hwtid.test(tid) && (m_thread[tid]->get_kernel().get_uid() != victim->get_uid()))
 			return false;
 	}
+
+	printf(">>>>>>>>>>>>>>>>>>>>> Preempting %d ctas of victim %s for candidate %s on shader %d\n", num_ctas, victim->name().c_str(), candidate->name().c_str(), this->m_sid);
 
 	m_preempted_ctas = std::vector<unsigned>(start_cta_it, end_cta_it+1);
 

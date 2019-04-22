@@ -2464,6 +2464,9 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
     // store this context into the kernel
     kernel->m_preempted_queue.push(context);
 
+    printf(">>>>>>>>>>>>>>>>>> Store preempted context for kernel %s cta %d,%d,%d\n",
+    		kernel->name().c_str(), context.cta_id3d.x, context.cta_id3d.y, context.cta_id3d.z);
+
 }
 
 void shader_core_ctx::register_cta_thread_exit( unsigned cta_num, kernel_info_t * kernel)
@@ -3907,6 +3910,7 @@ unsigned simt_core_cluster::issue_block2core()
 
         	if (should_preempt) {
         		if (m_core[core]->can_issue_1block(*candidate)) {
+        			printf(">>>>>>>>>>>>>>>>>>>>>>>>> Should preempt: can fit the candidate: %s", candidate->name().c_str());
         			kernel = candidate;
         		} else {
         			// check what is the victim kernel and how many ctas need to be swapped out
