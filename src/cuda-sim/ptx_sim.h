@@ -307,6 +307,7 @@ public:
    const ptx_version &get_ptx_version() const;
    void set_reg( const symbol *reg, const ptx_reg_t &value );
    void print_reg_thread (char * fname);
+   void print_reg_thread_strbuf (char * buf);
    void resume_reg_thread(char * fname,  symbol_table * symtab);
    ptx_reg_t get_reg( const symbol *reg );
    ptx_reg_t get_operand_value( const operand_info &op, operand_info dstInfo, unsigned opType, ptx_thread_info *thread, int derefFlag );

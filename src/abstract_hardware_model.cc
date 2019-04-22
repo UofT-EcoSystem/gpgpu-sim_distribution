@@ -726,6 +726,35 @@ std::string kernel_info_t::name() const
     return m_kernel_entry->get_name();
 }
 
+void kernel_info_t::increment_cta_id()
+{
+	if (m_preempted_queue.empty()) {
+		increment_x_then_y_then_z(m_next_cta,m_grid_dim);
+	} else {
+		// free up char arrays in the context
+		preempted_cta_context context = m_preempted_queue.front();
+
+		for (auto lmem : context.local_mem)
+			delete [] lmem;
+
+		for (auto reg : context.regs)
+			delete [] reg;
+
+		delete [] context.shared_mem;
+
+		for (auto stack : context.simt_stack)
+			delete []  stack;
+
+		m_preempted_queue.pop();
+	}
+
+	// reset block-relative thread id regardless
+	m_next_tid.x=0;
+	m_next_tid.y=0;
+	m_next_tid.z=0;
+}
+
+
 //Jin: parent and child kernel management for CDP
 void kernel_info_t::set_parent(kernel_info_t * parent, 
     dim3 parent_ctaid, dim3 parent_tid) {

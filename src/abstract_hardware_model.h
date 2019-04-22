@@ -71,6 +71,7 @@ enum FuncCache
 #include <string.h>
 #include <stdio.h>
 #include <set>
+#include <queue>
 
 typedef unsigned long long new_addr_type;
 typedef unsigned address_type;
@@ -201,6 +202,16 @@ extern stream_manager * g_stream_manager;
 extern std::map<void *,void **> pinned_memory;
 extern std::map<void *, size_t> pinned_memory_size;
 
+
+struct preempted_cta_context {
+	unsigned cta_id;
+    dim3 cta_id3d;
+	std::vector<char*> regs; // per thread
+	std::vector<char*> local_mem; // per thread
+	char* shared_mem; // per block
+	std::vector<char*> simt_stack; // per warp
+};
+
 class kernel_info_t {
 public:
 //   kernel_info_t()
@@ -242,21 +253,29 @@ public:
    dim3 get_grid_dim() const { return m_grid_dim; }
    dim3 get_cta_dim() const { return m_block_dim; }
 
-   void increment_cta_id() 
-   { 
-      increment_x_then_y_then_z(m_next_cta,m_grid_dim); 
-      m_next_tid.x=0;
-      m_next_tid.y=0;
-      m_next_tid.z=0;
+   void increment_cta_id();
+
+   dim3 get_next_cta_id() const {
+	   if (m_preempted_queue.empty()) {
+		   return m_next_cta;
+	   } else {
+		   return m_preempted_queue.front().cta_id3d;
+	   }
    }
-   dim3 get_next_cta_id() const { return m_next_cta; }
    unsigned get_next_cta_id_single() const 
    {
-      return m_next_cta.x + m_grid_dim.x*m_next_cta.y + m_grid_dim.x*m_grid_dim.y*m_next_cta.z;
-    }
+	   if (m_preempted_queue.empty()) {
+		   return m_next_cta.x + m_grid_dim.x*m_next_cta.y + m_grid_dim.x*m_grid_dim.y*m_next_cta.z;
+	   } else {
+		   return m_preempted_queue.front().cta_id;
+	   }
+   }
    bool no_more_ctas_to_run() const 
    {
-      return (m_next_cta.x >= m_grid_dim.x || m_next_cta.y >= m_grid_dim.y || m_next_cta.z >= m_grid_dim.z );
+	   bool no_next_cta = (m_next_cta.x >= m_grid_dim.x || m_next_cta.y >= m_grid_dim.y || m_next_cta.z >= m_grid_dim.z );
+	   bool no_in_preempted_queue = m_preempted_queue.empty();
+
+       return no_next_cta && no_in_preempted_queue;
    }
 
    void increment_thread_id() { increment_x_then_y_then_z(m_next_tid,m_block_dim); }
@@ -277,6 +296,7 @@ public:
 
    bool allocate_from_top() {return (get_uid()%1 == 1);} // uid starts from 1
 
+   bool has_preempted_cta() {return !m_preempted_queue.empty();}
 private:
    kernel_info_t( const kernel_info_t & ); // disable copy constructor
    void operator=( const kernel_info_t & ); // disable copy operator
@@ -326,6 +346,9 @@ public:
    unsigned m_launch_latency;
 
    mutable bool volta_cache_config_set;
+
+
+   std::queue<preempted_cta_context> m_preempted_queue;
 };
 
 struct core_config {
@@ -390,6 +413,18 @@ public:
     void     print(FILE *fp) const;
     void     resume(char * fname) ;
     void    print_checkpoint (FILE *fout) const;
+	void print_context(char* buf) const {
+		for (unsigned k = 0; k < m_stack.size(); k++) {
+			simt_stack_entry stack_entry = m_stack[k];
+			for (unsigned j = 0; j < m_warp_size; j++)
+				sprintf(buf, "%c ",
+						(stack_entry.m_active_mask.test(j) ? '1' : '0'));
+			sprintf(buf, "%d %d %d %lld %d ", stack_entry.m_pc,
+					stack_entry.m_calldepth, stack_entry.m_recvg_pc,
+					stack_entry.m_branch_div_cycle, stack_entry.m_type);
+			sprintf(buf, "%d %d\n", m_warp_id, m_warp_size);
+		}
+	}
 
 protected:
     unsigned m_warp_id;

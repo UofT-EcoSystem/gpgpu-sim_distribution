@@ -27,6 +27,9 @@
 
 #include "memory.h"
 #include <stdlib.h>
+#include <iostream>
+#include <sstream>
+#include <string>
 #include "../debug.h"
 
 template<unsigned BSIZE> memory_space_impl<BSIZE>::memory_space_impl( std::string name, unsigned hash_size )
@@ -154,6 +157,50 @@ template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *forma
       fprintf(fout, "%s %08x:", m_name.c_str(), i_page->first);
       i_page->second.print(format, fout);
    }
+}
+
+template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *format, char *buf ) const
+{
+   typename map_t::const_iterator i_page;
+
+   for ( i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
+      sprintf(buf, "%s %08x:", m_name.c_str(), i_page->first);
+      i_page->second.print(format, buf);
+   }
+}
+
+template<unsigned BSIZE> void memory_space_impl<BSIZE>::load(char* buf)
+{
+	char* line , *line_saved;
+
+	unsigned int offset ;
+	for ( line = strtok_r(buf, "\n", &line_saved); line; line = strtok_r(NULL, "\n", &line_saved) ) /* read a line */
+	{
+		unsigned int index;
+		char * pch, *saved;
+		pch = strtok_r (line," ", &saved);
+		if (pch[0]=='g' || pch[0]=='s' || pch[0]=='l')
+		{
+
+			pch = strtok (NULL, " ");
+
+			std::stringstream ss;
+			ss << std::hex << pch;
+			ss >> index;
+
+			offset=0;
+		}
+		else {
+			unsigned int  data;
+			std::stringstream ss;
+			ss << std::hex << pch;
+			ss >> data;
+			this->write_only(offset,index, 4,&data);
+			offset= offset+4;
+		}
+		//fputs ( line, stdout ); /* write the line */
+	}
+
 }
 
 template<unsigned BSIZE> void memory_space_impl<BSIZE>::set_watch( addr_t addr, unsigned watchpoint ) 

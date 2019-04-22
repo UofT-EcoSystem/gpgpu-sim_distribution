@@ -1546,6 +1546,7 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         nthreads_in_block += ptx_sim_init_thread(kernel,&m_thread[i],m_sid,i,cta_size-(i-start_thread),m_config->n_thread_per_shader,this,free_cta_hw_id,warp_id,m_cluster->get_gpu());
         m_threadState[i].m_active = true; 
         // load thread local memory and register file
+        // checkpoint?
         if(m_gpu->resume_option==1 && kernel.get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA && ctaid<m_gpu->checkpoint_CTA_t )
         {
             char fname[2048];
@@ -1554,6 +1555,13 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
             char f1name[2048];
             snprintf(f1name,2048,"checkpoint_files/local_mem_thread_%d_%d_reg.txt",i%cta_size,ctaid);
             g_checkpoint->load_global_mem(m_thread[i]->m_local_mem, f1name); 
+        }
+
+        // preempted?
+        if (kernel.has_preempted_cta()) {
+        	preempted_cta_context context = kernel.m_preempted_queue.front();
+        	m_thread[i]->resume_reg_thread(context.regs[i], symtab);
+        	m_thread[i]->m_local_mem->load(context.local_mem[i]);
         }
         //
         warps.set( warp_id );
@@ -1568,12 +1576,18 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         
         g_checkpoint->load_global_mem(m_thread[start_thread]->m_shared_mem, f1name);  
     }
+
+    if (kernel.has_preempted_cta()) {
+    	preempted_cta_context context = kernel.m_preempted_queue.front();
+    	m_thread[start_thread]->m_shared_mem->load(context.shared_mem);
+    }
+
     // now that we know which warps are used in this CTA, we can allocate
     // resources for use in CTA-wide barrier operations
     m_barriers.allocate_barrier(free_cta_hw_id,warps);
 
     // initialize the SIMT stacks and fetch hardware
-    init_warps( free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, kernel.get_uid());
+    init_warps( free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, &kernel);
     m_n_active_cta++;
 
     // store kernel to cta info

@@ -1956,7 +1956,7 @@ public:
 	 }
 
     int test_res_bus(int latency);
-    void init_warps(unsigned cta_id, unsigned start_thread, unsigned end_thread,unsigned ctaid, int cta_size, unsigned kernel_id);
+    void init_warps(unsigned cta_id, unsigned start_thread, unsigned end_thread,unsigned ctaid, int cta_size, kernel_info_t* kernel);
     virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t, unsigned tid);
     address_type next_pc( int tid ) const;
     void fetch();
@@ -2057,6 +2057,11 @@ public:
     // handle partial context switching
     bool is_preemption_wip() { return !m_preempted_ctas.empty(); }
     bool preempt_ctas(kernel_info_t* victim, kernel_info_t* candidate);
+    void store_preempted_context(unsigned cta_num, kernel_info_t* kernel);
+    bool is_cta_preempted(unsigned cta_id) {
+    	return std::find(m_preempted_ctas.begin(), m_preempted_ctas.end(), cta_id)
+    	                != m_preempted_ctas.end();
+    }
 private:
     unsigned int m_occupied_n_threads; 
     unsigned int m_occupied_shmem; 

@@ -440,7 +440,7 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread, bool re
    }
 }
 
-void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsigned end_thread, unsigned ctaid, int cta_size, unsigned kernel_id )
+void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsigned end_thread, unsigned ctaid, int cta_size, kernel_info_t* kernel )
 {
     address_type start_pc = next_pc(start_thread);
     if (m_config->model == POST_DOMINATOR) {
@@ -461,7 +461,7 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
             }
             m_simt_stack[i]->launch(start_pc,active_threads);
 
-              if(m_gpu->resume_option==1 && kernel_id==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA && ctaid<m_gpu->checkpoint_CTA_t )
+              if(m_gpu->resume_option==1 && kernel->get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA && ctaid<m_gpu->checkpoint_CTA_t )
                { 
                 char fname[2048];
                 snprintf(fname,2048,"checkpoint_files/warp_%d_%d_simt.txt",i%warp_per_cta,ctaid );
@@ -473,6 +473,20 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
                   m_thread[i * m_config->warp_size + t]->update_pc();
                 }   
                 start_pc=pc;
+              }
+
+              if (kernel->has_preempted_cta()) {
+            	  preempted_cta_context context = kernel->m_preempted_queue.front();
+
+            	  // restore simt stack
+            	  unsigned pc,rpc;
+            	  m_simt_stack[i]->resume(context.simt_stack[i]);
+            	  m_simt_stack[i]->get_pdom_stack_top_info(&pc,&rpc);
+            	  for (unsigned t = 0; t < m_config->warp_size; t++) {
+            		  m_thread[i * m_config->warp_size + t]->set_npc(pc);
+            		  m_thread[i * m_config->warp_size + t]->update_pc();
+            	  }
+            	  start_pc=pc;
               }
                
             m_warp[i].init(start_pc,cta_id,i,active_threads, m_dynamic_warp_id);
@@ -2405,11 +2419,64 @@ void ldst_unit::cycle()
    }
 }
 
+void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* kernel) {
+	preempted_cta_context context;
+
+	// store registers and local memory
+	unsigned int cta_size = kernel->threads_per_cta(); // work with non-padded cta size
+	unsigned start_hwtid = m_occupied_cta_to_hwtid[cta_num];
+
+	for (unsigned hwtid = start_hwtid; start_hwtid + cta_size; ++hwtid) {
+		// registers
+		char* reg_buf = new char[2048];
+
+		m_thread[hwtid]->print_reg_thread_strbuf(reg_buf);
+		context.regs.push_back(reg_buf);
+
+		// local memory
+		char* lmem_buf = new char[2048];
+		char* format = "%08x";
+
+		m_thread[hwtid]->m_local_mem->print("%08x", lmem_buf);
+		context.local_mem.push_back(lmem_buf);
+	}
+
+	// store shared memory
+	context.shared_mem = new char[2048];
+	m_thread[start_hwtid]->m_shared_mem->print("%08x", context.shared_mem);
+
+	// store simt_stack
+    unsigned start_warp = start_hwtid / m_config->warp_size;
+    unsigned warp_per_cta =  cta_size / m_config->warp_size;
+
+    for (unsigned warp_id = start_warp; warp_id < start_warp + warp_per_cta; warp_id++) {
+    	char* stack_buf = new char[2048];
+
+    	m_simt_stack[warp_id]->print_context(stack_buf);
+    	context.simt_stack.push_back(stack_buf);
+
+    }
+
+    // store this context into the kernel
+    kernel->m_preempted_queue.push(context);
+
+}
+
 void shader_core_ctx::register_cta_thread_exit( unsigned cta_num, kernel_info_t * kernel)
 {
    assert( m_cta_status[cta_num] > 0 );
    m_cta_status[cta_num]--;
    if (!m_cta_status[cta_num]) {
+	  // handle preempted cta exit
+	  auto preempted_cta_it = std::find(m_preempted_ctas.begin(), m_preempted_ctas.end(), cta_num);
+	  if (preempted_cta_it != m_preempted_ctas.end()) {
+		  // this cta was preempted, need to store its state before exiting
+		  store_preempted_context(cta_num, kernel);
+
+		  // erase it from the preempted list
+		  m_preempted_ctas.erase(preempted_cta_it);
+	  }
+
       m_n_active_cta--;
       m_barriers.deallocate_barrier(cta_num);
       shader_CTA_count_unlog(m_sid, 1);
@@ -3401,6 +3468,11 @@ bool shd_warp_t::functional_done() const
 
 bool shd_warp_t::hardware_done() const
 {
+	if (m_shader->is_cta_preempted(get_cta_id())) {
+		// got preempted, simply check if stores and compute are done
+		return stores_done() && !inst_in_pipeline();
+	}
+
     return functional_done() && stores_done() && !inst_in_pipeline(); 
 }
 

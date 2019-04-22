@@ -208,7 +208,28 @@ void ptx_thread_info::print_reg_thread(char * fname)
   }
   fclose(fp);
 
-  }
+}
+
+void ptx_thread_info::print_reg_thread_strbuf(char * buf)
+{
+	int size = m_regs.size();
+
+	if(size>0)
+	{
+		reg_map_t reg = m_regs.back();
+
+		reg_map_t::const_iterator it;
+		for (it = reg.begin(); it != reg.end(); ++it)
+		{
+			const std::string &name = it->first->name();
+			const std::string &dec= it->first->decl_location();
+			unsigned size = it->first->get_size_in_bytes();
+			sprintf(buf,"%s %llu %s %d\n",name.c_str(),it->second, dec.c_str(),size );
+
+		}
+		//m_regs.pop_back();
+	}
+}
 
 void ptx_thread_info::resume_reg_thread(char * fname, symbol_table * symtab)
 {

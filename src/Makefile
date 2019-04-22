@@ -34,11 +34,11 @@ TRACE?=1
 
 include ../version_detection.mk
 
-CXXFLAGS = -Wall -DDEBUG
+CXXFLAGS = -Wall -DDEBUG -std=c++11
 CXXFLAGS += -DCUDART_VERSION=$(CUDART_VERSION)
 
 ifeq ($(GNUC_CPP0X), 1)
-    CXXFLAGS += -std=c++0x
+    CXXFLAGS += -std=c++11
 endif
 
 ifeq ($(TRACE),1)

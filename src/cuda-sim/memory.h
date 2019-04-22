@@ -91,6 +91,21 @@ public:
       fflush(fout);
    }
 
+
+   void print( const char *format, char *buf ) const
+   {
+      unsigned int *i_data = (unsigned int*)m_data;
+      for (int d = 0; d < (BSIZE / sizeof(unsigned int)); d++) {
+         if (d % 1 == 0) {
+            sprintf(buf, "\n");
+         }
+         sprintf(buf, format, i_data[d]);
+         sprintf(buf, " ");
+      }
+      sprintf(buf, "\n");
+
+   }
+
 private:
    unsigned m_nbytes;
    unsigned char *m_data;
@@ -107,6 +122,8 @@ public:
    virtual void write_only( mem_addr_t index, mem_addr_t offset,  size_t length, const void *data ) = 0;
    virtual void read( mem_addr_t addr, size_t length, void *data ) const = 0;
    virtual void print( const char *format, FILE *fout ) const = 0;
+   virtual void print( const char *format, char *buf ) const = 0;
+   virtual void load(char* buf) = 0;
    virtual void set_watch( addr_t addr, unsigned watchpoint ) = 0;
 };
 
@@ -118,6 +135,8 @@ public:
    virtual void write_only( mem_addr_t index, mem_addr_t offset, size_t length, const void *data);
    virtual void read( mem_addr_t addr, size_t length, void *data ) const;
    virtual void print( const char *format, FILE *fout ) const;
+   virtual void print( const char *format, char *buf ) const;
+   virtual void load(char* buf);
    
    virtual void set_watch( addr_t addr, unsigned watchpoint ); 
 
