@@ -812,7 +812,8 @@ void shader_core_ctx::fetch()
                 }
 
                 // this code fetches instructions from the i-cache or generates memory requests
-                if( !m_warp[warp_id].functional_done() && !m_warp[warp_id].imiss_pending() && m_warp[warp_id].ibuffer_empty() ) {
+                if( !is_cta_preempted(m_warp[warp_id].get_cta_id())
+                		&& !m_warp[warp_id].functional_done() && !m_warp[warp_id].imiss_pending() && m_warp[warp_id].ibuffer_empty() ) {
                     address_type pc  = m_warp[warp_id].get_pc();
                     address_type ppc = pc + PROGRAM_MEM_START;
                     unsigned nbytes=16;
@@ -2456,6 +2457,9 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
     	context.simt_stack.push_back(stack_buf);
 
     }
+
+	// save cta id
+	context.cta_id3d = m_thread[start_hwtid]->get_ctaid();
 
     // store this context into the kernel
     kernel->m_preempted_queue.push(context);

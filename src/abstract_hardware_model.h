@@ -204,7 +204,6 @@ extern std::map<void *, size_t> pinned_memory_size;
 
 
 struct preempted_cta_context {
-	unsigned cta_id;
     dim3 cta_id3d;
 	std::vector<char*> regs; // per thread
 	std::vector<char*> local_mem; // per thread
@@ -267,7 +266,8 @@ public:
 	   if (m_preempted_queue.empty()) {
 		   return m_next_cta.x + m_grid_dim.x*m_next_cta.y + m_grid_dim.x*m_grid_dim.y*m_next_cta.z;
 	   } else {
-		   return m_preempted_queue.front().cta_id;
+		   dim3 cta_3d = m_preempted_queue.front().cta_id3d;
+		   return cta_3d.x + m_grid_dim.x*cta_3d.y + m_grid_dim.x*m_grid_dim.y*cta_3d.z;
 	   }
    }
    bool no_more_ctas_to_run() const 
