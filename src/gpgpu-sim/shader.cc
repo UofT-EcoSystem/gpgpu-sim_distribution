@@ -480,7 +480,8 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
 
             	  // restore simt stack
             	  unsigned pc,rpc;
-            	  m_simt_stack[i]->resume(context.simt_stack[i%warp_per_cta]);
+            	  assert((i-start_warp) >= 0 && (i-start_warp) < context.simt_stack.size());
+            	  m_simt_stack[i]->resume_strbuf(context.simt_stack[i-start_warp]);
             	  m_simt_stack[i]->get_pdom_stack_top_info(&pc,&rpc);
             	  for (unsigned t = 0; t < m_config->warp_size; t++) {
             		  m_thread[i * m_config->warp_size + t]->set_npc(pc);
@@ -2425,17 +2426,20 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 
 	// store registers and local memory
 	unsigned int cta_size = kernel->threads_per_cta(); // work with non-padded cta size
-	unsigned start_hwtid = m_occupied_cta_to_hwtid[cta_num];
+	const unsigned start_hwtid = m_occupied_cta_to_hwtid[cta_num];
+	const unsigned end_hwtid = start_hwtid + cta_size;
 
 	for (unsigned hwtid = start_hwtid; hwtid < start_hwtid + cta_size; ++hwtid) {
 		// registers
 		char* reg_buf = new char[2048];
+		memset(reg_buf, 0, 2048);
 
 		m_thread[hwtid]->print_reg_thread_strbuf(reg_buf);
 		context.regs.push_back(reg_buf);
 
 		// local memory
 		char* lmem_buf = new char[2048];
+		memset(lmem_buf, 0, 2048);
 		char* format = "%08x";
 
 		m_thread[hwtid]->m_local_mem->print("%08x", lmem_buf);
@@ -2449,14 +2453,17 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 
 	// store shared memory
 	context.shared_mem = new char[2048];
+	memset(context.shared_mem, 0, 2048);
 	m_thread[start_hwtid]->m_shared_mem->print("%08x", context.shared_mem);
 
 	// store simt_stack
     unsigned start_warp = start_hwtid / m_config->warp_size;
     unsigned warp_per_cta =  cta_size / m_config->warp_size;
+    unsigned end_warp = end_hwtid / m_config->warp_size + ((end_hwtid % m_config->warp_size)? 1 : 0);
 
-    for (unsigned warp_id = start_warp; warp_id < start_warp + warp_per_cta; warp_id++) {
+    for (unsigned warp_id = start_warp; warp_id < end_warp; warp_id++) {
     	char* stack_buf = new char[2048];
+    	memset(stack_buf, 0, 2048);
 
     	m_simt_stack[warp_id]->print_context(stack_buf);
     	context.simt_stack.push_back(stack_buf);

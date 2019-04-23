@@ -162,10 +162,11 @@ template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *forma
 template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *format, char *buf ) const
 {
    typename map_t::const_iterator i_page;
+   int length = 0;
 
    for ( i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
-      sprintf(buf, "%s %08x:", m_name.c_str(), i_page->first);
-      i_page->second.print(format, buf);
+      length += sprintf(buf+length, "%s %08x:", m_name.c_str(), i_page->first);
+      length += i_page->second.print(format, buf+length);
    }
 }
 

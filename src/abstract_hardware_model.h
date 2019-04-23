@@ -412,19 +412,9 @@ public:
     unsigned get_rp() const;
     void     print(FILE *fp) const;
     void     resume(char * fname) ;
+    void	 resume_strbuf(char * buf);
     void    print_checkpoint (FILE *fout) const;
-	void print_context(char* buf) const {
-		for (unsigned k = 0; k < m_stack.size(); k++) {
-			simt_stack_entry stack_entry = m_stack[k];
-			for (unsigned j = 0; j < m_warp_size; j++)
-				sprintf(buf, "%c ",
-						(stack_entry.m_active_mask.test(j) ? '1' : '0'));
-			sprintf(buf, "%d %d %d %lld %d ", stack_entry.m_pc,
-					stack_entry.m_calldepth, stack_entry.m_recvg_pc,
-					stack_entry.m_branch_div_cycle, stack_entry.m_type);
-			sprintf(buf, "%d %d\n", m_warp_id, m_warp_size);
-		}
-	}
+	void print_context(char* buf) const;
 
 protected:
     unsigned m_warp_id;

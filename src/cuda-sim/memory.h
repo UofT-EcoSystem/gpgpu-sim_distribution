@@ -92,18 +92,21 @@ public:
    }
 
 
-   void print( const char *format, char *buf ) const
+   int print( const char *format, char *buf ) const
    {
+	  int length = 0;
+
       unsigned int *i_data = (unsigned int*)m_data;
       for (int d = 0; d < (BSIZE / sizeof(unsigned int)); d++) {
          if (d % 1 == 0) {
-            sprintf(buf, "\n");
+            length += sprintf(buf+length, "\n");
          }
-         sprintf(buf, format, i_data[d]);
-         sprintf(buf, " ");
+         length += sprintf(buf+length, format, i_data[d]);
+         length += sprintf(buf+length, " ");
       }
-      sprintf(buf, "\n");
+      length += sprintf(buf+length, "\n");
 
+      return length;
    }
 
 private:

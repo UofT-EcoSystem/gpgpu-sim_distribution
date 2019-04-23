@@ -923,6 +923,47 @@ void simt_stack::resume( char * fname )
     
 }
 
+void simt_stack::resume_strbuf( char * buf)
+{
+	reset();
+
+	assert(buf!=NULL);
+
+	char* line, *line_saved;
+
+	for ( line = strtok_r(buf, "\n", &line_saved); line; line = strtok_r(NULL, "\n", &line_saved) ) /* read a line */
+	{
+		printf("%s\n", line);
+		simt_stack_entry new_stack_entry;
+		char * pch, *saved;
+		pch = strtok_r (line," ", &saved);
+		for (unsigned j=0; j<m_warp_size; j++)
+		{
+			if (pch[0]=='1')
+				new_stack_entry.m_active_mask.set(j);
+			else
+				new_stack_entry.m_active_mask.reset(j);
+			pch = strtok_r (NULL," ", &saved);
+
+		}
+
+		new_stack_entry.m_pc=atoi(pch);
+		pch = strtok_r (NULL," ", &saved);
+		new_stack_entry.m_calldepth=atoi(pch);
+		pch = strtok_r (NULL," ", &saved);
+		new_stack_entry.m_recvg_pc=atoi(pch);
+		pch = strtok_r (NULL," ", &saved);
+		new_stack_entry.m_branch_div_cycle=atoi(pch);
+		pch = strtok_r (NULL," ", &saved);
+		if(pch[0]=='0')
+			new_stack_entry.m_type= STACK_ENTRY_TYPE_NORMAL;
+		else
+			new_stack_entry.m_type= STACK_ENTRY_TYPE_CALL;
+		m_stack.push_back(new_stack_entry);
+	}
+
+}
+
 const simt_mask_t &simt_stack::get_active_mask() const
 {
     assert(m_stack.size() > 0);
@@ -981,6 +1022,25 @@ void simt_stack::print_checkpoint (FILE *fout) const
         fprintf(fout, "%d %d\n",m_warp_id, m_warp_size );
         
     }
+}
+
+void simt_stack::print_context(char* buf) const {
+	int length = 0;
+
+	for (unsigned k = 0; k < m_stack.size(); k++) {
+		simt_stack_entry stack_entry = m_stack[k];
+
+		for (unsigned j = 0; j < m_warp_size; j++) {
+			length += sprintf(buf+length, "%c ",
+					(stack_entry.m_active_mask.test(j) ? '1' : '0'));
+		}
+
+		length += sprintf(buf+length, "%d %d %d %lld %d ", stack_entry.m_pc,
+				stack_entry.m_calldepth, stack_entry.m_recvg_pc,
+				stack_entry.m_branch_div_cycle, stack_entry.m_type);
+		length += sprintf(buf+length, "%d %d\n", m_warp_id, m_warp_size);
+	}
+
 }
 
 void simt_stack::update( simt_mask_t &thread_done, addr_vector_t &next_pc, address_type recvg_pc, op_type next_inst_op,unsigned next_inst_size, address_type next_inst_pc )
