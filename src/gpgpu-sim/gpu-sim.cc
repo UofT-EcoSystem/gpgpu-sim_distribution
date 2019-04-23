@@ -675,35 +675,41 @@ kernel_info_t *gpgpu_sim::select_kernel()
     return NULL;
 }
 
-bool gpgpu_sim::candidate_kernel(kernel_info_t* victim, kernel_info_t* candidate) {
-	const unsigned max_cta_gpu = m_config.gpu_max_cta_opt
+bool gpgpu_sim::candidate_kernel(kernel_info_t* & victim, kernel_info_t* & candidate) {
+	// FIXME: hard code for Volta
+	const unsigned max_cta_gpu = 10
 			                     * m_shader_config->n_simt_clusters
 			                     * m_shader_config->n_simt_cores_per_cluster;
 
 	unsigned num_running_kernels = 0;
-	unsigned candidate_idx = -1;
-	unsigned victim_idx = -1;
+	int candidate_idx = -1;
+	int victim_idx = -1;
 	unsigned min_cta = max_cta_gpu;
 	unsigned max_cta = 0;
 
-	for (unsigned n = 0; n < m_running_kernels.size(); n++) {
-		unsigned idx = (n + m_last_issued_kernel + 1)
-							% m_config.max_concurrent_kernel;
+	for (unsigned idx = 0; idx < m_running_kernels.size(); idx++) {
+//		unsigned idx = (n + m_last_issued_kernel + 1)
+//							% m_config.max_concurrent_kernel;
 		if (m_running_kernels[idx]) {
 			num_running_kernels++;
+		} else {
+			continue;
 		}
+
 		// always pick the kernel with the least number of running ctas
 		if (kernel_more_cta_left(m_running_kernels[idx])
 				&& m_running_kernels[idx]->num_running() < min_cta) {
 			min_cta = m_running_kernels[idx]->num_running();
 			candidate_idx = idx;
-		} else if (m_running_kernels[idx]->num_running() > max_cta) {
+		}
+
+		if (m_running_kernels[idx]->num_running() > max_cta) {
 			max_cta = m_running_kernels[idx]->num_running();
 			victim_idx = idx;
 		}
 	}
 
-	if (num_running_kernels < 2) {
+	if (num_running_kernels < 2 || candidate_idx == -1 || victim_idx == -1) {
 		// nothing to preempt
 		return false;
 	}
@@ -1333,7 +1339,7 @@ bool shader_core_ctx::can_issue_1block(kernel_info_t & kernel) {
 
 int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy, bool from_top) {
    
-   unsigned int step;
+   int step;
 
 
    if (from_top) {
@@ -1560,8 +1566,9 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         // preempted?
         if (kernel.has_preempted_cta()) {
         	preempted_cta_context context = kernel.m_preempted_queue.front();
-        	m_thread[i]->resume_reg_thread(context.regs[i], symtab);
-        	m_thread[i]->m_local_mem->load(context.local_mem[i]);
+        	unsigned tid_in_cta = i % cta_size;
+        	m_thread[i]->resume_reg_thread_strbuf(context.regs[tid_in_cta], symtab);
+        	m_thread[i]->m_local_mem->load(context.local_mem[tid_in_cta]);
         }
         //
         warps.set( warp_id );

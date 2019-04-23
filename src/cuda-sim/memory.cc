@@ -182,7 +182,7 @@ template<unsigned BSIZE> void memory_space_impl<BSIZE>::load(char* buf)
 		if (pch[0]=='g' || pch[0]=='s' || pch[0]=='l')
 		{
 
-			pch = strtok (NULL, " ");
+			pch = strtok_r (NULL, " ", &saved);
 
 			std::stringstream ss;
 			ss << std::hex << pch;

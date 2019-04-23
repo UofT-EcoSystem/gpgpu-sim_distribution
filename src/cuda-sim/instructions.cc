@@ -261,6 +261,29 @@ void ptx_thread_info::resume_reg_thread(char * fname, symbol_table * symtab)
       fclose ( fp2 );
 }
     
+void ptx_thread_info::resume_reg_thread_strbuf(char * buf, symbol_table * symtab)
+{
+      //m_regs.push_back( reg_map_t() );
+      char* line, *line_saved;
+      for ( line = strtok_r(buf, "\n", &line_saved); line; line = strtok_r(NULL, "\n", &line_saved) ) /* read a line */
+      {
+          symbol *reg;
+          char * pch, *saved;
+          unsigned size;
+          pch = strtok_r (line," ", &saved);
+          char * name =pch;
+          reg= symtab->lookup(name);
+          ptx_reg_t data;
+          pch = strtok_r (NULL," ", &saved);
+          data = atoi(pch);
+          pch = strtok_r (NULL," ", &saved);
+          char * decl= pch;
+          pch = strtok_r (NULL," ", &saved);
+          size = atoi(pch);
+
+          m_regs.back()[reg] = data;
+      }
+}
 
 ptx_reg_t ptx_thread_info::get_reg( const symbol *reg )
 {

@@ -480,7 +480,7 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
 
             	  // restore simt stack
             	  unsigned pc,rpc;
-            	  m_simt_stack[i]->resume(context.simt_stack[i]);
+            	  m_simt_stack[i]->resume(context.simt_stack[i%warp_per_cta]);
             	  m_simt_stack[i]->get_pdom_stack_top_info(&pc,&rpc);
             	  for (unsigned t = 0; t < m_config->warp_size; t++) {
             		  m_thread[i * m_config->warp_size + t]->set_npc(pc);
@@ -812,7 +812,7 @@ void shader_core_ctx::fetch()
                 }
 
                 // this code fetches instructions from the i-cache or generates memory requests
-                if( !is_cta_preempted(m_warp[warp_id].get_cta_id())
+                if( !is_cta_preempted(m_warp[warp_id].get_cta_id()) && !m_warp[warp_id].done_exit()
                 		&& !m_warp[warp_id].functional_done() && !m_warp[warp_id].imiss_pending() && m_warp[warp_id].ibuffer_empty() ) {
                     address_type pc  = m_warp[warp_id].get_pc();
                     address_type ppc = pc + PROGRAM_MEM_START;
@@ -2427,7 +2427,7 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 	unsigned int cta_size = kernel->threads_per_cta(); // work with non-padded cta size
 	unsigned start_hwtid = m_occupied_cta_to_hwtid[cta_num];
 
-	for (unsigned hwtid = start_hwtid; start_hwtid + cta_size; ++hwtid) {
+	for (unsigned hwtid = start_hwtid; hwtid < start_hwtid + cta_size; ++hwtid) {
 		// registers
 		char* reg_buf = new char[2048];
 
@@ -2440,6 +2440,11 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 
 		m_thread[hwtid]->m_local_mem->print("%08x", lmem_buf);
 		context.local_mem.push_back(lmem_buf);
+
+		// mark threads inactive..
+        m_thread[hwtid]->set_done();
+        m_thread[hwtid]->exitCore();
+        m_thread[hwtid]->registerExit();
 	}
 
 	// store shared memory
@@ -3477,7 +3482,7 @@ bool shd_warp_t::hardware_done() const
 {
 	if (m_shader->is_cta_preempted(get_cta_id())) {
 		// got preempted, simply check if stores and compute are done
-		return stores_done() && !inst_in_pipeline();
+		return !imiss_pending() && stores_done() && !inst_in_pipeline();
 	}
 
     return functional_done() && stores_done() && !inst_in_pipeline(); 
