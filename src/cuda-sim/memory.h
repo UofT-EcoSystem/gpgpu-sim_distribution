@@ -92,19 +92,23 @@ public:
    }
 
 
-   int print( const char *format, char *buf ) const
+   int print( const char *format, char *buf, unsigned buf_size ) const
    {
 	  int length = 0;
 
       unsigned int *i_data = (unsigned int*)m_data;
       for (int d = 0; d < (BSIZE / sizeof(unsigned int)); d++) {
          if (d % 1 == 0) {
-            length += sprintf(buf+length, "\n");
+            length += snprintf(buf+length, buf_size-length, "\n");
+            assert(length<buf_size);
          }
-         length += sprintf(buf+length, format, i_data[d]);
-         length += sprintf(buf+length, " ");
+         length += snprintf(buf+length, buf_size-length, format, i_data[d]);
+         assert(length<buf_size);
+         length += snprintf(buf+length, buf_size-length, " ");
+         assert(length<buf_size);
       }
-      length += sprintf(buf+length, "\n");
+      length += snprintf(buf+length, buf_size-length, "\n");
+      assert(length<buf_size);
 
       return length;
    }
@@ -125,7 +129,7 @@ public:
    virtual void write_only( mem_addr_t index, mem_addr_t offset,  size_t length, const void *data ) = 0;
    virtual void read( mem_addr_t addr, size_t length, void *data ) const = 0;
    virtual void print( const char *format, FILE *fout ) const = 0;
-   virtual void print( const char *format, char *buf ) const = 0;
+   virtual void print( const char *format, char *& buf ) const = 0;
    virtual void load(char* buf) = 0;
    virtual void set_watch( addr_t addr, unsigned watchpoint ) = 0;
 };
@@ -138,7 +142,7 @@ public:
    virtual void write_only( mem_addr_t index, mem_addr_t offset, size_t length, const void *data);
    virtual void read( mem_addr_t addr, size_t length, void *data ) const;
    virtual void print( const char *format, FILE *fout ) const;
-   virtual void print( const char *format, char *buf ) const;
+   virtual void print( const char *format, char *& buf ) const;
    virtual void load(char* buf);
    
    virtual void set_watch( addr_t addr, unsigned watchpoint ); 

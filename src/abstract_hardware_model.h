@@ -414,7 +414,7 @@ public:
     void     resume(char * fname) ;
     void	 resume_strbuf(char * buf);
     void    print_checkpoint (FILE *fout) const;
-	void print_context(char* buf) const;
+	void print_context(char*& buf) const;
 
 protected:
     unsigned m_warp_id;

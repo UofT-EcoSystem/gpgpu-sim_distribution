@@ -719,8 +719,6 @@ bool gpgpu_sim::candidate_kernel(kernel_info_t* & victim, kernel_info_t* & candi
 	const unsigned cta_per_kernel = max_cta_gpu / num_running_kernels;
 
 	if (candidate_idx != victim_idx && m_running_kernels[candidate_idx]->num_running() < cta_per_kernel) {
-		printf(">>>>>>>>>>>>>>>>> candidate kernel:%d \n",
-				m_running_kernels[candidate_idx]->get_uid());
 
 		victim = m_running_kernels[victim_idx];
 		candidate = m_running_kernels[candidate_idx];

@@ -159,14 +159,20 @@ template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *forma
    }
 }
 
-template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *format, char *buf ) const
+template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *format, char *& buf ) const
 {
-   typename map_t::const_iterator i_page;
-   int length = 0;
+	const unsigned buf_size = 2048;
+	buf = new char[buf_size];
+	memset(buf, 0, buf_size);
 
-   for ( i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
-      length += sprintf(buf+length, "%s %08x:", m_name.c_str(), i_page->first);
-      length += i_page->second.print(format, buf+length);
+	typename map_t::const_iterator i_page;
+	int length = 0;
+
+	for ( i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
+		length += snprintf(buf+length, buf_size-length, "%s %08x:", m_name.c_str(), i_page->first);
+		assert(length<buf_size);
+		length += i_page->second.print(format, buf+length, buf_size-length);
+		assert(length<buf_size);
    }
 }
 

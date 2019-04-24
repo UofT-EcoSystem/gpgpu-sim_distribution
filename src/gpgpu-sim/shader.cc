@@ -2431,15 +2431,14 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 
 	for (unsigned hwtid = start_hwtid; hwtid < start_hwtid + cta_size; ++hwtid) {
 		// registers
-		char* reg_buf = new char[2048];
-		memset(reg_buf, 0, 2048);
+		char* reg_buf;
 
+		if (m_thread[hwtid]->get_ctaid().x == 2)
 		m_thread[hwtid]->print_reg_thread_strbuf(reg_buf);
 		context.regs.push_back(reg_buf);
 
 		// local memory
-		char* lmem_buf = new char[2048];
-		memset(lmem_buf, 0, 2048);
+		char* lmem_buf;
 		char* format = "%08x";
 
 		m_thread[hwtid]->m_local_mem->print("%08x", lmem_buf);
@@ -2452,8 +2451,6 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 	}
 
 	// store shared memory
-	context.shared_mem = new char[2048];
-	memset(context.shared_mem, 0, 2048);
 	m_thread[start_hwtid]->m_shared_mem->print("%08x", context.shared_mem);
 
 	// store simt_stack
@@ -2462,8 +2459,7 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
     unsigned end_warp = end_hwtid / m_config->warp_size + ((end_hwtid % m_config->warp_size)? 1 : 0);
 
     for (unsigned warp_id = start_warp; warp_id < end_warp; warp_id++) {
-    	char* stack_buf = new char[2048];
-    	memset(stack_buf, 0, 2048);
+    	char* stack_buf;
 
     	m_simt_stack[warp_id]->print_context(stack_buf);
     	context.simt_stack.push_back(stack_buf);
@@ -2475,9 +2471,6 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 
     // store this context into the kernel
     kernel->m_preempted_queue.push(context);
-
-    printf(">>>>>>>>>>>>>>>>>> Store preempted context for kernel %s cta %d,%d,%d\n",
-    		kernel->name().c_str(), context.cta_id3d.x, context.cta_id3d.y, context.cta_id3d.z);
 
 }
 
@@ -3922,7 +3915,6 @@ unsigned simt_core_cluster::issue_block2core()
 
         	if (should_preempt) {
         		if (m_core[core]->can_issue_1block(*candidate)) {
-        			printf(">>>>>>>>>>>>>>>>>>>>>>>>> Should preempt: can fit the candidate: %s", candidate->name().c_str());
         			kernel = candidate;
         		} else {
         			// check what is the victim kernel and how many ctas need to be swapped out

@@ -210,10 +210,14 @@ void ptx_thread_info::print_reg_thread(char * fname)
 
 }
 
-void ptx_thread_info::print_reg_thread_strbuf(char * buf)
+void ptx_thread_info::print_reg_thread_strbuf(char *& buf)
 {
-	int size = m_regs.size();
+	const unsigned buf_size = 4096;
+	buf = new char[buf_size];
+	memset(buf, 0, buf_size);
 	int length = 0;
+
+	int size = m_regs.size();
 
 	if(size>0)
 	{
@@ -225,7 +229,8 @@ void ptx_thread_info::print_reg_thread_strbuf(char * buf)
 			const std::string &name = it->first->name();
 			const std::string &dec= it->first->decl_location();
 			unsigned size = it->first->get_size_in_bytes();
-			length += sprintf(buf+length,"%s %llu %s %d\n",name.c_str(),it->second, dec.c_str(),size );
+			length += snprintf(buf+length, buf_size-length, "%s %llu %s %d\n",name.c_str(),it->second, dec.c_str(),size );
+			assert(length<buf_size);
 
 		}
 		//m_regs.pop_back();

@@ -933,7 +933,6 @@ void simt_stack::resume_strbuf( char * buf)
 
 	for ( line = strtok_r(buf, "\n", &line_saved); line; line = strtok_r(NULL, "\n", &line_saved) ) /* read a line */
 	{
-		printf("%s\n", line);
 		simt_stack_entry new_stack_entry;
 		char * pch, *saved;
 		pch = strtok_r (line," ", &saved);
@@ -1024,21 +1023,27 @@ void simt_stack::print_checkpoint (FILE *fout) const
     }
 }
 
-void simt_stack::print_context(char* buf) const {
+void simt_stack::print_context(char*& buf) const {
+	const unsigned buf_size = 2048;
+	buf = new char[buf_size];
+	memset(buf, 0, buf_size);
 	int length = 0;
 
 	for (unsigned k = 0; k < m_stack.size(); k++) {
 		simt_stack_entry stack_entry = m_stack[k];
 
 		for (unsigned j = 0; j < m_warp_size; j++) {
-			length += sprintf(buf+length, "%c ",
+			length += snprintf(buf+length, buf_size-length, "%c ",
 					(stack_entry.m_active_mask.test(j) ? '1' : '0'));
+			assert(length<buf_size);
 		}
 
-		length += sprintf(buf+length, "%d %d %d %lld %d ", stack_entry.m_pc,
+		length += snprintf(buf+length, buf_size-length, "%d %d %d %lld %d ", stack_entry.m_pc,
 				stack_entry.m_calldepth, stack_entry.m_recvg_pc,
 				stack_entry.m_branch_div_cycle, stack_entry.m_type);
-		length += sprintf(buf+length, "%d %d\n", m_warp_id, m_warp_size);
+		assert(length<buf_size);
+		length += snprintf(buf+length, buf_size-length, "%d %d\n", m_warp_id, m_warp_size);
+		assert(length<buf_size);
 	}
 
 }
