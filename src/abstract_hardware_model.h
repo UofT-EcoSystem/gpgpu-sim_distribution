@@ -294,7 +294,7 @@ public:
    std::list<class ptx_thread_info *> &active_threads() { return m_active_threads; }
    class memory_space *get_param_memory() { return m_param_mem; }
 
-   bool allocate_from_top() {return (get_uid()%1 == 1);} // uid starts from 1
+   bool allocate_from_top() {return (get_uid()%1 == 0);} // uid starts from 1
 
    bool has_preempted_cta() {return !m_preempted_queue.empty();}
 private:

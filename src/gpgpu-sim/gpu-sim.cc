@@ -1341,7 +1341,7 @@ int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy, bo
 
 
    if (from_top) {
-	   for(step = 0; step < m_config->n_thread_per_shader;
+	   for(step = 0; (step + cta_size) < m_config->n_thread_per_shader;
 			   step += cta_size) {
 
 		   unsigned int hw_tid;
@@ -1480,6 +1480,17 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     if(!m_config->gpgpu_concurrent_kernel_sm) {
         max_cta_per_core = kernel_max_cta_per_shader;
 
+        for (unsigned i=0;i<max_cta_per_core;i++ ) {
+        	if( m_cta_status[i]==0 ) {
+        		free_cta_hw_id=i;
+        		break;
+        	}
+        }
+    }
+    else {
+    	// max number of ctas is limited by hardware slots when concurrent kernels
+        max_cta_per_core = m_config->max_cta_per_core;
+
         // cta slot 2-way allocation
         if(kernel.allocate_from_top()) {
         	for (unsigned i=0;i<max_cta_per_core;i++ ) {
@@ -1496,16 +1507,9 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         		}
         	}
         }
-    }
-    else {
-        max_cta_per_core = m_config->max_cta_per_core;
 
-        for (unsigned i=0;i<max_cta_per_core;i++ ) {
-        	if( m_cta_status[i]==0 ) {
-        		free_cta_hw_id=i;
-        		break;
-        	}
-        }
+
+
     }
     assert( free_cta_hw_id!=(unsigned)-1 );
 
