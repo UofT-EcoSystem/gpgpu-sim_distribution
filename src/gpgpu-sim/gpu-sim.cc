@@ -1564,7 +1564,8 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         // preempted?
         if (kernel.has_preempted_cta()) {
         	preempted_cta_context context = kernel.m_preempted_queue.front();
-        	unsigned tid_in_cta = i % cta_size;
+        	unsigned tid_in_cta = i - start_thread;
+
         	m_thread[i]->resume_reg_thread_strbuf(context.regs[tid_in_cta], symtab);
         	m_thread[i]->m_local_mem->load(context.local_mem[tid_in_cta]);
         }
@@ -1610,6 +1611,8 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     shader_CTA_count_log(m_sid, 1);
     SHADER_DPRINTF(LIVENESS, "GPGPU-Sim uArch: cta:%2u, start_tid:%4u, end_tid:%4u, initialized @(%lld,%lld)\n", 
         free_cta_hw_id, start_thread, end_thread, gpu_sim_cycle, gpu_tot_sim_cycle );
+
+    kernel.increment_cta_id();
 
 }
 

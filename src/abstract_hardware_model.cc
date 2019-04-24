@@ -734,15 +734,16 @@ void kernel_info_t::increment_cta_id()
 		// free up char arrays in the context
 		preempted_cta_context context = m_preempted_queue.front();
 
-		for (auto lmem : context.local_mem)
+		for (char* lmem : context.local_mem)
 			delete [] lmem;
 
-		for (auto reg : context.regs)
+		for (char* reg : context.regs) {
 			delete [] reg;
+		}
 
 		delete [] context.shared_mem;
 
-		for (auto stack : context.simt_stack)
+		for (char* stack : context.simt_stack)
 			delete []  stack;
 
 		m_preempted_queue.pop();

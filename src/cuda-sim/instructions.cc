@@ -306,6 +306,7 @@ ptx_reg_t ptx_thread_info::get_reg( const symbol *reg )
       set_reg(reg, uninit_reg); // give it a value since we are going to warn the user anyway
       std::string file_loc = get_location();
       if( !unfound_register_warned ) {
+    	  printf("kernel: %s; ctaid: %d,%d,%d, tid: %d,%d,%d\n", get_kernel().name().c_str(), get_ctaid().x, get_ctaid().y, get_ctaid().z, get_tid().x, get_tid().y, get_tid().z);
           printf("GPGPU-Sim PTX: WARNING (%s) ** reading undefined register \'%s\' (cuid:%u). Setting to 0X00000000. This is okay if you are simulating the native ISA"
         		  "\n",
                  file_loc.c_str(), name.c_str(), call_uid );

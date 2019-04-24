@@ -1782,6 +1782,8 @@ unsigned ptx_sim_init_thread( kernel_info_t &kernel,
       *thread_info = NULL;
    }
 
+   // another performance optimization:
+   // perform all thread computation in the cta at once
    if ( !active_threads.empty() ) {
       assert( active_threads.size() <= threads_left );
       ptx_thread_info *thd = active_threads.front(); 
@@ -1897,7 +1899,7 @@ unsigned ptx_sim_init_thread( kernel_info_t &kernel,
       fflush(stdout);
    }
 
-   kernel.increment_cta_id();
+//   kernel.increment_cta_id();
 
    assert( active_threads.size() <= threads_left );
    *thread_info = active_threads.front();

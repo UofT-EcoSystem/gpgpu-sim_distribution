@@ -2433,7 +2433,6 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 		// registers
 		char* reg_buf;
 
-		if (m_thread[hwtid]->get_ctaid().x == 2)
 		m_thread[hwtid]->print_reg_thread_strbuf(reg_buf);
 		context.regs.push_back(reg_buf);
 
