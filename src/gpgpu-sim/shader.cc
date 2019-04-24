@@ -2480,12 +2480,22 @@ void shader_core_ctx::register_cta_thread_exit( unsigned cta_num, kernel_info_t 
    if (!m_cta_status[cta_num]) {
 	  // handle preempted cta exit
 	  auto preempted_cta_it = std::find(m_preempted_ctas.begin(), m_preempted_ctas.end(), cta_num);
+	  dim3 cta_id3d = m_thread[m_occupied_cta_to_hwtid[cta_num]]->get_ctaid();
+
 	  if (preempted_cta_it != m_preempted_ctas.end()) {
 		  // this cta was preempted, need to store its state before exiting
 		  store_preempted_context(cta_num, kernel);
 
 		  // erase it from the preempted list
 		  m_preempted_ctas.erase(preempted_cta_it);
+
+#ifdef TIMELINE_ON
+		  printf("TIMELINE: Preempted kernel %d cta %d,%d,%d on shader %d @ cycle %d\n",
+		      		kernel->get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z, get_sid(), gpu_sim_cycle+gpu_tot_sim_cycle);
+	  } else {
+		  printf("TIMELINE: Finished kernel %d cta %d,%d,%d on shader %d @ cycle %d\n",
+		      		kernel->get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z, get_sid(), gpu_sim_cycle+gpu_tot_sim_cycle);
+#endif
 	  }
 
       m_n_active_cta--;

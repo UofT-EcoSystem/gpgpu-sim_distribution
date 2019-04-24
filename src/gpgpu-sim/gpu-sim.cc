@@ -1547,6 +1547,7 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     function_info *kernel_func_info = kernel.entry();
     symbol_table * symtab= kernel_func_info->get_symtab();
     unsigned ctaid= kernel.get_next_cta_id_single();
+    dim3 cta_id3d = kernel.get_next_cta_id();
     checkpoint *g_checkpoint=  new checkpoint();
     for (unsigned i = start_thread; i<end_thread; i++) {
         m_threadState[i].m_cta_id = free_cta_hw_id;
@@ -1588,9 +1589,17 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     }
 
     if (kernel.has_preempted_cta()) {
-    	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>> Restore preempted cta for kernel %s on shader %d\n", kernel.name().c_str(), this->get_sid());
     	preempted_cta_context context = kernel.m_preempted_queue.front();
     	m_thread[start_thread]->m_shared_mem->load(context.shared_mem);
+
+#ifdef TIMELINE_ON
+    		printf("TIMELINE: Restore preempted kernel %d cta %d,%d,%d on shader %d @ cycle %d\n",
+    			      		kernel.get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z, get_sid(), gpu_sim_cycle+gpu_tot_sim_cycle);
+    } else {
+
+    	printf("TIMELINE: Launch kernel %d cta %d,%d,%d on shader %d @ cycle %d\n",
+    			      		kernel.get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z, get_sid(), gpu_sim_cycle+gpu_tot_sim_cycle);
+#endif
     }
 
     // now that we know which warps are used in this CTA, we can allocate
@@ -1971,8 +1980,6 @@ bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candida
 		if (m_occupied_hwtid.test(tid) && (m_thread[tid]->get_kernel().get_uid() != victim->get_uid()))
 			return false;
 	}
-
-	printf(">>>>>>>>>>>>>>>>>>>>> Preempting %d ctas of victim %s for candidate %s on shader %d\n", num_ctas, victim->name().c_str(), candidate->name().c_str(), this->m_sid);
 
 	m_preempted_ctas = std::vector<unsigned>(start_cta_it, end_cta_it+1);
 
