@@ -450,7 +450,6 @@ public:
    bool kernel_more_cta_left(kernel_info_t *kernel) const;
    bool hit_max_cta_count() const;
    kernel_info_t *select_kernel();
-   bool candidate_kernel(kernel_info_t* & victim, kernel_info_t* & candidate);
 
    const gpgpu_sim_config &get_config() const { return m_config; }
    void gpu_print_stat();
@@ -485,6 +484,8 @@ public:
  	   if (m_blocked_launch_cycle>0)
  		   --m_blocked_launch_cycle;
     }
+
+    const std::vector<kernel_info_t*>& get_running_kernels() {return m_running_kernels;}
 private:
    // clocks
    void reinit_clock_domains(void);
@@ -499,6 +500,20 @@ private:
    void print_shader_cycle_distro( FILE *fout ) const;
 
    void gpgpu_debug();
+
+   void resource_partition_smk();
+
+   struct kernel_usage {
+	   bool being_considered;
+
+	   float max_usage;
+	   float thread_usage;
+	   float smem_usage;
+	   float reg_usage;
+	   float cta_usage;
+
+	   unsigned cta_quota;
+   };
 
 ///// data /////
 

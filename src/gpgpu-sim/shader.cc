@@ -3919,26 +3919,18 @@ unsigned simt_core_cluster::issue_block2core()
          //Jin: fetch kernel according to concurrent kernel setting
         if(m_config->gpgpu_concurrent_kernel_sm) {//concurrent kernel on sm 
         	// first, check if there is a candidate kernel that should initiate preemption
-        	kernel_info_t* victim, *candidate;
-        	bool should_preempt = m_gpu->candidate_kernel(victim, candidate);
+        	kernel_info_t* victim = NULL, *candidate = NULL;
+        	bool should_preempt = m_core[core]->should_preempt_kernel(victim, candidate);
 
         	if (should_preempt) {
-        		if (m_core[core]->can_issue_1block(*candidate)) {
-        			kernel = candidate;
-        		} else {
-        			// check what is the victim kernel and how many ctas need to be swapped out
-        			// do nothing if preemption is already in progress
-        			m_core[core]->preempt_ctas(victim, candidate);
-
-        			continue;
-        		}
+        		// check what is the victim kernel and how many ctas need to be swapped out
+        		// do nothing if preemption is already in progress
+        		m_core[core]->preempt_ctas(victim, candidate);
+        		continue;
         	}
         	else {
-        		//always select latest issued kernel
-        		kernel_info_t *k = m_gpu->select_kernel();
-        		kernel = k;
+        		kernel = candidate;
         	}
-
         }
         else {
             //first select core kernel, if no more cta, get a new kernel

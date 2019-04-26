@@ -575,6 +575,106 @@ void increment_x_then_y_then_z( dim3 &i, const dim3 &bound)
    }
 }
 
+void gpgpu_sim::resource_partition_smk() {
+
+	std::map<unsigned, kernel_usage> rK;
+
+	unsigned num_kernel = 0;
+	for (unsigned idx = 0; idx < m_running_kernels.size(); idx++) {
+		kernel_info_t* kernel = m_running_kernels[idx];
+
+		if (kernel && !kernel->done()) {
+			++num_kernel;
+
+			// calculate rK for the kernel => max resource usage
+			kernel_usage usage;
+
+			// iterate the following resources that could limit cta quota
+
+			unsigned threads_per_cta  = kernel->threads_per_cta();
+			unsigned int padded_cta_size = threads_per_cta;
+			unsigned int warp_size = getShaderCoreConfig()->warp_size;
+
+			if (padded_cta_size%warp_size)
+				padded_cta_size = ((padded_cta_size/warp_size)+1)*(warp_size);
+
+			// 1. thread slots
+			usage.thread_usage = (float)padded_cta_size / getShaderCoreConfig()->n_thread_per_shader;
+
+			const class function_info *func_info = kernel->entry();
+			const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(func_info);
+
+			// 2. shared mem
+			usage.smem_usage = (float)kernel_info->smem / getShaderCoreConfig()->gpgpu_shmem_size;
+
+			// 3. register
+			usage.reg_usage = padded_cta_size * ((kernel_info->regs+3)&~3)
+					/ ((float) getShaderCoreConfig()->gpgpu_shader_registers);
+
+			// 4. cta slots
+			usage.cta_usage = 1.0f / getShaderCoreConfig()->max_cta_per_core;
+
+			usage.max_usage = std::max(usage.thread_usage,
+					                   std::max(usage.smem_usage,
+					                		   std::max(usage.reg_usage, usage.cta_usage)));
+
+			usage.cta_quota = 0;
+
+			usage.being_considered = true;
+
+			rK[idx] = usage;
+		}
+	}
+
+	float tot_thread = 0;
+	float tot_smem = 0;
+	float tot_reg = 0;
+	float tot_cta = 0;
+
+	while (num_kernel > 0) {
+		// find the lowest rK
+		float min_usage = 1;
+		unsigned min_k;
+
+		for (auto k_usage : rK) {
+			if (k_usage.second.being_considered) {
+				float current_usage = k_usage.second.cta_quota * k_usage.second.max_usage;
+
+				if (current_usage < min_usage) {
+					min_usage = current_usage;
+					min_k = k_usage.first;
+				}
+			}
+		}
+
+		// check if we can add one cta of the min_k without exceeding resource limits
+		if ((rK[min_k].thread_usage + tot_thread) <= 1.0
+				&& (rK[min_k].smem_usage + tot_smem) <= 1.0
+				&& (rK[min_k].reg_usage + tot_reg) <= 1.0
+				&& (rK[min_k].cta_usage + tot_cta) <= 1.0) {
+
+			tot_thread += rK[min_k].thread_usage;
+			tot_smem += rK[min_k].smem_usage;
+			tot_reg += rK[min_k].reg_usage;
+			tot_cta += rK[min_k].cta_usage;
+
+			// let's add one cta of this kernel
+			rK[min_k].cta_quota++;
+		} else {
+			// mark min_k as donezo
+			rK[min_k].being_considered = false;
+			num_kernel--;
+		}
+
+	}
+
+	// write back the partitioning results
+	for (auto k_usage : rK) {
+		m_running_kernels[k_usage.first]->set_cta_quota(k_usage.second.cta_quota);
+	}
+
+}
+
 void gpgpu_sim::launch( kernel_info_t *kinfo )
 {
    unsigned cta_size = kinfo->threads_per_cta();
@@ -594,6 +694,9 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
 
            // block the next kernel launch for default_launch_wait_cycle
            m_blocked_launch_cycle = default_launch_wait_cycle;
+
+           // call resource partitioning algorithm to update cta quota for each kernel
+           resource_partition_smk();
            break;
        }
    }
@@ -675,60 +778,6 @@ kernel_info_t *gpgpu_sim::select_kernel()
     return NULL;
 }
 
-bool gpgpu_sim::candidate_kernel(kernel_info_t* & victim, kernel_info_t* & candidate) {
-	// FIXME: hard code for Volta
-	const unsigned max_cta_gpu = 10
-			                     * m_shader_config->n_simt_clusters
-			                     * m_shader_config->n_simt_cores_per_cluster;
-
-	unsigned num_running_kernels = 0;
-	int candidate_idx = -1;
-	int victim_idx = -1;
-	unsigned min_cta = max_cta_gpu;
-	unsigned max_cta = 0;
-
-	for (unsigned idx = 0; idx < m_running_kernels.size(); idx++) {
-//		unsigned idx = (n + m_last_issued_kernel + 1)
-//							% m_config.max_concurrent_kernel;
-		if (m_running_kernels[idx]) {
-			num_running_kernels++;
-		} else {
-			continue;
-		}
-
-		// always pick the kernel with the least number of running ctas
-		if (kernel_more_cta_left(m_running_kernels[idx])
-				&& m_running_kernels[idx]->num_running() < min_cta) {
-			min_cta = m_running_kernels[idx]->num_running();
-			candidate_idx = idx;
-		}
-
-		if (m_running_kernels[idx]->num_running() > max_cta) {
-			max_cta = m_running_kernels[idx]->num_running();
-			victim_idx = idx;
-		}
-	}
-
-	if (num_running_kernels < 2 || candidate_idx == -1 || victim_idx == -1) {
-		// nothing to preempt
-		return false;
-	}
-
-	// FIXME: this might never happen becuz the candidate kernel consumes so much resource
-	// that we can't get half of the ctas to run on the gpu
-	const unsigned cta_per_kernel = max_cta_gpu / num_running_kernels;
-
-	if (candidate_idx != victim_idx && m_running_kernels[candidate_idx]->num_running() < cta_per_kernel) {
-
-		victim = m_running_kernels[victim_idx];
-		candidate = m_running_kernels[candidate_idx];
-
-		return true;
-	}
-
-	return false;
-}
-
 unsigned gpgpu_sim::finished_kernel()
 {
     if( m_finished_kernel.empty() ) 
@@ -750,6 +799,10 @@ void gpgpu_sim::set_kernel_done( kernel_info_t *kernel )
             break;
         }
     }
+
+    // call resource partition algorithm to update cta quota for the remaining kernels
+    resource_partition_smk();
+
     assert( k != m_running_kernels.end() ); 
 }
 
@@ -1898,9 +1951,67 @@ void shader_core_ctx::dump_warp_state( FILE *fout ) const
        m_warp[w].print(fout);
 }
 
+bool shader_core_ctx::should_preempt_kernel(kernel_info_t*& victim, kernel_info_t*& candidate) {
+
+	// normalized cta_usage: # of running ctas / cta_quota for the kernel
+	float min_cta_usage = 1;
+	float max_cta_usage = 0;
+
+	const std::vector<kernel_info_t*>& running_kernels = m_gpu->get_running_kernels();
+
+	// find the kernels with max/min cta usage
+	// only kernels with more ctas to run AND have a min cta usage will be the candidate kernel
+	// always attempt to launch the candidate kernel
+	// candidate should not be empty as long as there are kernels with more ctas to run
+	for (unsigned idx = 0; idx < running_kernels.size(); idx++) {
+		kernel_info_t* current_kernel = running_kernels[idx];
+
+		if (!current_kernel || current_kernel->done()) {
+			continue;
+		}
+
+		// calculate normalized cta usage
+		const unsigned running_cta = m_kernel2ctas.count(current_kernel->get_uid()) == 0 ?
+									 0 : m_kernel2ctas[current_kernel->get_uid()].size();
+		const float cta_usage = running_cta / ((float) current_kernel->get_cta_quota());
+
+		// always pick the kernel with the least number of running ctas
+		if (m_gpu->kernel_more_cta_left(current_kernel)
+				&& cta_usage < min_cta_usage) {
+			min_cta_usage = cta_usage;
+			candidate = current_kernel;
+		}
+
+		if (cta_usage > max_cta_usage) {
+			max_cta_usage = cta_usage;
+			victim = current_kernel;
+		}
+	}
+
+	// check if we need to preempt any one to fit one more cta of the candidate kernel
+	if (min_cta_usage < 1.0f) {
+		if (!can_issue_1block(*candidate)) {
+			// candidate kernel is running under its quota and not enough resources are available to launch more cta
+			// should preempt the victim to make room
+			return true;
+		}
+	}
+
+	// by default, should not preempt
+	// this can happen if 1) candidate is running under its quota but resources are enough to launch one cta for it
+	// 2) candidate is running over its quota and the other kernels (if any) don't have new ctas to run
+	// => should try to fit one more cta for candidate
+	return false;
+
+}
+
+// attempts to preempt enough ctas of the victim kernel in return for one cta of the candidate kernel
 bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candidate) {
+	assert(victim != NULL);
+	assert(candidate != NULL);
+
 	if (is_preemption_wip()) {
-		if ((gpu_sim_cycle+ gpu_tot_sim_cycle) % 10000 == 0)
+		if ((gpu_sim_cycle+ gpu_tot_sim_cycle) % 1000 == 0)
 			printf(">>>>>>>>>>>>>>>>>>>>> WIP: victim %s for candidate %s on shader %d\n", victim->name().c_str(), candidate->name().c_str(), this->m_sid);
 
 		return false;

@@ -338,6 +338,8 @@ private:
    std::list<kernel_info_t *> m_child_kernels; //child kernel launched
    std::map< dim3, std::list<CUstream_st *>, dim3comp > m_cta_streams; //streams created in each CTA
 
+   unsigned m_cta_quota_per_shader;
+
 //Jin: kernel timing
 public:
    unsigned long long launch_cycle;
@@ -349,6 +351,8 @@ public:
 
 
    std::queue<preempted_cta_context> m_preempted_queue;
+   void set_cta_quota(unsigned quota) {m_cta_quota_per_shader = quota;}
+   unsigned get_cta_quota() {return m_cta_quota_per_shader;}
 };
 
 struct core_config {

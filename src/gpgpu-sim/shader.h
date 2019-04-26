@@ -2056,6 +2056,7 @@ public:
 
     // handle partial context switching
     bool is_preemption_wip() { return !m_preempted_ctas.empty(); }
+    bool should_preempt_kernel(kernel_info_t*& victim, kernel_info_t*& candidate);
     bool preempt_ctas(kernel_info_t* victim, kernel_info_t* candidate);
     void store_preempted_context(unsigned cta_num, kernel_info_t* kernel);
     bool is_cta_preempted(unsigned cta_id) {
