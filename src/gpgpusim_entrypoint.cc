@@ -92,6 +92,7 @@ pthread_mutex_t g_sim_lock = PTHREAD_MUTEX_INITIALIZER;
 bool g_sim_active = false;
 bool g_sim_done = true;
 bool break_limit = false;
+bool done_one_kernel = false;
 
 static void termination_callback()
 {
@@ -134,6 +135,19 @@ void *gpgpu_sim_thread_concurrent(void*)
             // no other kernel is currently running.
             if(g_stream_manager->operation(&sim_cycles) && !g_the_gpu->active())
                 break;
+
+            if (g_the_gpu->config_finish_first_kernel()
+            		&& g_stream_manager->all_stream_done_one_kernel()) {
+            	// this is a small hack in the simulator to kill the simulation
+            	// as along as we have each kernel finishes the first run
+            	// when one kernel completes before the other kernel,
+            	// we will continue launching that kernel instance in that stream
+            	// to make sure we get the concurrent kernel performance
+
+            	// this ignores the kernel launched in default stream if any
+            	g_stream_manager->cancel_remaining_kernels();
+                done_one_kernel = true;
+            }
 
             //functional simulation
             if( g_the_gpu->is_functional_sim()) {
@@ -179,6 +193,10 @@ void *gpgpu_sim_thread_concurrent(void*)
     if(break_limit) {
     	printf("GPGPU-Sim: ** break due to reaching the maximum cycles (or instructions) **\n");
     	exit(1);
+    }
+
+    if (done_one_kernel) {
+    	printf("GPGPU-Sim: ** exit because we already finished one kernel instance in each stream.\n");
     }
 
     sem_post(&g_sim_signal_exit);

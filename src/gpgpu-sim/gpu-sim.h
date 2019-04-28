@@ -381,6 +381,11 @@ private:
 
     unsigned long long liveness_message_freq; 
 
+
+    // for measuring weighted speedup for concurrent kernel
+    bool finish_first_kernel_per_stream;
+
+
     friend class gpgpu_sim;
 };
 
@@ -487,6 +492,7 @@ public:
 
     const std::vector<kernel_info_t*>& get_running_kernels() {return m_running_kernels;}
     void update_executed_kernel(kernel_info_t* kernel);
+    bool config_finish_first_kernel() {return m_config.finish_first_kernel_per_stream;}
 private:
    // clocks
    void reinit_clock_domains(void);

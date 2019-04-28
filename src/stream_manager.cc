@@ -36,6 +36,8 @@ CUstream_st::CUstream_st()
 {
     m_pending = false;
     m_uid = sm_next_stream_uid++;
+
+    m_num_done_kernel = 0;
     pthread_mutex_init(&m_lock,NULL);
 }
 
@@ -79,6 +81,11 @@ void CUstream_st::record_next_done()
     // called by gpu thread
     pthread_mutex_lock(&m_lock);
     assert(m_pending);
+
+    if (m_operations.front().is_kernel()) {
+    	m_num_done_kernel++;
+    }
+
     m_operations.pop_front();
     m_pending=false;
     pthread_mutex_unlock(&m_lock);
@@ -102,6 +109,31 @@ void CUstream_st::cancel_front()
     m_pending = false;
     pthread_mutex_unlock(&m_lock);
 
+}
+
+void CUstream_st::cancel_remaining()
+{
+	pthread_mutex_lock(&m_lock);
+	auto start_it = m_operations.begin();
+
+	if (m_pending) {
+		// remove operations after the first one
+		++start_it;
+	}
+
+	if (start_it != m_operations.end()) {
+		m_operations.erase(start_it, m_operations.end());
+	}
+
+	pthread_mutex_unlock(&m_lock);
+}
+
+bool CUstream_st::done_one_kerenl() {
+	pthread_mutex_lock(&m_lock);
+	bool result = (m_num_done_kernel > 0);
+	pthread_mutex_unlock(&m_lock);
+
+	return result;
 }
 
 void CUstream_st::print(FILE *fp)
@@ -313,6 +345,16 @@ void stream_manager::stop_all_running_kernels(){
     pthread_mutex_unlock(&m_lock);
 }
 
+void stream_manager::cancel_remaining_kernels() {
+    pthread_mutex_lock(&m_lock);
+
+    for( auto s = m_streams.begin(); s != m_streams.end(); s++ ) {
+    	(*s)->cancel_remaining();
+    }
+
+    pthread_mutex_unlock(&m_lock);
+}
+
 stream_operation stream_manager::front() 
 {
     // called by gpu simulation thread
@@ -355,6 +397,21 @@ void stream_manager::add_stream( struct CUstream_st *stream )
     pthread_mutex_lock(&m_lock);
     m_streams.push_back(stream);
     pthread_mutex_unlock(&m_lock);
+}
+
+bool stream_manager::all_stream_done_one_kernel()
+{
+    pthread_mutex_lock(&m_lock);
+    bool result = true;
+	for( auto s=m_streams.begin(); s != m_streams.end(); s++ ) {
+		if (!(*s)->done_one_kerenl()) {
+			result = false;
+			break;
+		}
+	}
+    pthread_mutex_unlock(&m_lock);
+
+	return result;
 }
 
 void stream_manager::destroy_stream( CUstream_st *stream )
