@@ -849,7 +849,7 @@ void kernel_info_t::destroy_cta_streams() {
      for(auto s = m_cta_streams.begin(); s != m_cta_streams.end(); s++) {
         stream_size += s->second.size();
         for(auto ss = s->second.begin(); ss != s->second.end(); ss++)
-        g_stream_manager->destroy_stream(*ss);
+			g_stream_manager->destroy_stream(*ss);
         s->second.clear();
      }
      printf("size %lu\n", stream_size);

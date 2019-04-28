@@ -486,6 +486,7 @@ public:
     }
 
     const std::vector<kernel_info_t*>& get_running_kernels() {return m_running_kernels;}
+    void update_executed_kernel(kernel_info_t* kernel);
 private:
    // clocks
    void reinit_clock_domains(void);

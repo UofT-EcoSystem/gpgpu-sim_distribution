@@ -690,6 +690,7 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
    for(n=0; n < m_running_kernels.size(); n++ ) {
        if( (NULL==m_running_kernels[n]) || m_running_kernels[n]->done() ) {
            m_running_kernels[n] = kinfo;
+           kinfo->launch_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
            printf("\n\n\nLaunching kernel @ sim_cycle: %d + total: %d!!\n\n\n", gpu_sim_cycle, gpu_tot_sim_cycle);
 
            // block the next kernel launch for default_launch_wait_cycle
@@ -778,6 +779,15 @@ kernel_info_t *gpgpu_sim::select_kernel()
     return NULL;
 }
 
+void gpgpu_sim::update_executed_kernel(kernel_info_t* kernel) {
+	unsigned launch_uid = kernel->get_uid();
+	if(std::find(m_executed_kernel_uids.begin(), m_executed_kernel_uids.end(), launch_uid) == m_executed_kernel_uids.end()) {
+		kernel->start_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
+		m_executed_kernel_uids.push_back(launch_uid);
+		m_executed_kernel_names.push_back(kernel->name());
+	}
+}
+
 unsigned gpgpu_sim::finished_kernel()
 {
     if( m_finished_kernel.empty() ) 
@@ -804,6 +814,10 @@ void gpgpu_sim::set_kernel_done( kernel_info_t *kernel )
     resource_partition_smk();
 
     assert( k != m_running_kernels.end() ); 
+
+    printf(">>>>>>>> kernel %s launched @ %llu, started @ %llu, ended @ %llu. \n",
+    		kernel->name().c_str(), kernel->launch_cycle, kernel->start_cycle,
+			kernel->end_cycle);
 }
 
 void gpgpu_sim::stop_all_running_kernels(){

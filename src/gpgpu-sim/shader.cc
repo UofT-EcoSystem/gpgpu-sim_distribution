@@ -3950,7 +3950,11 @@ unsigned simt_core_cluster::issue_block2core()
 
         if( m_gpu->kernel_more_cta_left(kernel) && 
 //            (m_core[core]->get_n_active_cta() < m_config->max_cta(*kernel)) ) {
-            m_core[core]->can_issue_1block(*kernel)) {
+            m_core[core]->can_issue_1block(*kernel))
+        {
+        	// update executed kernel if not yet done so
+        	m_gpu->update_executed_kernel(kernel);
+
             m_core[core]->issue_block2core(*kernel);
             num_blocks_issued++;
             m_cta_issue_next_core=core; 
