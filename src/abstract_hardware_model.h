@@ -221,7 +221,7 @@ public:
 //      m_num_cores_running=0;
 //      m_param_mem=NULL;
 //   }
-   kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *entry );
+   kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *entry, unsigned stream_id = 0 );
    ~kernel_info_t();
 
    void inc_running() { m_num_cores_running++; }
@@ -294,7 +294,7 @@ public:
    std::list<class ptx_thread_info *> &active_threads() { return m_active_threads; }
    class memory_space *get_param_memory() { return m_param_mem; }
 
-   bool allocate_from_top() {return (get_uid()%1 == 0);} // uid starts from 1
+   bool allocate_from_top() {return (m_stream_id%2 == 1);}
 
    bool has_preempted_cta() {return !m_preempted_queue.empty();}
 private:
@@ -305,6 +305,8 @@ private:
 
    unsigned m_uid;
    static unsigned m_next_uid;
+
+   unsigned m_stream_id;
 
    dim3 m_grid_dim;
    dim3 m_block_dim;

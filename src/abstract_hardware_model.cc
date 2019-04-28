@@ -692,7 +692,7 @@ unsigned g_kernel_launch_latency;
 
 unsigned kernel_info_t::m_next_uid = 1;
 
-kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *entry )
+kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *entry, unsigned stream_id /* = 0 */)
 {
     m_kernel_entry=entry;
     m_grid_dim=gridDim;
@@ -703,6 +703,7 @@ kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *
     m_next_tid=m_next_cta;
     m_num_cores_running=0;
     m_uid = m_next_uid++;
+    m_stream_id = stream_id;
     m_param_mem = new memory_space_impl<8192>("param",64*1024);
 
     //Jin: parent and child kernel management for CDP
@@ -710,6 +711,12 @@ kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *
    
     //Jin: launch latency management
     m_launch_latency = g_kernel_launch_latency;
+    launch_cycle = 0;
+    start_cycle = 0;
+    end_cycle = 0;
+
+    m_cta_quota_per_shader = 0;
+
 
     volta_cache_config_set=false;
 }
