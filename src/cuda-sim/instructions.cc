@@ -212,7 +212,7 @@ void ptx_thread_info::print_reg_thread(char * fname)
 
 void ptx_thread_info::print_reg_thread_strbuf(char *& buf)
 {
-	const unsigned buf_size = 4096;
+	const unsigned buf_size = 8192;
 	buf = new char[buf_size];
 	memset(buf, 0, buf_size);
 	int length = 0;

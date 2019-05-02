@@ -161,7 +161,7 @@ template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *forma
 
 template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *format, char *& buf ) const
 {
-	const unsigned buf_size = 2048;
+	const unsigned buf_size = 4096;
 	buf = new char[buf_size];
 	memset(buf, 0, buf_size);
 
