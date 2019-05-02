@@ -2009,7 +2009,7 @@ bool shader_core_ctx::should_preempt_kernel(kernel_info_t*& victim, kernel_info_
 	}
 
 	// check if we need to preempt any one to fit one more cta of the candidate kernel
-	if (min_cta_usage < 1.0f) {
+	if (min_cta_usage < 1.0f && victim != candidate) {
 		if (!can_issue_1block(*candidate)) {
 			// candidate kernel is running under its quota and not enough resources are available to launch more cta
 			// should preempt the victim to make room
@@ -2108,7 +2108,8 @@ bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candida
 	// FIXME: can increase the number of preempted cta to find contiguous tids
 	// check if the range of tids belongs to victim kernel or simply idle
 	for (unsigned tid = start_tid; tid < end_tid; ++tid) {
-		if (m_occupied_hwtid.test(tid) && (m_thread[tid]->get_kernel().get_uid() != victim->get_uid()))
+		assert(tid >= 0 && tid < m_warp_count * m_warp_size);
+		if (m_occupied_hwtid.test(tid) || (m_thread[tid] && (m_thread[tid]->get_kernel().get_uid() != victim->get_uid()) ))
 			return false;
 	}
 
