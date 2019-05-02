@@ -136,18 +136,18 @@ void *gpgpu_sim_thread_concurrent(void*)
             if(g_stream_manager->operation(&sim_cycles) && !g_the_gpu->active())
                 break;
 
-            if (g_the_gpu->config_finish_first_kernel()
-            		&& g_stream_manager->all_stream_done_one_kernel()) {
-            	// this is a small hack in the simulator to kill the simulation
-            	// as along as we have each kernel finishes the first run
-            	// when one kernel completes before the other kernel,
-            	// we will continue launching that kernel instance in that stream
-            	// to make sure we get the concurrent kernel performance
-
-            	// this ignores the kernel launched in default stream if any
-            	g_stream_manager->cancel_remaining_kernels();
-                done_one_kernel = true;
-            }
+//            if (g_the_gpu->config_finish_first_kernel()
+//            		&& g_stream_manager->all_stream_done_one_kernel()) {
+//            	// this is a small hack in the simulator to kill the simulation
+//            	// as along as we have each kernel finishes the first run
+//            	// when one kernel completes before the other kernel,
+//            	// we will continue launching that kernel instance in that stream
+//            	// to make sure we get the concurrent kernel performance
+//
+//            	// this ignores the kernel launched in default stream if any
+//            	g_stream_manager->cancel_remaining_kernels();
+//                done_one_kernel = true;
+//            }
 
             //functional simulation
             if( g_the_gpu->is_functional_sim()) {
