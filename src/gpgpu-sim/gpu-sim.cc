@@ -697,7 +697,8 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
        if( (NULL==m_running_kernels[n]) || m_running_kernels[n]->done() ) {
            m_running_kernels[n] = kinfo;
            kinfo->launch_cycle = gpu_sim_cycle + gpu_tot_sim_cycle;
-           printf("\n\n\nLaunching kernel @ sim_cycle: %d + total: %d!!\n\n\n", gpu_sim_cycle, gpu_tot_sim_cycle);
+           printf("\n\n\nLaunching kernel %s @ sim_cycle: %d + total: %d!!\n\n\n",
+        		   kinfo->name().c_str(), gpu_sim_cycle, gpu_tot_sim_cycle);
 
            // block the next kernel launch for default_launch_wait_cycle
            m_blocked_launch_cycle = default_launch_wait_cycle;
@@ -1411,6 +1412,7 @@ bool shader_core_ctx::can_issue_1block(kernel_info_t & kernel) {
 int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy, bool from_top) {
    
    int step;
+   bool found = false;
 
 
    if (from_top) {
@@ -1423,8 +1425,11 @@ int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy, bo
 			   if(m_occupied_hwtid.test(hw_tid))
 				   break;
 		   }
-		   if(hw_tid == step + cta_size) //consecutive non-active
+		   if(hw_tid == step + cta_size) {
+			   //consecutive non-active
+			   found = true;
 			   break;
+		   }
 	   }
    } else {
 	   for(step = m_config->n_thread_per_shader-cta_size; step >= 0;
@@ -1436,19 +1441,25 @@ int shader_core_ctx::find_available_hwtid(unsigned int cta_size, bool occupy, bo
 			   if(m_occupied_hwtid.test(hw_tid))
 				   break;
 		   }
-		   if(hw_tid == step + cta_size) //consecutive non-active
+		   if(hw_tid == step + cta_size) {
+			   //consecutive non-active
+			   found = true;
 			   break;
+		   }
 	   }
    }
 
 
-   if(step >= m_config->n_thread_per_shader) //didn't find
+   if(!found) {
+	 //didn't find
      return -1;
+   }
    else {
      if(occupy) {
         for(unsigned hw_tid = step; hw_tid < step + cta_size;
-            hw_tid++)
+            hw_tid++) {
             m_occupied_hwtid.set(hw_tid);
+        }
      }
      return step;
    }
@@ -2109,8 +2120,14 @@ bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candida
 	// check if the range of tids belongs to victim kernel or simply idle
 	for (unsigned tid = start_tid; tid < end_tid; ++tid) {
 		assert(tid >= 0 && tid < m_warp_count * m_warp_size);
-		if (m_occupied_hwtid.test(tid) || (m_thread[tid] && (m_thread[tid]->get_kernel().get_uid() != victim->get_uid()) ))
-			return false;
+		if (m_occupied_hwtid.test(tid)) {
+			// if the bit is set, the thread slot might be
+			// 1. null if the slot was taken due to padded cta size
+			// 2. not null in which case we need check whether the kernel taking it is the victim kernel
+			// if not, we can't preempt this slot
+			if ( m_thread[tid] && m_thread[tid]->get_kernel().get_uid() != victim->get_uid() )
+				return false;
+		}
 	}
 
 	m_preempted_ctas = std::vector<unsigned>(start_cta_it, end_cta_it+1);
