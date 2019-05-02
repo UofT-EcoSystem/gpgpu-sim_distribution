@@ -717,6 +717,8 @@ kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *
 
     m_cta_quota_per_shader = 0;
 
+    m_done_inst_kernel = 0;
+
 
     volta_cache_config_set=false;
 }
@@ -852,7 +854,8 @@ void kernel_info_t::print_parent_info() {
 }
 
 void kernel_info_t::destroy_cta_streams() {
-     printf("Destroy streams for kernel %d: ", get_uid()); size_t stream_size = 0;
+     printf("Destroy streams for kernel %d: ", get_uid());
+     size_t stream_size = 0;
      for(auto s = m_cta_streams.begin(); s != m_cta_streams.end(); s++) {
         stream_size += s->second.size();
         for(auto ss = s->second.begin(); ss != s->second.end(); ss++)

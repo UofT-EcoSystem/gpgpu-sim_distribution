@@ -233,6 +233,7 @@ public:
     unsigned get_uid() const { return m_uid; }
     bool done_one_kerenl();
     void cancel_remaining();
+    void print_done_inst();
 
 private:
     unsigned m_uid;
@@ -244,6 +245,7 @@ private:
     pthread_mutex_t m_lock; // ensure only one host or gpu manipulates stream operation at one time
 
     unsigned m_num_done_kernel;
+    unsigned long long m_num_done_inst;
 };
 
 class stream_manager {
@@ -264,6 +266,8 @@ public:
     void stop_all_running_kernels();
     bool all_stream_done_one_kernel();
     void cancel_remaining_kernels();
+
+    void print_stream_stats();
 private:
     void print_impl( FILE *fp);
 

@@ -180,6 +180,10 @@ void *gpgpu_sim_thread_concurrent(void*)
         if(sim_cycles) {
             g_the_gpu->print_stats();
             g_the_gpu->update_stats();
+
+            // print out instruction count info for unfinished streams
+            g_stream_manager->print_stream_stats();
+
             print_simulation_time();
         }
         pthread_mutex_lock(&g_sim_lock);

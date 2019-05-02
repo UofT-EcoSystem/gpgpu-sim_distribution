@@ -38,6 +38,7 @@ CUstream_st::CUstream_st()
     m_uid = sm_next_stream_uid++;
 
     m_num_done_kernel = 0;
+    m_num_done_inst = 0;
     pthread_mutex_init(&m_lock,NULL);
 }
 
@@ -84,6 +85,7 @@ void CUstream_st::record_next_done()
 
     if (m_operations.front().is_kernel()) {
     	m_num_done_kernel++;
+    	m_num_done_inst += m_operations.front().get_kernel()->num_done_inst();
     }
 
     m_operations.pop_front();
@@ -124,6 +126,19 @@ void CUstream_st::cancel_remaining()
 	if (start_it != m_operations.end()) {
 		m_operations.erase(start_it, m_operations.end());
 	}
+
+	pthread_mutex_unlock(&m_lock);
+}
+
+void CUstream_st::print_done_inst() {
+	pthread_mutex_lock(&m_lock);
+	// find out done instruction count on currently running kernel
+	unsigned long long partial = 0;
+	if (m_pending && m_operations.front().is_kernel()) {
+		partial += m_operations.front().get_kernel()->num_done_inst();
+	}
+	// print out stream instruction count info
+	printf("Stream #%d completed %llu instructions.\n", get_uid(), m_num_done_inst + partial);
 
 	pthread_mutex_unlock(&m_lock);
 }
@@ -326,6 +341,22 @@ bool stream_manager::register_finished_kernel(unsigned grid_uid)
     return false;
 }
 
+void stream_manager::print_stream_stats() {
+	pthread_mutex_lock(&m_lock);
+
+	printf("\n\n---------------------- Start Stream Instruction Stats ------------------------\n\n");
+
+	for( auto s = m_streams.begin(); s != m_streams.end(); s++ ) {
+		if (*s) {
+			(*s)->print_done_inst();
+		}
+	}
+
+	printf("\n---------------------- End Stream Instruction Stats ------------------------\n\n");
+
+	pthread_mutex_unlock(&m_lock);
+}
+
 void stream_manager::stop_all_running_kernels(){
     pthread_mutex_lock(&m_lock);
 
@@ -418,12 +449,14 @@ void stream_manager::destroy_stream( CUstream_st *stream )
 {
     // called by host thread
     pthread_mutex_lock(&m_lock);
-    while( !stream->empty() )
-        ; 
+    while( !stream->empty() );
     std::list<CUstream_st *>::iterator s;
     for( s=m_streams.begin(); s != m_streams.end(); s++ ) {
         if( *s == stream ) {
             m_streams.erase(s);
+
+            // print out stream instruction count info
+            (*s)->print_done_inst();
             break;
         }
     }

@@ -118,6 +118,7 @@ public:
         m_last_fetch=0;
         m_next=0;
         m_inst_at_barrier=NULL;
+        m_done_inst = 0;
 
         //Jin: cdp support
         m_cdp_latency = 0;
@@ -232,6 +233,8 @@ public:
     }
     unsigned num_inst_in_pipeline() const { return m_inst_in_pipeline;}
     unsigned num_issued_inst_in_pipeline() const {return (num_inst_in_pipeline()-num_inst_in_buffer());}
+    unsigned long num_inst_done() const {return m_done_inst;}
+    void add_inst_done(unsigned long count) {m_done_inst += count;}
     bool inst_in_pipeline() const { return m_inst_in_pipeline > 0; }
     void inc_inst_in_pipeline() { m_inst_in_pipeline++; }
     void dec_inst_in_pipeline() 
@@ -279,10 +282,13 @@ private:
     unsigned m_stores_outstanding; // number of store requests sent but not yet acknowledged
     unsigned m_inst_in_pipeline;
 
-    //Jin: cdp support
+    unsigned long m_done_inst;
+
 public:
+    //Jin: cdp support
     unsigned int m_cdp_latency;
     bool m_cdp_dummy;
+
 };
 
 

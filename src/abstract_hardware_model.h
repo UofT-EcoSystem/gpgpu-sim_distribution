@@ -297,6 +297,9 @@ public:
    bool allocate_from_top() {return (m_stream_id%2 == 1);}
 
    bool has_preempted_cta() {return !m_preempted_queue.empty();}
+
+   unsigned long long num_done_inst() {return m_done_inst_kernel;}
+   void add_done_inst(unsigned long long count) {m_done_inst_kernel += count;}
 private:
    kernel_info_t( const kernel_info_t & ); // disable copy constructor
    void operator=( const kernel_info_t & ); // disable copy operator
@@ -341,6 +344,7 @@ private:
    std::map< dim3, std::list<CUstream_st *>, dim3comp > m_cta_streams; //streams created in each CTA
 
    unsigned m_cta_quota_per_shader;
+   unsigned long long m_done_inst_kernel;
 
 //Jin: kernel timing
 public:
