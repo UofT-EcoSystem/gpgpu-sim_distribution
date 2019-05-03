@@ -161,19 +161,31 @@ template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *forma
 
 template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *format, char *& buf ) const
 {
-	const unsigned buf_size = 4096;
-	buf = new char[buf_size];
-	memset(buf, 0, buf_size);
+	unsigned buf_size = 4096;
+	bool fail;
 
-	typename map_t::const_iterator i_page;
-	int length = 0;
+	do {
+		fail = false;
+		buf = new char[buf_size];
+		memset(buf, 0, buf_size);
 
-	for ( i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
-		length += snprintf(buf+length, buf_size-length, "%s %08x:", m_name.c_str(), i_page->first);
-		assert(length<buf_size);
-		length += i_page->second.print(format, buf+length, buf_size-length);
-		assert(length<buf_size);
-   }
+		typename map_t::const_iterator i_page;
+		int length = 0;
+
+		for ( i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
+			length += snprintf(buf+length, buf_size-length, "%s %08x:", m_name.c_str(), i_page->first);
+			assert(length<buf_size);
+			length += i_page->second.print(format, buf+length, buf_size-length);
+			if (length>buf_size) {
+				// oops not enough mem space
+				buf_size *= 2;
+				delete buf;
+				fail = true;
+
+				break;
+			}
+		}
+	} while (fail);
 }
 
 template<unsigned BSIZE> void memory_space_impl<BSIZE>::load(char* buf)
