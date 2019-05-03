@@ -230,6 +230,12 @@ public:
        assert( m_num_cores_running > 0 );
        m_num_cores_running--; 
    }
+   void inc_pending() { m_num_preemption_pending++; }
+   void dec_pending() {
+	   if (m_num_preemption_pending > 0) {
+		   m_num_preemption_pending--;
+	   }
+   }
    bool running() const { return m_num_cores_running>0; }
    unsigned num_running() { return m_num_cores_running; }
    bool done() const 
@@ -242,6 +248,19 @@ public:
    size_t num_blocks() const
    {
       return m_grid_dim.x * m_grid_dim.y * m_grid_dim.z;
+   }
+
+   // this function is for checking whether we should initiate more preemption
+   bool more_cta_including_pending() const {
+	   // total number of blocks minus already number of touched ctas
+	   // plus preempted queue size because some of the touched ctas might be suspended and hence unfinished
+	   // minus any preemption pending ctas where we are waiting for preemption of the victim kernel
+	   // to be done so that this current kernel can run
+	  if (num_blocks() - get_next_cta_id_single() + m_preempted_queue.size() - m_num_preemption_pending > 0) {
+		  return true;
+	  }
+
+	  return false;
    }
 
    size_t threads_per_cta() const
@@ -317,6 +336,7 @@ private:
    dim3 m_next_tid;
 
    unsigned m_num_cores_running;
+   unsigned m_num_preemption_pending;
 
    std::list<class ptx_thread_info *> m_active_threads;
    class memory_space *m_param_mem;

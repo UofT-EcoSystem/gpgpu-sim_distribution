@@ -1710,6 +1710,7 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         free_cta_hw_id, start_thread, end_thread, gpu_sim_cycle, gpu_tot_sim_cycle );
 
     kernel.increment_cta_id();
+    kernel.dec_pending();
 
 }
 
@@ -2021,9 +2022,12 @@ bool shader_core_ctx::should_preempt_kernel(kernel_info_t*& victim, kernel_info_
 
 	// check if we need to preempt any one to fit one more cta of the candidate kernel
 	if (min_cta_usage < 1.0f && victim != candidate) {
-		if (!can_issue_1block(*candidate)) {
+		// this funky more_cta_including_pending checks whether we have in fact have
+		// enough cta preemption in progress to accommodate all the ctas candidate has
+		if (candidate->more_cta_including_pending() && !can_issue_1block(*candidate)) {
 			// candidate kernel is running under its quota and not enough resources are available to launch more cta
 			// should preempt the victim to make room
+			candidate->inc_pending();
 			return true;
 		}
 	}
