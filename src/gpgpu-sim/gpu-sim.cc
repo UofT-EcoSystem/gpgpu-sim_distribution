@@ -583,7 +583,7 @@ void increment_x_then_y_then_z( dim3 &i, const dim3 &bound)
 
 void gpgpu_sim::resource_partition_smk() {
 
-	std::map<unsigned, kernel_usage> rK;
+	std::map<unsigned, kernel_usage_info> rK;
 
 	unsigned num_kernel = 0;
 	for (unsigned idx = 0; idx < m_running_kernels.size(); idx++) {
@@ -592,43 +592,51 @@ void gpgpu_sim::resource_partition_smk() {
 		if (kernel && !kernel->done()) {
 			++num_kernel;
 
+			if (!kernel->has_set_usage()) {
+				// new incoming kernel
+				// iterate the following resources that could limit cta quota
+
+				unsigned threads_per_cta  = kernel->threads_per_cta();
+				unsigned int padded_cta_size = threads_per_cta;
+				unsigned int warp_size = getShaderCoreConfig()->warp_size;
+
+				if (padded_cta_size%warp_size)
+					padded_cta_size = ((padded_cta_size/warp_size)+1)*(warp_size);
+
+				// 1. thread slots
+				float thread_usage = (float)padded_cta_size / getShaderCoreConfig()->n_thread_per_shader;
+
+				const class function_info *func_info = kernel->entry();
+				const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(func_info);
+
+				// 2. shared mem
+				float smem_usage = (float)kernel_info->smem / getShaderCoreConfig()->gpgpu_shmem_size;
+
+				// 3. register
+				float reg_usage = padded_cta_size * ((kernel_info->regs+3)&~3)
+							/ ((float) getShaderCoreConfig()->gpgpu_shader_registers);
+
+				// 4. cta slots
+				float cta_usage = 1.0f / getShaderCoreConfig()->max_cta_per_core;
+
+				kernel->set_usage(thread_usage, smem_usage, reg_usage, cta_usage);
+			}
+
 			// calculate rK for the kernel => max resource usage
-			kernel_usage usage;
+			kernel_usage_info usage_info;
 
-			// iterate the following resources that could limit cta quota
+			Usage k_usage = kernel->get_usage();
+			usage_info.usage = k_usage;
 
-			unsigned threads_per_cta  = kernel->threads_per_cta();
-			unsigned int padded_cta_size = threads_per_cta;
-			unsigned int warp_size = getShaderCoreConfig()->warp_size;
+			usage_info.max_usage = std::max(k_usage.thread_usage,
+					                   std::max(k_usage.smem_usage,
+					                		   std::max(k_usage.reg_usage, k_usage.cta_usage)));
 
-			if (padded_cta_size%warp_size)
-				padded_cta_size = ((padded_cta_size/warp_size)+1)*(warp_size);
+			usage_info.cta_quota = 0;
 
-			// 1. thread slots
-			usage.thread_usage = (float)padded_cta_size / getShaderCoreConfig()->n_thread_per_shader;
+			usage_info.being_considered = true;
 
-			const class function_info *func_info = kernel->entry();
-			const struct gpgpu_ptx_sim_info *kernel_info = ptx_sim_kernel_info(func_info);
-
-			// 2. shared mem
-			usage.smem_usage = (float)kernel_info->smem / getShaderCoreConfig()->gpgpu_shmem_size;
-
-			// 3. register
-			usage.reg_usage = padded_cta_size * ((kernel_info->regs+3)&~3)
-					/ ((float) getShaderCoreConfig()->gpgpu_shader_registers);
-
-			// 4. cta slots
-			usage.cta_usage = 1.0f / getShaderCoreConfig()->max_cta_per_core;
-
-			usage.max_usage = std::max(usage.thread_usage,
-					                   std::max(usage.smem_usage,
-					                		   std::max(usage.reg_usage, usage.cta_usage)));
-
-			usage.cta_quota = 0;
-
-			usage.being_considered = true;
-
-			rK[idx] = usage;
+			rK[idx] = usage_info;
 		}
 	}
 
@@ -654,15 +662,15 @@ void gpgpu_sim::resource_partition_smk() {
 		}
 
 		// check if we can add one cta of the min_k without exceeding resource limits
-		if ((rK[min_k].thread_usage + tot_thread) <= 1.0
-				&& (rK[min_k].smem_usage + tot_smem) <= 1.0
-				&& (rK[min_k].reg_usage + tot_reg) <= 1.0
-				&& (rK[min_k].cta_usage + tot_cta) <= 1.0) {
+		if ((rK[min_k].usage.thread_usage + tot_thread) <= 1.0
+				&& (rK[min_k].usage.smem_usage + tot_smem) <= 1.0
+				&& (rK[min_k].usage.reg_usage + tot_reg) <= 1.0
+				&& (rK[min_k].usage.cta_usage + tot_cta) <= 1.0) {
 
-			tot_thread += rK[min_k].thread_usage;
-			tot_smem += rK[min_k].smem_usage;
-			tot_reg += rK[min_k].reg_usage;
-			tot_cta += rK[min_k].cta_usage;
+			tot_thread += rK[min_k].usage.thread_usage;
+			tot_smem += rK[min_k].usage.smem_usage;
+			tot_reg += rK[min_k].usage.reg_usage;
+			tot_cta += rK[min_k].usage.cta_usage;
 
 			// let's add one cta of this kernel
 			rK[min_k].cta_quota++;
@@ -1711,6 +1719,12 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
 
     kernel.increment_cta_id();
     kernel.dec_pending();
+
+    // update shader resource usage
+    shader_usage.cta_usage += kernel.get_usage().cta_usage;
+    shader_usage.reg_usage += kernel.get_usage().reg_usage;
+    shader_usage.smem_usage += kernel.get_usage().smem_usage;
+    shader_usage.thread_usage += kernel.get_usage().thread_usage;
 
 }
 

@@ -2561,6 +2561,12 @@ void shader_core_ctx::register_cta_thread_exit( unsigned cta_num, kernel_info_t 
           }
       }
 
+      // update shader resource usage
+      shader_usage.cta_usage -= kernel->get_usage().cta_usage;
+      shader_usage.reg_usage -= kernel->get_usage().reg_usage;
+      shader_usage.smem_usage -= kernel->get_usage().smem_usage;
+      shader_usage.thread_usage -= kernel->get_usage().thread_usage;
+
    }
 }
 

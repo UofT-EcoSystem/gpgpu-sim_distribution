@@ -2081,6 +2081,13 @@ private:
     std::map<unsigned, std::vector<unsigned>> m_kernel2ctas;
     std::vector<unsigned> m_preempted_ctas;
 
+    Usage shader_usage;
+    float get_representative_usage() {
+    	return std::max(shader_usage.thread_usage,
+                std::max(shader_usage.smem_usage,
+             		   std::max(shader_usage.reg_usage, shader_usage.cta_usage)));
+    }
+
 };
 
 class simt_core_cluster {

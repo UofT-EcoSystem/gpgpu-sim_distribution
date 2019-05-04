@@ -211,6 +211,14 @@ struct preempted_cta_context {
 	std::vector<char*> simt_stack; // per warp
 };
 
+// kernel resource usage information
+struct Usage {
+	float thread_usage;
+	float smem_usage;
+	float reg_usage;
+	float cta_usage;
+};
+
 class kernel_info_t {
 public:
 //   kernel_info_t()
@@ -366,6 +374,10 @@ private:
    unsigned m_cta_quota_per_shader;
    unsigned long long m_done_inst_kernel;
 
+
+   Usage usage;
+   bool usage_valid;
+
 //Jin: kernel timing
 public:
    unsigned long long launch_cycle;
@@ -375,6 +387,9 @@ public:
 
    mutable bool volta_cache_config_set;
 
+   void set_usage(float thread_usage, float smem_usage, float reg_usage, float cta_usage);
+   Usage get_usage() {return usage;}
+   bool has_set_usage() {return usage_valid;}
 
    std::queue<preempted_cta_context> m_preempted_queue;
    void set_cta_quota(unsigned quota) {m_cta_quota_per_shader = quota;}

@@ -510,14 +510,11 @@ private:
 
    void resource_partition_smk();
 
-   struct kernel_usage {
+   struct kernel_usage_info {
 	   bool being_considered;
 
 	   float max_usage;
-	   float thread_usage;
-	   float smem_usage;
-	   float reg_usage;
-	   float cta_usage;
+	   Usage usage;
 
 	   unsigned cta_quota;
    };

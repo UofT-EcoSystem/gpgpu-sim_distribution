@@ -715,10 +715,13 @@ kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *
     start_cycle = 0;
     end_cycle = 0;
 
+    m_num_preemption_pending = 0;
+
     m_cta_quota_per_shader = 0;
 
     m_done_inst_kernel = 0;
 
+    usage_valid = false;
 
     volta_cache_config_set=false;
 }
@@ -864,6 +867,15 @@ void kernel_info_t::destroy_cta_streams() {
      }
      printf("size %lu\n", stream_size);
      m_cta_streams.clear();
+}
+
+void kernel_info_t::set_usage(float thread_usage, float smem_usage, float reg_usage, float cta_usage) {
+	usage.thread_usage = thread_usage;
+	usage.smem_usage = smem_usage;
+	usage.reg_usage = reg_usage;
+	usage.cta_usage = cta_usage;
+
+	usage_valid = true;
 }
 
 simt_stack::simt_stack( unsigned wid, unsigned warpSize)
