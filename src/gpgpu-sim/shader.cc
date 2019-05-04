@@ -803,16 +803,13 @@ void shader_core_ctx::fetch()
                 // this code checks if this warp has finished executing and can be reclaimed
                 if( m_warp[warp_id].hardware_done() && !m_scoreboard->pendingWrites(warp_id) && !m_warp[warp_id].done_exit() ) {
                     bool did_exit=false;
-                    kernel_info_t* k_info;
+
                     for( unsigned t=0; t<m_config->warp_size;t++) {
                         unsigned tid=warp_id*m_config->warp_size+t;
                         if( m_threadState[tid].m_active == true ) {
                             m_threadState[tid].m_active = false; 
                             unsigned cta_id = m_warp[warp_id].get_cta_id();
                             register_cta_thread_exit(cta_id, &(m_thread[tid]->get_kernel()));
-
-                            // save kernel info in case we need to update instruction count
-                            k_info = &(m_thread[tid]->get_kernel());
 
                             m_not_completed -= 1;
                             m_active_threads.reset(tid);
@@ -822,10 +819,6 @@ void shader_core_ctx::fetch()
                     }
                     if( did_exit ) {
                         m_warp[warp_id].set_done_exit();
-
-                        if (k_info) {
-                        	k_info->add_done_inst(m_warp[warp_id].num_inst_done());
-                        }
 
                         // FIXME: in original code, these two lines are NOT dependent on did_exit
                         --m_active_warps;
@@ -1551,7 +1544,10 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
 
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
-  m_warp[inst.warp_id()].add_inst_done(inst.active_count());
+
+  // super sketchy way to add instructions directly to kernel
+  m_thread[inst.warp_id()*m_config->warp_size]->get_kernel().add_done_inst(inst.active_count());
+
   inst.completed(gpu_tot_sim_cycle + gpu_sim_cycle);
 }
 
