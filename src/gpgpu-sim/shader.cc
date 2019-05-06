@@ -434,7 +434,12 @@ void shader_core_ctx::reinit(unsigned start_thread, unsigned end_thread, bool re
       m_threadState[i].n_insn = 0;
       m_threadState[i].m_cta_id = -1;
    }
-   for (unsigned i = start_thread / m_config->warp_size; i < end_thread / m_config->warp_size; ++i) {
+
+   // To be confirmed: the end warp should check whether we need padded threads
+   const unsigned start_warp = start_thread / m_config->warp_size;
+   const unsigned end_warp = end_thread / m_config->warp_size + ((end_thread % m_config->warp_size)? 1 : 0);
+
+   for (unsigned i = start_warp; i < end_warp; ++i) {
       m_warp[i].reset();
       m_simt_stack[i]->reset();
    }
