@@ -174,7 +174,15 @@ template<unsigned BSIZE> void memory_space_impl<BSIZE>::print( const char *forma
 
 		for ( i_page = m_data.begin(); i_page != m_data.end(); ++i_page) {
 			length += snprintf(buf+length, buf_size-length, "%s %08x:", m_name.c_str(), i_page->first);
-			assert(length<buf_size);
+			if (length>buf_size) {
+				// oops not enough mem space
+				buf_size *= 2;
+				delete buf;
+				fail = true;
+
+				break;
+			}
+
 			length += i_page->second.print(format, buf+length, buf_size-length);
 			if (length>buf_size) {
 				// oops not enough mem space

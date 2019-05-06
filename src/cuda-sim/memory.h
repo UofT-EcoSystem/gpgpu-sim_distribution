@@ -100,15 +100,27 @@ public:
       for (int d = 0; d < (BSIZE / sizeof(unsigned int)); d++) {
          if (d % 1 == 0) {
             length += snprintf(buf+length, buf_size-length, "\n");
-            assert(length<buf_size);
+            // if buffer overflow already, return current length
+            if (length > buf_size) {
+            	return length;
+            }
          }
          length += snprintf(buf+length, buf_size-length, format, i_data[d]);
-         assert(length<buf_size);
+
+         if (length > buf_size) {
+        	 return length;
+         }
+
          length += snprintf(buf+length, buf_size-length, " ");
-         assert(length<buf_size);
+         if (length > buf_size) {
+        	 return length;
+         }
       }
       length += snprintf(buf+length, buf_size-length, "\n");
-      assert(length<buf_size);
+
+      if (length > buf_size) {
+    	  return length;
+      }
 
       return length;
    }
