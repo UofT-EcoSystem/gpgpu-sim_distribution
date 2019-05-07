@@ -3922,6 +3922,20 @@ float simt_core_cluster::get_current_occupancy( unsigned long long& active, unsi
     return aggregate / m_config->n_simt_cores_per_cluster;
 }
 
+float simt_core_cluster::get_core_min_usage() const {
+	float min_usage = 1.0;
+
+	for( unsigned i=0; i < m_config->n_simt_cores_per_cluster; i++ ) {
+		float usage = m_core[i]->get_representative_usage();
+
+		if(usage < min_usage) {
+			min_usage = usage;
+		}
+	}
+
+	return min_usage;
+}
+
 unsigned simt_core_cluster::get_n_active_cta() const
 {
     unsigned n=0;
@@ -3987,6 +4001,9 @@ unsigned simt_core_cluster::issue_block2core()
             m_core[core]->issue_block2core(*kernel);
             num_blocks_issued++;
             m_cta_issue_next_core=core; 
+
+            printf("shader # %d occupancy: %f\n", m_core[core]->get_sid(),
+            		(float)m_core[core]->m_occupied_n_threads/(m_config->max_warps_per_shader*m_config->warp_size));
             break;
         }
     }

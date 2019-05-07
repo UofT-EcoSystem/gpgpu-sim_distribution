@@ -1775,6 +1775,25 @@ void gpgpu_sim::issue_block2core()
             m_total_cta_launched += num;
         }
     }
+
+	// SMK block issue algorithm: sort simt clusters according to their resource usage
+	// pick the lowest usage first
+//	std::vector<simt_core_cluster*> clusters(m_cluster, m_cluster+m_shader_config->n_simt_clusters);
+//
+//	std::sort(clusters.begin(), clusters.end(),
+//	    [](const simt_core_cluster* a, const simt_core_cluster* b) -> bool
+//	{
+//	    return a->get_core_min_usage() < b->get_core_min_usage();
+//	});
+//
+//	for (auto c : clusters) {
+//		unsigned num = c->issue_block2core();
+//		if (num) {
+//			m_total_cta_launched += num;
+//		}
+//	}
+
+
 }
 
 unsigned long long g_single_step=0; // set this in gdb to single step the pipeline

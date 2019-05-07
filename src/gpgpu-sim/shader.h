@@ -2069,6 +2069,13 @@ public:
     	return std::find(m_preempted_ctas.begin(), m_preempted_ctas.end(), cta_id)
     	                != m_preempted_ctas.end();
     }
+
+    float get_representative_usage() {
+    	return std::max(shader_usage.thread_usage,
+                std::max(shader_usage.smem_usage,
+             		   std::max(shader_usage.reg_usage, shader_usage.cta_usage)));
+    }
+
 private:
     unsigned int m_occupied_n_threads; 
     unsigned int m_occupied_shmem; 
@@ -2082,11 +2089,6 @@ private:
     std::vector<unsigned> m_preempted_ctas;
 
     Usage shader_usage;
-    float get_representative_usage() {
-    	return std::max(shader_usage.thread_usage,
-                std::max(shader_usage.smem_usage,
-             		   std::max(shader_usage.reg_usage, shader_usage.cta_usage)));
-    }
 
 };
 
@@ -2137,6 +2139,7 @@ public:
 
     void get_icnt_stats(long &n_simt_to_mem, long &n_mem_to_simt) const;
     float get_current_occupancy( unsigned long long& active, unsigned long long & total ) const;
+    float get_core_min_usage() const;
 
 private:
     unsigned m_cluster_id;
