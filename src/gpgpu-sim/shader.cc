@@ -4002,8 +4002,6 @@ unsigned simt_core_cluster::issue_block2core()
             num_blocks_issued++;
             m_cta_issue_next_core=core; 
 
-            printf("shader # %d occupancy: %f\n", m_core[core]->get_sid(),
-            		(float)m_core[core]->m_occupied_n_threads/(m_config->max_warps_per_shader*m_config->warp_size));
             break;
         }
     }
