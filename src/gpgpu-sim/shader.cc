@@ -791,10 +791,11 @@ void shader_core_ctx::fetch()
                             did_exit=true;
                         }
                     }
-                    if( did_exit ) 
+                    if( did_exit ) {
                         m_warp[warp_id].set_done_exit();
                         --m_active_warps;
                         assert(m_active_warps >= 0);
+                    }
                 }
 
                 // this code fetches instructions from the i-cache or generates memory requests
