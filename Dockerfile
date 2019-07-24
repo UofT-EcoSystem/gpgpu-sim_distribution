@@ -1,6 +1,7 @@
 FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
 RUN apt-get update && \ 
 apt-get install -y --no-install-recommends \ 
+    gdb \
     vim g++ make pkg-config \ 
     libopencv-dev \ 
     libopenblas-dev \ 
