@@ -598,19 +598,19 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpu_reg_bank_conflict_stalls = %d\n", gpu_reg_bank_conflict_stalls);
 
    fprintf(fout, "Warp Occupancy Distribution:\n");
-   fprintf(fout, "Stall:%d\t", shader_cycle_distro[2]);
-   fprintf(fout, "W0_Idle:%d\t", shader_cycle_distro[0]);
-   fprintf(fout, "W0_Scoreboard:%d", shader_cycle_distro[1]);
+   fprintf(fout, "Stall:%u\t", shader_cycle_distro[2]);
+   fprintf(fout, "W0_Idle:%u\t", shader_cycle_distro[0]);
+   fprintf(fout, "W0_Scoreboard:%u", shader_cycle_distro[1]);
    for (unsigned i = 3; i < m_config->warp_size + 3; i++) 
-      fprintf(fout, "\tW%d:%d", i-2, shader_cycle_distro[i]);
+      fprintf(fout, "\tW%u:%u", i-2, shader_cycle_distro[i]);
    fprintf(fout, "\n");
    fprintf(fout, "single_issue_nums: ");
    for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++)
-        fprintf(fout, "WS%d:%d\t", i, single_issue_nums[i]);
+        fprintf(fout, "WS%u:%u\t", i, single_issue_nums[i]);
    fprintf(fout, "\n");
    fprintf(fout, "dual_issue_nums: ");
    for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++)
-          fprintf(fout, "WS%d:%d\t", i, dual_issue_nums[i]);
+          fprintf(fout, "WS%u:%u\t", i, dual_issue_nums[i]);
    fprintf(fout, "\n");
 
    m_outgoing_traffic_stats->print(fout); 
