@@ -88,8 +88,6 @@ void checkpoint::load_global_mem(class memory_space *temp_mem, char * f1name)
       fclose ( fp2 );
 }
 
-
-
 void checkpoint::store_global_mem(class memory_space * mem, char *fname, char * format)
 {
 
@@ -116,6 +114,7 @@ void gpgpu_functional_sim_config::reg_options(class OptionParser * opp)
                  "Use cuobjdump to extract ptx and sass from binaries",
 #if (CUDART_VERSION >= 4000)
                  "1"
+				 >>>>>>> dev
 #else
                  "0"
 #endif
@@ -196,6 +195,11 @@ gpgpu_t::gpgpu_t( const gpgpu_functional_sim_config &config )
    checkpoint_CTA_t = m_function_model_config.get_checkpoint_CTA_t();
    checkpoint_insn_Y = m_function_model_config.get_checkpoint_insn_Y();
 
+   // initialize texture mappings to empty
+   m_NameToTextureInfo.clear();
+   m_NameToCudaArray.clear();
+   m_TextureRefToName.clear();
+   m_NameToAttribute.clear();
 
    if(m_function_model_config.get_ptx_inst_debug_to_file() != 0) 
       ptx_inst_debug_file = fopen(m_function_model_config.get_ptx_inst_debug_file(), "w");
@@ -692,7 +696,14 @@ unsigned g_kernel_launch_latency;
 
 unsigned kernel_info_t::m_next_uid = 1;
 
-kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *entry, unsigned stream_id /* = 0 */)
+/*A snapshot of the texture mappings needs to be stored in the kernel's info as 
+kernels should use the texture bindings seen at the time of launch and textures
+ can be bound/unbound asynchronously with respect to streams. */
+kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *entry,
+		std::map<std::string, const struct cudaArray*> nameToCudaArray,
+		std::map<std::string, const struct textureInfo*> nameToTextureInfo,
+		unsigned stream_id /* = 0 */)
+
 {
     m_kernel_entry=entry;
     m_grid_dim=gridDim;
@@ -724,6 +735,8 @@ kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *
     usage_valid = false;
 
     volta_cache_config_set=false;
+    m_NameToCudaArray = nameToCudaArray;
+    m_NameToTextureInfo = nameToTextureInfo;
 }
 
 kernel_info_t::~kernel_info_t()

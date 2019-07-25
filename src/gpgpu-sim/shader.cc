@@ -627,19 +627,19 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpu_reg_bank_conflict_stalls = %d\n", gpu_reg_bank_conflict_stalls);
 
    fprintf(fout, "Warp Occupancy Distribution:\n");
-   fprintf(fout, "Stall:%d\t", shader_cycle_distro[2]);
-   fprintf(fout, "W0_Idle:%d\t", shader_cycle_distro[0]);
-   fprintf(fout, "W0_Scoreboard:%d", shader_cycle_distro[1]);
+   fprintf(fout, "Stall:%u\t", shader_cycle_distro[2]);
+   fprintf(fout, "W0_Idle:%u\t", shader_cycle_distro[0]);
+   fprintf(fout, "W0_Scoreboard:%u", shader_cycle_distro[1]);
    for (unsigned i = 3; i < m_config->warp_size + 3; i++) 
-      fprintf(fout, "\tW%d:%d", i-2, shader_cycle_distro[i]);
+      fprintf(fout, "\tW%u:%u", i-2, shader_cycle_distro[i]);
    fprintf(fout, "\n");
    fprintf(fout, "single_issue_nums: ");
    for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++)
-        fprintf(fout, "WS%d:%d\t", i, single_issue_nums[i]);
+        fprintf(fout, "WS%u:%u\t", i, single_issue_nums[i]);
    fprintf(fout, "\n");
    fprintf(fout, "dual_issue_nums: ");
    for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++)
-          fprintf(fout, "WS%d:%d\t", i, dual_issue_nums[i]);
+          fprintf(fout, "WS%u:%u\t", i, dual_issue_nums[i]);
    fprintf(fout, "\n");
 
    m_outgoing_traffic_stats->print(fout); 
@@ -1932,6 +1932,17 @@ void tensor_core::issue( register_set& source_reg )
 	pipelined_simd_unit::issue(source_reg);
 }
 
+unsigned pipelined_simd_unit::get_active_lanes_in_pipeline(){
+	active_mask_t active_lanes;
+	active_lanes.reset();
+	 if(m_core->get_gpu()->get_config().g_power_simulation_enabled){
+		for( unsigned stage=0; (stage+1)<m_pipeline_depth; stage++ ){
+			if( !m_pipeline_reg[stage]->empty() )
+				active_lanes|=m_pipeline_reg[stage]->get_active_mask();
+		}
+	 }
+	return active_lanes.count();
+}
 
 void ldst_unit::active_lanes_in_pipeline(){
 	unsigned active_count=pipelined_simd_unit::get_active_lanes_in_pipeline();
@@ -1985,13 +1996,13 @@ sp_unit::sp_unit( register_set* result_port, const shader_core_config *config,sh
 }
 
 dp_unit::dp_unit( register_set* result_port, const shader_core_config *config,shader_core_ctx *core)
-    : pipelined_simd_unit(result_port,config,config->max_sfu_latency,core)
+    : pipelined_simd_unit(result_port,config,config->max_dp_latency,core)
 {
     m_name = "DP ";
 }
 
 int_unit::int_unit( register_set* result_port, const shader_core_config *config,shader_core_ctx *core)
-    : pipelined_simd_unit(result_port,config,config->max_sp_latency,core)
+    : pipelined_simd_unit(result_port,config,config->max_int_latency,core)
 {
     m_name = "INT ";
 }
@@ -2032,19 +2043,25 @@ pipelined_simd_unit::pipelined_simd_unit( register_set* result_port, const shade
     for( unsigned i=0; i < m_pipeline_depth; i++ ) 
 	m_pipeline_reg[i] = new warp_inst_t( config );
     m_core=core;
+    active_insts_in_pipeline=0;
 }
 
 void pipelined_simd_unit::cycle()
 {
     if( !m_pipeline_reg[0]->empty() ){
         m_result_port->move_in(m_pipeline_reg[0]);
+        assert(active_insts_in_pipeline > 0);
+        active_insts_in_pipeline--;
     }
-    for( unsigned stage=0; (stage+1)<m_pipeline_depth; stage++ )
-        move_warp(m_pipeline_reg[stage], m_pipeline_reg[stage+1]);
+    if(active_insts_in_pipeline){
+		for( unsigned stage=0; (stage+1)<m_pipeline_depth; stage++ )
+			move_warp(m_pipeline_reg[stage], m_pipeline_reg[stage+1]);
+    }
     if( !m_dispatch_reg->empty() ) {
         if( !m_dispatch_reg->dispatch_delay()){
             int start_stage = m_dispatch_reg->latency - m_dispatch_reg->initiation_interval;
             move_warp(m_pipeline_reg[start_stage],m_dispatch_reg);
+            active_insts_in_pipeline++;
         }
     }
     occupied >>=1;
@@ -2649,13 +2666,13 @@ void gpgpu_sim::shader_print_cache_stats( FILE *fout ) const{
             m_cluster[i]->get_L1I_sub_stats(css);
             total_css += css;
         }
-        fprintf(fout, "\tL1I_total_cache_accesses = %u\n", total_css.accesses);
-        fprintf(fout, "\tL1I_total_cache_misses = %u\n", total_css.misses);
+        fprintf(fout, "\tL1I_total_cache_accesses = %llu\n", total_css.accesses);
+        fprintf(fout, "\tL1I_total_cache_misses = %llu\n", total_css.misses);
         if(total_css.accesses > 0){
             fprintf(fout, "\tL1I_total_cache_miss_rate = %.4lf\n", (double)total_css.misses / (double)total_css.accesses);
         }
-        fprintf(fout, "\tL1I_total_cache_pending_hits = %u\n", total_css.pending_hits);
-        fprintf(fout, "\tL1I_total_cache_reservation_fails = %u\n", total_css.res_fails);
+        fprintf(fout, "\tL1I_total_cache_pending_hits = %llu\n", total_css.pending_hits);
+        fprintf(fout, "\tL1I_total_cache_reservation_fails = %llu\n", total_css.res_fails);
     }
 
     // L1D
@@ -2666,18 +2683,18 @@ void gpgpu_sim::shader_print_cache_stats( FILE *fout ) const{
         for (unsigned i=0;i<m_shader_config->n_simt_clusters;i++){
             m_cluster[i]->get_L1D_sub_stats(css);
 
-            fprintf( stdout, "\tL1D_cache_core[%d]: Access = %d, Miss = %d, Miss_rate = %.3lf, Pending_hits = %u, Reservation_fails = %u\n",
+            fprintf( stdout, "\tL1D_cache_core[%d]: Access = %llu, Miss = %llu, Miss_rate = %.3lf, Pending_hits = %llu, Reservation_fails = %llu\n",
                      i, css.accesses, css.misses, (double)css.misses / (double)css.accesses, css.pending_hits, css.res_fails);
 
             total_css += css;
         }
-        fprintf(fout, "\tL1D_total_cache_accesses = %u\n", total_css.accesses);
-        fprintf(fout, "\tL1D_total_cache_misses = %u\n", total_css.misses);
+        fprintf(fout, "\tL1D_total_cache_accesses = %llu\n", total_css.accesses);
+        fprintf(fout, "\tL1D_total_cache_misses = %llu\n", total_css.misses);
         if(total_css.accesses > 0){
             fprintf(fout, "\tL1D_total_cache_miss_rate = %.4lf\n", (double)total_css.misses / (double)total_css.accesses);
         }
-        fprintf(fout, "\tL1D_total_cache_pending_hits = %u\n", total_css.pending_hits);
-        fprintf(fout, "\tL1D_total_cache_reservation_fails = %u\n", total_css.res_fails);
+        fprintf(fout, "\tL1D_total_cache_pending_hits = %llu\n", total_css.pending_hits);
+        fprintf(fout, "\tL1D_total_cache_reservation_fails = %llu\n", total_css.res_fails);
         total_css.print_port_stats(fout, "\tL1D_cache"); 
     }
 
@@ -2690,13 +2707,13 @@ void gpgpu_sim::shader_print_cache_stats( FILE *fout ) const{
             m_cluster[i]->get_L1C_sub_stats(css);
             total_css += css;
         }
-        fprintf(fout, "\tL1C_total_cache_accesses = %u\n", total_css.accesses);
-        fprintf(fout, "\tL1C_total_cache_misses = %u\n", total_css.misses);
+        fprintf(fout, "\tL1C_total_cache_accesses = %llu\n", total_css.accesses);
+        fprintf(fout, "\tL1C_total_cache_misses = %llu\n", total_css.misses);
         if(total_css.accesses > 0){
             fprintf(fout, "\tL1C_total_cache_miss_rate = %.4lf\n", (double)total_css.misses / (double)total_css.accesses);
         }
-        fprintf(fout, "\tL1C_total_cache_pending_hits = %u\n", total_css.pending_hits);
-        fprintf(fout, "\tL1C_total_cache_reservation_fails = %u\n", total_css.res_fails);
+        fprintf(fout, "\tL1C_total_cache_pending_hits = %llu\n", total_css.pending_hits);
+        fprintf(fout, "\tL1C_total_cache_reservation_fails = %llu\n", total_css.res_fails);
     }
 
     // L1T
@@ -2708,13 +2725,13 @@ void gpgpu_sim::shader_print_cache_stats( FILE *fout ) const{
             m_cluster[i]->get_L1T_sub_stats(css);
             total_css += css;
         }
-        fprintf(fout, "\tL1T_total_cache_accesses = %u\n", total_css.accesses);
-        fprintf(fout, "\tL1T_total_cache_misses = %u\n", total_css.misses);
+        fprintf(fout, "\tL1T_total_cache_accesses = %llu\n", total_css.accesses);
+        fprintf(fout, "\tL1T_total_cache_misses = %llu\n", total_css.misses);
         if(total_css.accesses > 0){
             fprintf(fout, "\tL1T_total_cache_miss_rate = %.4lf\n", (double)total_css.misses / (double)total_css.accesses);
         }
-        fprintf(fout, "\tL1T_total_cache_pending_hits = %u\n", total_css.pending_hits);
-        fprintf(fout, "\tL1T_total_cache_reservation_fails = %u\n", total_css.res_fails);
+        fprintf(fout, "\tL1T_total_cache_pending_hits = %llu\n", total_css.pending_hits);
+        fprintf(fout, "\tL1T_total_cache_reservation_fails = %llu\n", total_css.res_fails);
     }
 }
 
@@ -3076,7 +3093,7 @@ unsigned int shader_core_config::max_cta( const kernel_info_t &k ) const
        abort();
     }
 
-    if(adpative_volta_cache_config && !k.volta_cache_config_set) {
+    if(adaptive_volta_cache_config && !k.volta_cache_config_set) {
     	//For Volta, we assign the remaining shared memory to L1 cache
     	//For more info, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#shared-memory-7-x
     	unsigned total_shmed = kernel_info->smem * result;
@@ -3110,8 +3127,53 @@ unsigned int shader_core_config::max_cta( const kernel_info_t &k ) const
     return result;
 }
 
+void shader_core_config::set_pipeline_latency() {
+
+		//calculate the max latency  based on the input
+
+		unsigned int_latency[5];
+		unsigned fp_latency[5];
+		unsigned dp_latency[5];
+		unsigned sfu_latency;
+		unsigned tensor_latency;
+
+			/*
+			 * [0] ADD,SUB
+			 * [1] MAX,Min
+			 * [2] MUL
+			 * [3] MAD
+			 * [4] DIV
+			 */
+			sscanf(opcode_latency_int, "%u,%u,%u,%u,%u",
+					&int_latency[0],&int_latency[1],&int_latency[2],
+					&int_latency[3],&int_latency[4]);
+			sscanf(opcode_latency_fp, "%u,%u,%u,%u,%u",
+					&fp_latency[0],&fp_latency[1],&fp_latency[2],
+					&fp_latency[3],&fp_latency[4]);
+			sscanf(opcode_latency_dp, "%u,%u,%u,%u,%u",
+					&dp_latency[0],&dp_latency[1],&dp_latency[2],
+					&dp_latency[3],&dp_latency[4]);
+			sscanf(opcode_latency_sfu, "%u",
+					&sfu_latency);
+			sscanf(opcode_latency_tensor, "%u",
+					&tensor_latency);
+
+		//all div operation are executed on sfu
+		//assume that the max latency are dp div or normal sfu_latency
+		max_sfu_latency = std::max(dp_latency[4],sfu_latency);
+		//assume that the max operation has the max latency
+		max_sp_latency = fp_latency[1];
+		max_int_latency = int_latency[1];
+		max_dp_latency = dp_latency[1];
+		max_tensor_core_latency = tensor_latency;
+
+}
+
 void shader_core_ctx::cycle()
 {
+	if(!isactive() && get_not_completed() == 0)
+		return;
+
 	m_stats->shader_cycles[m_sid]++;
     writeback();
     execute();

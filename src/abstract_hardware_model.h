@@ -74,6 +74,7 @@ enum FuncCache
 #include <queue>
 
 typedef unsigned long long new_addr_type;
+typedef unsigned long long cudaTextureObject_t;
 typedef unsigned address_type;
 typedef unsigned addr_t;
 
@@ -229,7 +230,12 @@ public:
 //      m_num_cores_running=0;
 //      m_param_mem=NULL;
 //   }
-   kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *entry, unsigned stream_id = 0 );
+
+   kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *entry,
+		   std::map<std::string, const struct cudaArray*> nameToCudaArray,
+		   std::map<std::string, const struct textureInfo*> nameToTextureInfo,
+		   unsigned stream_id = 0);
+
    ~kernel_info_t();
 
    void inc_running() { m_num_cores_running++; }
@@ -327,6 +333,24 @@ public:
 
    unsigned long long num_done_inst() {return m_done_inst_kernel;}
    void add_done_inst(unsigned long long count) {m_done_inst_kernel += count;}
+
+   
+   //The following functions access texture bindings present at the kernel's launch
+   
+   const struct cudaArray* get_texarray( const std::string &texname ) const
+   {
+      std::map<std::string,const struct cudaArray*>::const_iterator t=m_NameToCudaArray.find(texname);
+      assert(t != m_NameToCudaArray.end());
+      return t->second;
+   }
+
+   const struct textureInfo* get_texinfo( const std::string &texname ) const
+   {
+      std::map<std::string, const struct textureInfo*>::const_iterator t=m_NameToTextureInfo.find(texname);
+      assert(t != m_NameToTextureInfo.end());
+      return t->second;
+   }
+
 private:
    kernel_info_t( const kernel_info_t & ); // disable copy constructor
    void operator=( const kernel_info_t & ); // disable copy operator
@@ -335,6 +359,10 @@ private:
 
    unsigned m_uid;
    static unsigned m_next_uid;
+   
+   //These maps contain the snapshot of the texture mappings at kernel launch
+   std::map<std::string, const struct cudaArray*> m_NameToCudaArray;
+   std::map<std::string, const struct textureInfo*> m_NameToTextureInfo;
 
    unsigned m_stream_id;
 
@@ -435,6 +463,8 @@ struct core_config {
 
 	unsigned gpgpu_max_insn_issue_per_warp;
 	bool gmem_skip_L1D; // on = global memory access always skip the L1 cache
+
+	bool adaptive_volta_cache_config;
 };
 
 // bounded stack that implements simt reconvergence using pdom mechanism from MICRO'07 paper
@@ -654,8 +684,8 @@ public:
 
     const struct textureInfo* get_texinfo( const std::string &texname ) const
     {
-        std::map<std::string, const struct textureInfo*>::const_iterator t=m_NameToTexureInfo.find(texname);
-        assert(t != m_NameToTexureInfo.end());
+        std::map<std::string, const struct textureInfo*>::const_iterator t=m_NameToTextureInfo.find(texname);
+        assert(t != m_NameToTextureInfo.end());
         return t->second;
     }
 
@@ -668,6 +698,10 @@ public:
 
     const gpgpu_functional_sim_config &get_config() const { return m_function_model_config; }
     FILE* get_ptx_inst_debug_file() { return ptx_inst_debug_file; }
+    
+    //  These maps return the current texture mappings for the GPU at any given time.
+    std::map<std::string, const struct cudaArray*> getNameArrayMapping() {return m_NameToCudaArray;}
+    std::map<std::string, const struct textureInfo*> getNameInfoMapping() {return m_NameToTextureInfo;}
 
 protected:
     const gpgpu_functional_sim_config &m_function_model_config;
@@ -678,11 +712,11 @@ protected:
     class memory_space *m_surf_mem;
 
     unsigned long long m_dev_malloc;
-    
+    //  These maps contain the current texture mappings for the GPU at any given time. 
     std::map<std::string, std::set<const struct textureReference*> > m_NameToTextureRef;
     std::map<const struct textureReference*, std::string> m_TextureRefToName;
     std::map<std::string, const struct cudaArray*> m_NameToCudaArray;
-    std::map<std::string, const struct textureInfo*> m_NameToTexureInfo;
+    std::map<std::string, const struct textureInfo*> m_NameToTextureInfo;
     std::map<std::string, const struct textureReferenceAttr*> m_NameToAttribute;
 };
 
