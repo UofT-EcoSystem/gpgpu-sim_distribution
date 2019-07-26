@@ -627,6 +627,7 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpu_reg_bank_conflict_stalls = %d\n", gpu_reg_bank_conflict_stalls);
 
    fprintf(fout, "Warp Occupancy Distribution:\n");
+   fprintf(fout, "Empty warp:%u\t", *sched_empty_warp);
    fprintf(fout, "Stall:%u\t", shader_cycle_distro[2]);
    fprintf(fout, "W0_Idle:%u\t", shader_cycle_distro[0]);
    fprintf(fout, "W0_Scoreboard:%u", shader_cycle_distro[1]);
@@ -1021,6 +1022,7 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
 void scheduler_unit::cycle()
 {
     SCHED_DPRINTF( "scheduler_unit::cycle()\n" );
+    bool valid_warp = false;
     bool valid_inst = false;  // there was one warp with a valid instruction to issue (didn't require flush due to control hazard)
     bool ready_inst = false;  // of the valid instructions, there was one not waiting for pending register writes
     bool issued_inst = false; // of these we issued one
@@ -1033,6 +1035,7 @@ void scheduler_unit::cycle()
         if ( (*iter) == NULL || (*iter)->done_exit() ) {
             continue;
         }
+        valid_warp = true;
         SCHED_DPRINTF( "Testing (warp_id %u, dynamic_warp_id %u)\n",
                        (*iter)->get_warp_id(), (*iter)->get_dynamic_warp_id() );
         unsigned warp_id = (*iter)->get_warp_id();
@@ -1220,7 +1223,9 @@ void scheduler_unit::cycle()
     }
 
     // issue stall statistics:
-    if( !valid_inst ) 
+    if (!valid_warp)
+    	m_stats->sched_empty_warp[0]++;
+    else if( !valid_inst )
         m_stats->shader_cycle_distro[0]++; // idle or control hazard
     else if( !ready_inst ) 
         m_stats->shader_cycle_distro[1]++; // waiting for RAW hazards (possibly due to memory) 

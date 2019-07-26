@@ -341,6 +341,8 @@ public:
     size_t sync_depth_limit() const {return runtime_sync_depth_limit; }
     size_t pending_launch_count_limit() const {return runtime_pending_launch_count_limit;}
 
+    bool finish_one_kernel_per_stream() const {return finish_first_kernel_per_stream;}
+
 private:
     void init_clock_domains(void ); 
 
