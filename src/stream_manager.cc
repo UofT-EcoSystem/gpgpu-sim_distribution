@@ -432,8 +432,8 @@ void stream_manager::add_stream( struct CUstream_st *stream )
 
 bool stream_manager::all_stream_done_one_kernel()
 {
-    pthread_mutex_lock(&m_lock);
     bool result = true;
+    pthread_mutex_lock(&m_lock);
 	for( auto s=m_streams.begin(); s != m_streams.end(); s++ ) {
 		if (!(*s)->done_one_kerenl()) {
 			result = false;
