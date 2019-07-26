@@ -114,7 +114,6 @@ void gpgpu_functional_sim_config::reg_options(class OptionParser * opp)
                  "Use cuobjdump to extract ptx and sass from binaries",
 #if (CUDART_VERSION >= 4000)
                  "1"
-				 >>>>>>> dev
 #else
                  "0"
 #endif
