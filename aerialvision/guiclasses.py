@@ -684,6 +684,7 @@ class PlotFormatInfo:
         self.cticksFontSize = cticksFontSize
         self.xticksFontSize = xticksFontSize
         self.yticksFontSize = yticksFontSize
+        self.ymax = 0
 
         self.cmap = Tk.StringVar()
         self.cmap.set(PlotFormatInfo.cmapOptions[0])
@@ -1785,6 +1786,12 @@ class graphManager:
           entries[self.currPlot][-1].grid(row = currentRow, column = 12, padx = 10)
           entries[self.currPlot][-1].insert(0, plotFormat.yticksFontSize)
 
+          plotFontLabel = Tk.Label(root, text = 'Y max: ', bg = 'white')
+          plotFontLabel.grid(row = currentRow, column = 13)
+          entries[self.currPlot].append(Tk.Entry(root, width = 5))
+          entries[self.currPlot][-1].grid(row = currentRow, column = 14, padx = 10)
+          entries[self.currPlot][-1].insert(0, plotFormat.ymax)
+
           currentRow += 1
 
         bottomFrame = Tk.Frame(NEWFRAME, bg = 'white')
@@ -1815,6 +1822,9 @@ class graphManager:
           if entries[self.currPlot][ticksFontOptionIndex].get() != '':
               plotFormat.yticksFontSize = int(entries[self.currPlot][ticksFontOptionIndex].get())
               plotFormat.cticksFontSize = plotFormat.yticksFontSize
+          ymaxOptionIndex = ticksFontOptionIndex + 1
+          if entries[self.currPlot][ymaxOptionIndex].get() != '':
+            plotFormat.ymax = int(entries[self.currPlot][ymaxOptionIndex].get())
 
           plotFormat.ylabel = entries[self.currPlot][0].get()
           self.plot.set_ylabel(plotFormat.ylabel, fontsize=plotFormat.labelFontSize)
@@ -1847,6 +1857,9 @@ class graphManager:
           if self.dataChosen[1] != [] and self.currPlot != numPlots:
               self.dataPointer = self.dataChosen[1][self.currPlot - 1]
               self.simplerName = self.data[self.dataPointer.fileChosen]
+
+          if plotFormat.ymax != 0:
+              self.plot.set_ylim(0, plotFormat.ymax)
         
         master.destroy()
         ## Now replot with changes.....
