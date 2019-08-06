@@ -373,6 +373,8 @@ private:
     char * gpgpu_clock_domains;
     unsigned max_concurrent_kernel;
 
+    unsigned delayed_cycle_btw_kernels;
+
     // visualizer
     bool  g_visualizer_enabled;
     char *g_visualizer_filename;
@@ -543,8 +545,6 @@ private:
    std::vector<kernel_info_t*> m_running_kernels;
    unsigned m_last_issued_kernel;
 
-   // FIXME: read from config instead
-   const unsigned default_launch_wait_cycle = 64;
    //block the next kernel launch until the previous one is done first round scheduling
    unsigned m_blocked_launch_cycle;
 

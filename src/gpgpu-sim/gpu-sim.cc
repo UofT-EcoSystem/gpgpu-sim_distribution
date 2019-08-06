@@ -580,6 +580,9 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
     option_parser_register(opp, "-gpgpu_cdp_enabled", OPT_BOOL, 
                           &g_cdp_enabled, "Turn on CDP",
                           "0");
+    option_parser_register(opp, "-delayed_cycle_btw_kernels", OPT_INT32,
+    		&delayed_cycle_btw_kernels, "Number of cycles to delay the second kernel", "0");
+
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -726,7 +729,7 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
         		   kinfo->name().c_str(), gpu_sim_cycle, gpu_tot_sim_cycle);
 
            // block the next kernel launch for default_launch_wait_cycle
-           m_blocked_launch_cycle = default_launch_wait_cycle;
+           m_blocked_launch_cycle = m_config.delayed_cycle_btw_kernels;
 
            // call resource partitioning algorithm to update cta quota for each kernel
            resource_partition_smk();
