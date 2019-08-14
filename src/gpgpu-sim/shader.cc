@@ -504,7 +504,7 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
             	  start_pc=pc;
               }
                
-            m_warp[i].init(start_pc,cta_id,i,active_threads, m_dynamic_warp_id);
+            m_warp[i].init(start_pc,cta_id,ctaid, i,active_threads, m_dynamic_warp_id);
             ++m_dynamic_warp_id;
             m_not_completed += n_active;
             ++m_active_warps;

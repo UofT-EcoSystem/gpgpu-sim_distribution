@@ -125,11 +125,13 @@ public:
     }
     void init( address_type start_pc,
                unsigned cta_id,
+			   unsigned logical_cta_id,
                unsigned wid,
                const std::bitset<MAX_WARP_SIZE> &active,
                unsigned dynamic_warp_id )
     {
         m_cta_id=cta_id;
+        m_logical_cta_id = logical_cta_id;
         m_warp_id=wid;
         m_dynamic_warp_id=dynamic_warp_id;
         m_next_pc=start_pc;
@@ -243,6 +245,7 @@ public:
     }
 
     unsigned get_cta_id() const { return m_cta_id; }
+    unsigned get_logical_cta_id() const {return m_logical_cta_id;}
 
     unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
     unsigned get_warp_id() const { return m_warp_id; }
@@ -251,6 +254,7 @@ private:
     static const unsigned IBUFFER_SIZE=2;
     class shader_core_ctx *m_shader;
     unsigned m_cta_id;
+    unsigned m_logical_cta_id;
     unsigned m_warp_id;
     unsigned m_warp_size;
     unsigned m_dynamic_warp_id;
