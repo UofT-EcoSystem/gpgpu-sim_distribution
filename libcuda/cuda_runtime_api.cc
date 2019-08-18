@@ -1633,8 +1633,8 @@ __host__ cudaError_t CUDARTAPI cudaStreamSynchronize(cudaStream_t stream)
 #if (CUDART_VERSION >= 3000)
 	if( stream == NULL )
 		synchronize();
-		return g_last_cudaError = cudaSuccess;
 	stream->synchronize();
+	return g_last_cudaError = cudaSuccess;
 #else
 	printf("GPGPU-Sim PTX: WARNING: Asynchronous kernel execution not supported (%s)\n", __my_func__);
 #endif
