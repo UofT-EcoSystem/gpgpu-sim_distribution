@@ -702,9 +702,14 @@ void gpgpu_sim::resource_partition_smk() {
 
 	}
 
+	printf(">>>>>>>>> resource_partition_smk:\n");
+
 	// write back the partitioning results
 	for (auto k_usage : rK) {
 		m_running_kernels[k_usage.first]->set_cta_quota(k_usage.second.cta_quota);
+
+		// print the resource partition results
+		printf("%s: %d ctas\n", m_running_kernels[k_usage.first]->name().c_str(), k_usage.second.cta_quota);
 	}
 
 }
