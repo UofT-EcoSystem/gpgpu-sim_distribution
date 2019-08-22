@@ -2182,7 +2182,7 @@ void gpgpu_cuda_ptx_sim_main_func( kernel_info_t &kernel, bool openCL )
 
     //we excute the kernel one CTA (Block) at the time, as synchronization functions work block wise
     while(!kernel.no_more_ctas_to_run()){
-        unsigned temp=kernel.get_next_cta_id_single();
+        unsigned ctaid=kernel.get_next_cta_id_single();
         
 
         if(cp_op==0 || (cp_op==1 && cta_launched<cp_cta_resume && kernel.get_uid()==cp_kernel) || kernel.get_uid()< cp_kernel) // just fro testing
@@ -2192,17 +2192,15 @@ void gpgpu_cuda_ptx_sim_main_func( kernel_info_t &kernel, bool openCL )
                g_the_gpu,
                g_the_gpu->getShaderCoreConfig()->warp_size
            );
-           cta.execute(cp_count,temp);
+           cta.execute(cp_count,ctaid);
 
             #if (CUDART_VERSION >= 5000)
             	launch_all_device_kernels();
             #endif
-         }
-         else
-         {
-            kernel.increment_cta_id();
-         }
-    cta_launched++;
+        }
+
+        kernel.increment_cta_id();
+        cta_launched++;
     }
 
       
