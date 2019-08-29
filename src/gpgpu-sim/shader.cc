@@ -489,18 +489,6 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
             	  m_simt_stack[i]->resume_strbuf(context.simt_stack[i-start_warp]);
             	  m_simt_stack[i]->get_pdom_stack_top_info(&pc,&rpc);
 
-            	  for (unsigned t = 0; t < m_config->warp_size; t++) {
-            		  unsigned thread_id = i * m_config->warp_size + t;
-
-            		  // subtle bug: if block size is not a multiple of warp size,
-            		  // this for loop might go over bound.
-            		  if (thread_id >= start_thread && thread_id < end_thread) {
-            			  m_thread[i * m_config->warp_size + t]->set_npc(pc);
-            			  m_thread[i * m_config->warp_size + t]->update_pc();
-            		  } else {
-            			  break;
-            		  }
-            	  }
             	  start_pc=pc;
               }
                
@@ -2491,6 +2479,9 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 
 		m_thread[hwtid]->m_local_mem->print("%08x", lmem_buf);
 		context.local_mem.push_back(lmem_buf);
+
+		// thread's pcs
+		context.pcs.push_back(m_thread[hwtid]->get_pc());
 
 		// mark threads inactive..
         m_thread[hwtid]->set_done();

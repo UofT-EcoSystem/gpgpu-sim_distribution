@@ -208,6 +208,7 @@ struct preempted_cta_context {
     dim3 cta_id3d;
 	std::vector<char*> regs; // per thread
 	std::vector<char*> local_mem; // per thread
+	std::vector<address_type> pcs; // per thread
 	char* shared_mem; // per block
 	std::vector<char*> simt_stack; // per warp
 };
