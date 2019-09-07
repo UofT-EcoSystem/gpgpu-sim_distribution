@@ -101,28 +101,10 @@ public:
     {
         m_stores_outstanding=0;
         m_inst_in_pipeline=0;
+        m_logical_cta_id = 0;  // this is a valid value, but oh wells
         reset(); 
     }
-    void reset()
-    {
-        assert( m_stores_outstanding==0);
-        assert( m_inst_in_pipeline==0);
-        m_imiss_pending=false;
-        m_warp_id=(unsigned)-1;
-        m_dynamic_warp_id = (unsigned)-1;
-        n_completed = m_warp_size; 
-        m_n_atomic=0;
-        m_membar=false;
-        m_done_exit=true;
-        m_last_fetch=0;
-        m_next=0;
-        m_inst_at_barrier=NULL;
-        m_done_inst = 0;
-
-        //Jin: cdp support
-        m_cdp_latency = 0;
-        m_cdp_dummy = false;
-    }
+    void reset();
     void init( address_type start_pc,
                unsigned cta_id,
 			   unsigned logical_cta_id,
@@ -998,15 +980,21 @@ public:
    // individual warp hits barrier
    void warp_reaches_barrier( unsigned cta_id, unsigned warp_id, warp_inst_t* inst);
 
+   void warp_retire_barrier_inst(unsigned warp_id);
 
    // warp reaches exit 
    void warp_exit( unsigned warp_id );
 
    // assertions
    bool warp_waiting_at_barrier( unsigned warp_id ) const;
+   bool warp_completed_barrier_inst(unsigned warp_id) const;
 
    // debug
    void dump();
+
+   // thread block preemption
+   void store_preempted_context(unsigned cta_id, preempted_cta_context & context);
+   void restore_preempted_context(unsigned cta_id, preempted_cta_context & context);
 
 private:
    unsigned m_max_cta_per_core;
@@ -1017,6 +1005,7 @@ private:
    bar_id_to_warp_t m_bar_id_to_warps;
    warp_set_t m_warp_active;
    warp_set_t m_warp_at_barrier;
+   warp_set_t m_warp_retire_barrier;
    shader_core_ctx *m_shader;
 
 };
@@ -1820,6 +1809,7 @@ public:
     
     // accessors
     virtual bool warp_waiting_at_barrier( unsigned warp_id ) const;
+    bool warp_can_preempt_barrier_inst(unsigned warp_id) const;
     void get_pdom_stack_top_info( unsigned tid, unsigned *pc, unsigned *rpc ) const;
     float get_current_occupancy( unsigned long long & active, unsigned long long & total ) const;
 

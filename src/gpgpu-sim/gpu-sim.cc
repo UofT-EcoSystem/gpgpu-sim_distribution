@@ -1735,6 +1735,11 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     // resources for use in CTA-wide barrier operations
     m_barriers.allocate_barrier(free_cta_hw_id,warps);
 
+    if (kernel.has_preempted_cta()) {
+    	preempted_cta_context context = kernel.m_preempted_queue.front();
+    	m_barriers.restore_preempted_context(free_cta_hw_id, context);
+    }
+
     // initialize the SIMT stacks and fetch hardware
     init_warps( free_cta_hw_id, start_thread, end_thread, ctaid, cta_size, &kernel);
     m_n_active_cta++;

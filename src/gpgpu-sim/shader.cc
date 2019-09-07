@@ -493,6 +493,14 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
               }
                
             m_warp[i].init(start_pc,cta_id,ctaid, i,active_threads, m_dynamic_warp_id);
+
+
+            // might need to restore barrier related info
+            // barrier is only set when we are restoring a preempted cta
+            if (warp_waiting_at_barrier(i)) {
+            	m_warp[i].store_info_of_last_inst_at_barrier(ptx_fetch_inst(start_pc));
+            }
+
             ++m_dynamic_warp_id;
             m_not_completed += n_active;
             ++m_active_warps;
@@ -1582,6 +1590,11 @@ void shader_core_ctx::writeback()
         unsigned warp_id = pipe_reg->warp_id();
         m_scoreboard->releaseRegisters( pipe_reg );
         m_warp[warp_id].dec_inst_in_pipeline();
+
+        if(pipe_reg->op == BARRIER_OP && m_warp[warp_id].restore_info_of_last_inst_at_barrier() == pipe_reg) {
+        	m_barriers.warp_retire_barrier_inst(warp_id);
+        }
+
         warp_inst_complete(*pipe_reg);
         m_gpu->gpu_sim_insn_last_update_sid = m_sid;
         m_gpu->gpu_sim_insn_last_update = gpu_sim_cycle;
@@ -2503,7 +2516,12 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
     	m_simt_stack[warp_id]->print_context(stack_buf);
     	context.simt_stack.push_back(stack_buf);
 
+    	// Warps might be preempted when reached a barrier with remaining instructions in ibuffer
+    	m_warp[warp_id].ibuffer_flush();
     }
+
+    // store barrier info
+    m_barriers.store_preempted_context(cta_num, context);
 
 	// save cta id
 	context.cta_id3d = m_thread[start_hwtid]->get_ctaid();
@@ -3296,6 +3314,7 @@ barrier_set_t::barrier_set_t(shader_core_ctx *shader,unsigned max_warps_per_core
    }
    m_warp_active.reset();
    m_warp_at_barrier.reset();
+   m_warp_retire_barrier.reset();
    for(unsigned i=0; i<max_barriers_per_cta; i++){
 	   m_bar_id_to_warps[i].reset();
    }
@@ -3312,6 +3331,7 @@ void barrier_set_t::allocate_barrier( unsigned cta_id, warp_set_t warps )
   
    m_warp_active |= warps;
    m_warp_at_barrier &= ~warps;
+   m_warp_retire_barrier |= warps;
    for(unsigned i=0; i<m_max_barriers_per_cta; i++){
 	   m_bar_id_to_warps[i] &=~warps;
    }
@@ -3331,6 +3351,7 @@ void barrier_set_t::deallocate_barrier( unsigned cta_id )
    assert( active.any() == false ); // no warps in CTA still running
    m_warp_active &= ~warps;
    m_warp_at_barrier &= ~warps;
+   m_warp_retire_barrier &= ~warps;
 
    for(unsigned i=0; i<m_max_barriers_per_cta; i++){
 	   warp_set_t at_a_specific_barrier = warps & m_bar_id_to_warps[i];
@@ -3360,6 +3381,9 @@ void barrier_set_t::warp_reaches_barrier(unsigned cta_id,unsigned warp_id,warp_i
    if(bar_type==SYNC || bar_type==RED){
 	   m_warp_at_barrier.set(warp_id);
    }
+
+   m_warp_retire_barrier.reset(warp_id);
+
    warp_set_t warps_in_cta = w->second;
    warp_set_t at_barrier = warps_in_cta & m_bar_id_to_warps[bar_id];
    warp_set_t active = warps_in_cta & m_warp_active;
@@ -3385,6 +3409,12 @@ void barrier_set_t::warp_reaches_barrier(unsigned cta_id,unsigned warp_id,warp_i
   }
 
 
+}
+
+void barrier_set_t::warp_retire_barrier_inst(unsigned warp_id)
+{
+	assert(!(m_warp_retire_barrier.test(warp_id)));
+	m_warp_retire_barrier.set(warp_id);
 }
 
 
@@ -3419,6 +3449,11 @@ bool barrier_set_t::warp_waiting_at_barrier( unsigned warp_id ) const
    return m_warp_at_barrier.test(warp_id);
 }
 
+bool barrier_set_t::warp_completed_barrier_inst(unsigned warp_id) const
+{
+	return m_warp_retire_barrier.test(warp_id);
+}
+
 void barrier_set_t::dump()
 {
    printf( "barrier set information\n");
@@ -3440,6 +3475,65 @@ void barrier_set_t::dump()
 	   printf("  warp_at_barrier %u: %s\n", i, warps_reached_barrier.to_string().c_str() );
    }
    fflush(stdout); 
+}
+
+void barrier_set_t::store_preempted_context(unsigned cta_id,
+											preempted_cta_context & context)
+{
+	cta_to_warp_t::iterator w = m_cta_to_warps.find(cta_id);
+	if( w == m_cta_to_warps.end() )
+		return;
+
+	warp_set_t warps = w->second;
+
+	// fill at_barrier
+	for (int i = 0; i < WARP_PER_CTA_MAX; i++) {
+		if (warps.test(i)) {
+			context.at_barrier.push(m_warp_at_barrier[i]);
+			m_warp_at_barrier.reset(i);
+
+			context.active_mask.push(m_warp_active[i]);
+			m_warp_active.reset(i);
+
+			for(unsigned bar_id = 0; bar_id < m_max_barriers_per_cta; bar_id++) {
+				context.bar_id_to_warps[bar_id].push(m_bar_id_to_warps[bar_id][i]);
+				m_bar_id_to_warps[bar_id].reset(i);
+			}
+		}
+	}
+}
+
+void barrier_set_t::restore_preempted_context(unsigned cta_id, preempted_cta_context & context) {
+	cta_to_warp_t::iterator w = m_cta_to_warps.find(cta_id);
+	if( w == m_cta_to_warps.end() ) {
+		printf("Barrier failed to restore preempted context. Not warp bits available for cta.");
+		return;
+	}
+
+	warp_set_t warps = w->second;
+
+	// fill at_barrier
+	for (int i = 0; i < WARP_PER_CTA_MAX; i++) {
+		if (warps.test(i)) {
+			if (context.at_barrier.front()) {
+				m_warp_at_barrier.set(i);
+			}
+			context.at_barrier.pop();
+
+			if (context.active_mask.front()) {
+				m_warp_active.set(i);
+			}
+			context.active_mask.pop();
+
+			for(unsigned bar_id = 0; bar_id < m_max_barriers_per_cta; bar_id++) {
+				if (context.bar_id_to_warps[bar_id].front()) {
+					m_bar_id_to_warps[bar_id].set(i);
+				}
+				context.bar_id_to_warps[bar_id].pop();
+			}
+		}
+	}
+
 }
 
 void shader_core_ctx::warp_exit( unsigned warp_id )
@@ -3477,6 +3571,11 @@ bool shader_core_ctx::check_if_non_released_reduction_barrier(warp_inst_t &inst)
 bool shader_core_ctx::warp_waiting_at_barrier( unsigned warp_id ) const
 {
    return m_barriers.warp_waiting_at_barrier(warp_id);
+}
+
+bool shader_core_ctx::warp_can_preempt_barrier_inst(unsigned warp_id) const
+{
+	return warp_waiting_at_barrier(warp_id) && m_barriers.warp_completed_barrier_inst(warp_id);
 }
 
 bool shader_core_ctx::warp_waiting_at_mem_barrier( unsigned warp_id ) 
@@ -3573,6 +3672,30 @@ void shader_core_ctx::get_icnt_power_stats(long &n_simt_to_mem, long &n_mem_to_s
 	n_mem_to_simt += m_stats->n_mem_to_simt[m_sid];
 }
 
+void shd_warp_t::reset()
+{
+    assert( m_stores_outstanding==0);
+    if (m_inst_in_pipeline != 0) {
+    	printf("shader id: %u, warp_id: %u\n", m_shader->get_sid(), m_warp_id);
+    }
+    assert( m_inst_in_pipeline==0);
+    m_imiss_pending=false;
+    m_warp_id=(unsigned)-1;
+    m_dynamic_warp_id = (unsigned)-1;
+    n_completed = m_warp_size;
+    m_n_atomic=0;
+    m_membar=false;
+    m_done_exit=true;
+    m_last_fetch=0;
+    m_next=0;
+    m_inst_at_barrier=NULL;
+    m_done_inst = 0;
+
+    //Jin: cdp support
+    m_cdp_latency = 0;
+    m_cdp_dummy = false;
+}
+
 bool shd_warp_t::functional_done() const
 {
     return get_n_completed() == m_warp_size;
@@ -3582,7 +3705,9 @@ bool shd_warp_t::hardware_done() const
 {
 	if (m_shader->is_cta_preempted(get_cta_id())) {
 		// got preempted, simply check if stores and compute are done
-		return !imiss_pending() && stores_done() && !inst_in_pipeline();
+		// we should also preempt warps that are stalled at barrier right away cuz the other warps might be preempted
+		// before getting to the barrier, in which case, this warp can never proceed
+		return !imiss_pending() && stores_done() && (!inst_in_pipeline() || m_shader->warp_can_preempt_barrier_inst(m_warp_id));
 	}
 
     return functional_done() && stores_done() && !inst_in_pipeline(); 

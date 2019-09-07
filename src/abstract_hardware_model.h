@@ -208,9 +208,16 @@ struct preempted_cta_context {
     dim3 cta_id3d;
 	std::vector<char*> regs; // per thread
 	std::vector<char*> local_mem; // per thread
-	std::vector<address_type> pcs; // per thread
 	char* shared_mem; // per block
+
+	// PC related info
+	std::vector<address_type> pcs; // per thread
 	std::vector<char*> simt_stack; // per warp
+
+	// barrier related info (per warp)
+	std::queue<bool> at_barrier;
+	std::map< unsigned, std::queue<bool> >  bar_id_to_warps;
+	std::queue<bool> active_mask;
 };
 
 // kernel resource usage information
