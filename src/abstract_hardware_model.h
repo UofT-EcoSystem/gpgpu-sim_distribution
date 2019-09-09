@@ -339,8 +339,12 @@ public:
 
    bool has_preempted_cta() {return !m_preempted_queue.empty();}
 
-   unsigned long long num_done_inst() {return m_done_inst_kernel;}
-   void add_done_inst(unsigned long long count) {m_done_inst_kernel += count;}
+   unsigned long long get_tot_mf_lat() {return m_tot_mf_lat;}
+   unsigned long long get_num_mf() {return m_num_mf;}
+   void add_mf_lat(unsigned long long lat) {
+	   m_tot_mf_lat += lat;
+	   m_num_mf++;
+   }
 
    
    //The following functions access texture bindings present at the kernel's launch
@@ -408,7 +412,8 @@ private:
    std::map< dim3, std::list<CUstream_st *>, dim3comp > m_cta_streams; //streams created in each CTA
 
    unsigned m_cta_quota_per_shader;
-   unsigned long long m_done_inst_kernel;
+   unsigned long long int m_tot_mf_lat;
+   unsigned long long int m_num_mf;
 
 
    Usage usage;

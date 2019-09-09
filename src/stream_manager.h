@@ -233,7 +233,7 @@ public:
     unsigned get_uid() const { return m_uid; }
     bool done_one_kerenl();
     void cancel_remaining();
-    void print_done_inst();
+    void print_stats_per_stream();
 
 private:
     unsigned m_uid;
@@ -244,8 +244,11 @@ private:
 
     pthread_mutex_t m_lock; // ensure only one host or gpu manipulates stream operation at one time
 
-    unsigned m_num_done_kernel;
-    unsigned long long m_num_done_inst;
+    unsigned m_num_done_mf;
+    unsigned long long m_tot_mf_lat;
+
+    // we are only interested in stats of the first kernel in each stream
+    bool m_done_first;
 };
 
 class stream_manager {

@@ -729,7 +729,8 @@ kernel_info_t::kernel_info_t( dim3 gridDim, dim3 blockDim, class function_info *
 
     m_cta_quota_per_shader = 0;
 
-    m_done_inst_kernel = 0;
+    m_tot_mf_lat = 0;
+    m_num_mf = 0;
 
     usage_valid = false;
 

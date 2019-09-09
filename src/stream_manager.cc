@@ -37,8 +37,10 @@ CUstream_st::CUstream_st()
     m_pending = false;
     m_uid = sm_next_stream_uid++;
 
-    m_num_done_kernel = 0;
-    m_num_done_inst = 0;
+    m_num_done_mf = 0;
+    m_tot_mf_lat = 0;
+
+    m_done_first = false;
     pthread_mutex_init(&m_lock,NULL);
 }
 
@@ -83,9 +85,13 @@ void CUstream_st::record_next_done()
     pthread_mutex_lock(&m_lock);
     assert(m_pending);
 
-    if (m_operations.front().is_kernel()) {
-    	m_num_done_kernel++;
-    	m_num_done_inst += m_operations.front().get_kernel()->num_done_inst();
+    if (m_operations.front().is_kernel() && !m_done_first) {
+    	kernel_info_t* pKernel = m_operations.front().get_kernel();
+
+    	m_num_done_mf = pKernel->get_num_mf();
+    	m_tot_mf_lat = pKernel->get_tot_mf_lat();
+
+    	m_done_first = true;
     }
 
     m_operations.pop_front();
@@ -130,22 +136,18 @@ void CUstream_st::cancel_remaining()
 	pthread_mutex_unlock(&m_lock);
 }
 
-void CUstream_st::print_done_inst() {
+void CUstream_st::print_stats_per_stream() {
 	pthread_mutex_lock(&m_lock);
-	// find out done instruction count on currently running kernel
-	unsigned long long partial = 0;
-	if (m_pending && m_operations.front().is_kernel()) {
-		partial += m_operations.front().get_kernel()->num_done_inst();
-	}
-	// print out stream instruction count info
-	printf("Stream #%d completed %llu instructions.\n", get_uid(), m_num_done_inst + partial);
+	// print out stats per stream
+	// don't care about small decimal places, truncate to integer
+	printf("Stream #%d: avg_mf_lat = %lld\n", get_uid(), m_tot_mf_lat / m_num_done_mf);
 
 	pthread_mutex_unlock(&m_lock);
 }
 
 bool CUstream_st::done_one_kerenl() {
 	pthread_mutex_lock(&m_lock);
-	bool result = (m_num_done_kernel > 0);
+	bool result = (m_num_done_mf > 0);
 	pthread_mutex_unlock(&m_lock);
 
 	return result;
@@ -348,7 +350,7 @@ void stream_manager::print_stream_stats() {
 
 	for( auto s = m_streams.begin(); s != m_streams.end(); s++ ) {
 		if (*s) {
-			(*s)->print_done_inst();
+			(*s)->print_stats_per_stream();
 		}
 	}
 
@@ -456,7 +458,7 @@ void stream_manager::destroy_stream( CUstream_st *stream )
             m_streams.erase(s);
 
             // print out stream instruction count info
-            (*s)->print_done_inst();
+            (*s)->print_stats_per_stream();
             break;
         }
     }

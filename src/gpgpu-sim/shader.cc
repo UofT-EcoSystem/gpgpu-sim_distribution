@@ -1551,9 +1551,6 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
 
-  // super sketchy way to add instructions directly to kernel
-  m_thread[inst.warp_id()*m_config->warp_size]->get_kernel().add_done_inst(inst.active_count());
-
   inst.completed(gpu_tot_sim_cycle + gpu_sim_cycle);
 }
 
@@ -2914,6 +2911,11 @@ void shader_core_ctx::display_simt_state(FILE *fout, int mask ) const
     }
 }
 
+void shader_core_ctx::update_mflat_for_kernel(unsigned warpid, unsigned mf_lat) {
+	kernel_info_t & kernel = m_thread[warpid * m_config->warp_size]->get_kernel();
+	kernel.add_mf_lat(mf_lat);
+}
+
 void ldst_unit::print(FILE *fout) const
 {
     fprintf(fout,"LD/ST unit  = ");
@@ -4267,7 +4269,12 @@ void simt_core_cluster::icnt_cycle()
             // data response
             if( !m_core[cid]->ldst_unit_response_buffer_full() ) {
                 m_response_fifo.pop_front();
-                m_memory_stats->memlatstat_read_done(mf);
+
+                unsigned mf_lat = m_memory_stats->memlatstat_read_done(mf);
+
+                // smk stats: update mem latency per stream
+                m_core[cid]->update_mflat_for_kernel(mf->get_wid(), mf_lat);
+
                 m_core[cid]->accept_ldst_unit_response(mf);
             }
         }

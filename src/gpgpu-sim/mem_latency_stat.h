@@ -39,7 +39,7 @@ public:
                    const struct memory_config *mem_config );
 
    unsigned memlatstat_done( class mem_fetch *mf );
-   void memlatstat_read_done( class mem_fetch *mf );
+   unsigned memlatstat_read_done( class mem_fetch *mf );
    void memlatstat_dram_access( class mem_fetch *mf );
    void memlatstat_icnt2mem_pop( class mem_fetch *mf);
    void memlatstat_lat_pw();

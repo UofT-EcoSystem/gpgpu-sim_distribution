@@ -160,10 +160,12 @@ unsigned memory_stats_t::memlatstat_done(mem_fetch *mf )
    return mf_latency;
 }
 
-void memory_stats_t::memlatstat_read_done(mem_fetch *mf)
+unsigned memory_stats_t::memlatstat_read_done(mem_fetch *mf)
 {
+   unsigned result = 0;
    if (m_memory_config->gpgpu_memlatency_stat) {
       unsigned mf_latency = memlatstat_done(mf);
+      result = mf_latency;
       if (mf_latency > mf_max_lat_table[mf->get_tlx_addr().chip][mf->get_tlx_addr().bk]) 
          mf_max_lat_table[mf->get_tlx_addr().chip][mf->get_tlx_addr().bk] = mf_latency;
       unsigned icnt2sh_latency;
@@ -173,6 +175,8 @@ void memory_stats_t::memlatstat_read_done(mem_fetch *mf)
       if (icnt2sh_latency > max_icnt2sh_latency)
          max_icnt2sh_latency = icnt2sh_latency;
    }
+
+   return result;
 }
 
 void memory_stats_t::memlatstat_dram_access(mem_fetch *mf)
