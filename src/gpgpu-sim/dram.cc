@@ -471,26 +471,26 @@ void dram_t::cycle()
    //check the limitation, see where BW is wasted?
    /////////////////////////////////////////////////////////
    unsigned int memory_pending_found=0;
-      for (unsigned i=0;i<m_config->nbk;i++) {
-   	   if (bk[i]->mrq)
-   		memory_pending_found++;
-      }
-      if(memory_pending_found>0)
-    	  banks_acess_total_after++;
+   for (unsigned i=0;i<m_config->nbk;i++) {
+	   if (bk[i]->mrq)
+		   memory_pending_found++;
+   }
+   if(memory_pending_found>0)
+	   banks_acess_total_after++;
 
-        bool memory_pending_rw_found=false;
-        for (unsigned j=0;j<m_config->nbk;j++) {
-     	   unsigned grp = get_bankgrp_number(j);
-     	   if (bk[j]->mrq && (((bk[j]->curr_row == bk[j]->mrq->row) &&
-     		  (bk[j]->mrq->rw == READ)  &&
-     		  (bk[j]->state == BANK_ACTIVE))
-     		   ||
-     		   (
-     			 (bk[j]->curr_row == bk[j]->mrq->row)  &&
-     			 (bk[j]->mrq->rw == WRITE) &&
-     			 (bk[j]->state == BANK_ACTIVE))))
-     		  memory_pending_rw_found=true;
-        }
+   bool memory_pending_rw_found=false;
+   for (unsigned j=0;j<m_config->nbk;j++) {
+	   unsigned grp = get_bankgrp_number(j);
+	   if (bk[j]->mrq && (((bk[j]->curr_row == bk[j]->mrq->row) &&
+			   (bk[j]->mrq->rw == READ)  &&
+			   (bk[j]->state == BANK_ACTIVE))
+			   ||
+			   (
+					   (bk[j]->curr_row == bk[j]->mrq->row)  &&
+					   (bk[j]->mrq->rw == WRITE) &&
+					   (bk[j]->state == BANK_ACTIVE))))
+		   memory_pending_rw_found=true;
+   }
 
 
    if(issued_col_cmd  || CCDc)
