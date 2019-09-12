@@ -154,7 +154,8 @@ private:
    unsigned get_bankgrp_number(unsigned i);
 
    void scheduler_fifo();
-   void scheduler_frfcfs();
+   void scheduler_frfcfs(bool priority=false);
+   void scheduler_priority();
 
    bool issue_col_command(int j);
    bool issue_row_command(int j);

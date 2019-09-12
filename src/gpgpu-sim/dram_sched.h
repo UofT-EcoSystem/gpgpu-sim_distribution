@@ -45,7 +45,7 @@ public:
    frfcfs_scheduler( const memory_config *config, dram_t *dm, memory_stats_t *stats );
    void add_req( dram_req_t *req );
    void data_collection(unsigned bank);
-   dram_req_t *schedule( unsigned bank, unsigned curr_row );
+   dram_req_t *schedule( unsigned bank, unsigned curr_row, bool priority );
    void print( FILE *fp );
    unsigned num_pending() const { return m_num_pending;}
    unsigned num_write_pending() const { return m_num_write_pending;}

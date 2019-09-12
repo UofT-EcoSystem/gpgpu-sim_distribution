@@ -156,7 +156,7 @@ void memory_config::reg_options(class OptionParser * opp)
     option_parser_register(opp, "-perf_sim_memcpy", OPT_BOOL, &m_perf_sim_memcpy, 
                                 "Fill the L2 cache on memcpy", "1");
     option_parser_register(opp, "-gpgpu_dram_scheduler", OPT_INT32, &scheduler_type, 
-                                "0 = fifo, 1 = FR-FCFS (defaul)", "1");
+                                "0 = fifo, 1 = FR-FCFS (default), 2 = FR-Priority", "1");
     option_parser_register(opp, "-gpgpu_dram_partition_queues", OPT_CSTR, &gpgpu_L2_queue_config, 
                            "i2$:$2d:d2$:$2i",
                            "8:8:8:8");

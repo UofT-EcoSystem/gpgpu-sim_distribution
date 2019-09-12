@@ -363,6 +363,8 @@ public:
       return t->second;
    }
 
+   unsigned get_stream_id() const {return m_stream_id;}
+
 private:
    kernel_info_t( const kernel_info_t & ); // disable copy constructor
    void operator=( const kernel_info_t & ); // disable copy operator
@@ -1111,6 +1113,7 @@ public:
         m_uid=0;
         m_empty=true; 
         m_config=NULL; 
+        m_stream_id = -1;
     }
     warp_inst_t( const core_config *config ) 
     { 
@@ -1124,6 +1127,7 @@ public:
         m_cache_hit=false;
         m_is_printf=false;
         m_is_cdp = 0;
+        m_stream_id = -1;
     }
     virtual ~warp_inst_t(){
     }
@@ -1136,7 +1140,7 @@ public:
     {
         m_empty=true; 
     }
-    void issue( const active_mask_t &mask, unsigned warp_id, unsigned long long cycle, int dynamic_warp_id, int sch_id )
+    void issue( const active_mask_t &mask, unsigned warp_id, unsigned long long cycle, int dynamic_warp_id, int sch_id, int stream_id )
     {
         m_warp_active_mask = mask;
         m_warp_issued_mask = mask; 
@@ -1148,6 +1152,7 @@ public:
         m_cache_hit=false;
         m_empty=false;
         m_scheduler_id=sch_id;
+        m_stream_id = stream_id;
     }
     const active_mask_t & get_active_mask() const
     {
@@ -1282,6 +1287,7 @@ public:
     void print( FILE *fout ) const;
     unsigned get_uid() const { return m_uid; }
     unsigned get_schd_id() const { return m_scheduler_id; }
+    int get_stream_id() const { return m_stream_id; }
 
 protected:
     unsigned m_uid;
@@ -1292,6 +1298,7 @@ protected:
     bool m_isatomic;
     bool m_is_printf;
     unsigned m_warp_id;
+    int m_stream_id;
     unsigned m_dynamic_warp_id; 
     const core_config *m_config; 
     active_mask_t m_warp_active_mask; // dynamic active mask for timing model (after predication)

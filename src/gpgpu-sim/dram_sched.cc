@@ -98,7 +98,7 @@ void frfcfs_scheduler::data_collection(unsigned int bank)
    m_stats->num_activates[m_dram->id][bank]++;
 }
 
-dram_req_t *frfcfs_scheduler::schedule( unsigned bank, unsigned curr_row )
+dram_req_t *frfcfs_scheduler::schedule( unsigned bank, unsigned curr_row, bool priority )
 {
    //row
    bool rowhit = true;
@@ -133,18 +133,56 @@ dram_req_t *frfcfs_scheduler::schedule( unsigned bank, unsigned curr_row )
 
       std::map<unsigned,std::list<std::list<dram_req_t*>::iterator> >::iterator bin_ptr = m_current_bins[bank].find( curr_row );
       if ( bin_ptr == m_current_bins[bank].end()) {
-         dram_req_t *req = m_current_queue[bank].back();
-         bin_ptr = m_current_bins[bank].find( req->row );
-         assert( bin_ptr != m_current_bins[bank].end() ); // where did the request go???
-         m_current_last_row[bank] = &(bin_ptr->second);
-         data_collection(bank);
-         rowhit = false;
+    	  dram_req_t *req = m_current_queue[bank].back();
+
+    	  if (priority) {
+    		  // when we need to switch rows, also pick the request from stream 1 first
+    		  std::list<dram_req_t*>::reverse_iterator riter;
+    		  for (riter = m_current_queue[bank].rbegin();
+    				  riter != m_current_queue[bank].rend();
+    				  riter++) {
+    			  if ((*riter)->data->get_inst().get_stream_id() == 1) {
+    				  req = *riter;
+
+    				  break;
+    			  }
+    		  }
+
+    	  }
+
+    	  bin_ptr = m_current_bins[bank].find( req->row );
+    	  assert( bin_ptr != m_current_bins[bank].end() ); // where did the request go???
+    	  m_current_last_row[bank] = &(bin_ptr->second);
+    	  data_collection(bank);
+    	  rowhit = false;
       } else {
     	  m_current_last_row[bank] = &(bin_ptr->second);
          rowhit = true;
       }
    }
+
    std::list<dram_req_t*>::iterator next = m_current_last_row[bank]->back();
+   bool done_erase = false;
+
+   if (priority) {
+	   std::list<std::list<dram_req_t*>::iterator>::reverse_iterator  iter;
+	   for (iter = m_current_last_row[bank]->rbegin();
+			   iter != m_current_last_row[bank]->rend(); iter++) {
+		   // the back is the earliest request, iterate in reverse order
+		   // static priority: always issue request from stream 1 first
+		   dram_req_t* current_req = (**iter);
+		   assert(current_req->data != NULL);
+		   if (current_req->data->get_inst().get_stream_id() == 1) {
+			   next = *iter;
+
+			   m_current_last_row[bank]->erase(--(iter.base()));
+			   done_erase = true;
+
+			   break;
+		   }
+	   }
+   }
+
    dram_req_t *req = (*next);
 
    //rowblp stats
@@ -165,7 +203,9 @@ dram_req_t *frfcfs_scheduler::schedule( unsigned bank, unsigned curr_row )
 
    m_stats->concurrent_row_access[m_dram->id][bank]++;
    m_stats->row_access[m_dram->id][bank]++;
-   m_current_last_row[bank]->pop_back();
+
+   if (!done_erase)
+	   m_current_last_row[bank]->pop_back();
 
    m_current_queue[bank].erase(next);
    if ( m_current_last_row[bank]->empty() ) {
@@ -198,7 +238,7 @@ void frfcfs_scheduler::print( FILE *fp )
    }
 }
 
-void dram_t::scheduler_frfcfs()
+void dram_t::scheduler_frfcfs(bool priority/*=false*/)
 {
    unsigned mrq_latency;
    frfcfs_scheduler *sched = m_frfcfs_scheduler;
@@ -225,7 +265,7 @@ void dram_t::scheduler_frfcfs()
       unsigned b = (i+prio)%m_config->nbk;
       if ( !bk[b]->mrq ) {
 
-         req = sched->schedule(b, bk[b]->curr_row);
+         req = sched->schedule(b, bk[b]->curr_row, priority);
 
          if ( req ) {
             req->data->set_status(IN_PARTITION_MC_BANK_ARB_QUEUE,gpu_sim_cycle+gpu_tot_sim_cycle);
