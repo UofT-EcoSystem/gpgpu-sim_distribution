@@ -98,136 +98,196 @@ void frfcfs_scheduler::data_collection(unsigned int bank)
    m_stats->num_activates[m_dram->id][bank]++;
 }
 
+ bool frfcfs_scheduler::remove_priority_request_from_row (
+        std::list<std::list<dram_req_t*>::iterator>** m_current_last_row,
+        unsigned bank,
+        std::list<dram_req_t*>::iterator & result)
+{
+    bool success = false;
+//	std::list<std::list<dram_req_t*>::iterator>::reverse_iterator  iter;
+	for (auto iter = m_current_last_row[bank]->rbegin();
+	        iter != m_current_last_row[bank]->rend(); iter++) {
+	    // the back is the earliest request, iterate in reverse order
+	    // static priority: always issue request from stream 1 first
+	    dram_req_t* current_req = (**iter);
+	    assert(current_req->data != NULL);
+	    if (current_req->data->get_inst().get_stream_id() == 1) {
+	        result = *iter;
+	        m_current_last_row[bank]->erase(--(iter.base()));
+
+	        success = true;
+
+	        break;
+	    }
+	}
+
+	return success;
+}
+
+std::list<dram_req_t*>::iterator frfcfs_scheduler::schedule_vanilla_frfcfs (
+        std::list<dram_req_t*>* m_current_queue,
+        std::map<unsigned,std::list<std::list<dram_req_t*>::iterator> >* m_current_bins,
+        std::list<std::list<dram_req_t*>::iterator>** m_current_last_row,
+        unsigned bank,
+        unsigned curr_row,
+        bool & rowhit)
+{
+    if ( m_current_last_row[bank] == NULL ) {
+        std::map<unsigned,std::list<std::list<dram_req_t*>::iterator> >::iterator bin_ptr = m_current_bins[bank].find( curr_row );
+        if ( bin_ptr == m_current_bins[bank].end()) {
+            rowhit = false;
+
+            dram_req_t *req = m_current_queue[bank].back();
+
+            bin_ptr = m_current_bins[bank].find( req->row );
+            assert( bin_ptr != m_current_bins[bank].end() ); // where did the request go???
+
+            m_current_last_row[bank] = &(bin_ptr->second);
+
+            data_collection(bank);
+        } else {
+            rowhit = true;
+
+            m_current_last_row[bank] = &(bin_ptr->second);
+        }
+    }
+
+    std::list<dram_req_t*>::iterator next = m_current_last_row[bank]->back();
+    m_current_last_row[bank]->pop_back();
+
+    return next;
+}
+
 dram_req_t *frfcfs_scheduler::schedule( unsigned bank, unsigned curr_row, bool priority )
 {
-   //row
-   bool rowhit = true;
-   std::list<dram_req_t*> *m_current_queue = m_queue;
-   std::map<unsigned,std::list<std::list<dram_req_t*>::iterator> > *m_current_bins = m_bins ;
-   std::list<std::list<dram_req_t*>::iterator> **m_current_last_row = m_last_row;
+    //
+    // Get aliases of relevant state variables
+    //
+    std::list<dram_req_t*> *m_current_queue = m_queue;
+    std::map<unsigned,std::list<std::list<dram_req_t*>::iterator> > *m_current_bins = m_bins ;
+    std::list<std::list<dram_req_t*>::iterator> **m_current_last_row = m_last_row;
 
-   if(m_config->seperate_write_queue_enabled) {
-	   if(m_mode == READ_MODE &&
-			  ((m_num_write_pending >= m_config->write_high_watermark )
-			  // || (m_queue[bank].empty() && !m_write_queue[bank].empty())
-			   )) {
-		   m_mode = WRITE_MODE;
-	   }
-	   else if(m_mode == WRITE_MODE &&
-				  (( m_num_write_pending < m_config->write_low_watermark )
-				 //  || (!m_queue[bank].empty() && m_write_queue[bank].empty())
-				   )){
-		   m_mode = READ_MODE;
-	   }
-   }
+    if(m_config->seperate_write_queue_enabled) {
+        if(m_mode == READ_MODE &&
+                ((m_num_write_pending >= m_config->write_high_watermark )
+                        // || (m_queue[bank].empty() && !m_write_queue[bank].empty())
+                )) {
+            m_mode = WRITE_MODE;
+        }
+        else if(m_mode == WRITE_MODE &&
+                (( m_num_write_pending < m_config->write_low_watermark )
+                        //  || (!m_queue[bank].empty() && m_write_queue[bank].empty())
+                )){
+            m_mode = READ_MODE;
+        }
+    }
 
-   if(m_mode == WRITE_MODE) {
-	   m_current_queue = m_write_queue;
-	   m_current_bins = m_write_bins ;
-	   m_current_last_row = m_last_write_row;
-   }
+    if(m_mode == WRITE_MODE) {
+        m_current_queue = m_write_queue;
+        m_current_bins = m_write_bins ;
+        m_current_last_row = m_last_write_row;
+    }
 
-   if ( m_current_last_row[bank] == NULL ) {
-      if ( m_current_queue[bank].empty() )
-         return NULL;
+    //
+    // If we have nothing in the queue, return nothing
+    //
+    if ( m_current_queue[bank].empty() )
+        return NULL;
 
-      std::map<unsigned,std::list<std::list<dram_req_t*>::iterator> >::iterator bin_ptr = m_current_bins[bank].find( curr_row );
-      if ( bin_ptr == m_current_bins[bank].end()) {
-    	  dram_req_t *req = m_current_queue[bank].back();
+    //
+    // Search for the next request to be issued according to policy
+    //
+    bool rowhit = false;
+    bool priority_found = false;
+    std::list<dram_req_t*>::iterator next;
+    if (priority) {
+        dram_req_t* priority_req_in_queue = NULL;
+        // look for priority request in the global queue
+        // stream 1 has priority. TODO: make this a config variable
+        // earliest request at the tail of the list, hence reverse iterator
+        // std::list<dram_req_t*>::reverse_iterator riter;
+        for (auto riter = m_current_queue[bank].rbegin(); riter != m_current_queue[bank].rend(); riter++) {
+            if ((*riter)->data->get_inst().get_stream_id() == 1) {
+                priority_req_in_queue = *riter;
+                break;
+            }
+        }
 
-    	  if (priority) {
-    		  // when we need to switch rows, also pick the request from stream 1 first
-    		  std::list<dram_req_t*>::reverse_iterator riter;
-    		  for (riter = m_current_queue[bank].rbegin();
-    				  riter != m_current_queue[bank].rend();
-    				  riter++) {
-    			  if ((*riter)->data->get_inst().get_stream_id() == 1) {
-    				  req = *riter;
+        if (priority_req_in_queue) {
+            if (m_current_last_row[bank]) {
+                // look for priority request in the current row
+                priority_found = remove_priority_request_from_row(m_current_last_row, bank, next);
 
-    				  break;
-    			  }
-    		  }
+                if (priority_found) {
+                    rowhit = true;
+                }
+            }
 
-    	  }
+            // either we didn't find a priority request in the current row
+            // or there is no current row at all
+            if (!priority_found) {
+                rowhit = false;
 
-    	  bin_ptr = m_current_bins[bank].find( req->row );
-    	  assert( bin_ptr != m_current_bins[bank].end() ); // where did the request go???
-    	  m_current_last_row[bank] = &(bin_ptr->second);
-    	  data_collection(bank);
-    	  rowhit = false;
-      } else {
-    	  m_current_last_row[bank] = &(bin_ptr->second);
-         rowhit = true;
-      }
-   }
+                auto bin_ptr = m_current_bins[bank].find( priority_req_in_queue->row );
+                assert(bin_ptr != m_current_bins[bank].end());
+                m_current_last_row[bank] = &(bin_ptr->second);
 
-   std::list<dram_req_t*>::iterator next = m_current_last_row[bank]->back();
-   bool done_erase = false;
+                priority_found = remove_priority_request_from_row(m_current_last_row, bank, next);
+                assert(next != m_current_queue[bank].end());
+                assert(priority_found);
 
-   if (priority) {
-	   std::list<std::list<dram_req_t*>::iterator>::reverse_iterator  iter;
-	   for (iter = m_current_last_row[bank]->rbegin();
-			   iter != m_current_last_row[bank]->rend(); iter++) {
-		   // the back is the earliest request, iterate in reverse order
-		   // static priority: always issue request from stream 1 first
-		   dram_req_t* current_req = (**iter);
-		   assert(current_req->data != NULL);
-		   if (current_req->data->get_inst().get_stream_id() == 1) {
-			   next = *iter;
+                data_collection(bank);
+            }
+        }
+    }
 
-			   m_current_last_row[bank]->erase(--(iter.base()));
-			   done_erase = true;
+    if (!priority || (priority && !priority_found)) {
+        next = schedule_vanilla_frfcfs(m_current_queue, m_current_bins, m_current_last_row, bank, curr_row, rowhit);
+    }
 
-			   break;
-		   }
-	   }
-   }
 
-   dram_req_t *req = (*next);
+    dram_req_t* req = *next;
 
-   //rowblp stats
+    //rowblp stats
     m_dram->access_num++;
     bool is_write = req->data->is_write();
     if(is_write)
-  	  m_dram->write_num++;
+        m_dram->write_num++;
     else
-  	  m_dram->read_num++;
+        m_dram->read_num++;
 
     if(rowhit) {
-     m_dram->hits_num++;
-     if(is_write)
-    	  m_dram->hits_write_num++;
-      else
-    	  m_dram->hits_read_num++;
+        m_dram->hits_num++;
+        if(is_write)
+            m_dram->hits_write_num++;
+        else
+            m_dram->hits_read_num++;
     }
 
-   m_stats->concurrent_row_access[m_dram->id][bank]++;
-   m_stats->row_access[m_dram->id][bank]++;
+    m_stats->concurrent_row_access[m_dram->id][bank]++;
+    m_stats->row_access[m_dram->id][bank]++;
 
-   if (!done_erase)
-	   m_current_last_row[bank]->pop_back();
-
-   m_current_queue[bank].erase(next);
-   if ( m_current_last_row[bank]->empty() ) {
-	   m_current_bins[bank].erase( req->row );
-	   m_current_last_row[bank] = NULL;
-   }
+    m_current_queue[bank].erase(next);
+    if ( m_current_last_row[bank]->empty() ) {
+        m_current_bins[bank].erase( req->row );
+        m_current_last_row[bank] = NULL;
+    }
 #ifdef DEBUG_FAST_IDEAL_SCHED
-   if ( req )
-      printf("%08u : DRAM(%u) scheduling memory request to bank=%u, row=%u\n", 
-             (unsigned)gpu_sim_cycle, m_dram->id, req->bk, req->row );
+    if ( req )
+        printf("%08u : DRAM(%u) scheduling memory request to bank=%u, row=%u\n",
+                (unsigned)gpu_sim_cycle, m_dram->id, req->bk, req->row );
 #endif
 
-   if(m_config->seperate_write_queue_enabled && req->data->is_write()) {
-	   assert( req != NULL && m_num_write_pending != 0 );
-	   m_num_write_pending--;
-   }
-   else {
-	   assert( req != NULL && m_num_pending != 0 );
-	   m_num_pending--;
-   }
+    if(m_config->seperate_write_queue_enabled && req->data->is_write()) {
+        assert( req != NULL && m_num_write_pending != 0 );
+        m_num_write_pending--;
+    }
+    else {
+        assert( req != NULL && m_num_pending != 0 );
+        m_num_pending--;
+    }
 
-   return req;
+    return req;
 }
 
 

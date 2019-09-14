@@ -67,6 +67,17 @@ private:
 
    enum memory_mode m_mode;
    memory_stats_t *m_stats;
+
+   // Erase a priority request from row and return it
+   bool remove_priority_request_from_row (std::list<std::list<dram_req_t*>::iterator>** m_current_last_row,
+           unsigned bank,
+           std::list<dram_req_t*>::iterator & result);
+   std::list<dram_req_t*>::iterator schedule_vanilla_frfcfs (std::list<dram_req_t*> *m_current_queue,
+           std::map<unsigned,std::list<std::list<dram_req_t*>::iterator> > *m_current_bins,
+           std::list<std::list<dram_req_t*>::iterator> **m_current_last_row,
+           unsigned bank,
+           unsigned curr_row,
+           /* out */ bool & rowhit);
 };
 
 #endif
