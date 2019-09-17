@@ -119,6 +119,9 @@ public:
    mem_fetch* get_original_mf() { return original_mf; }
    mem_fetch* get_original_wr_mf()  { return original_wr_mf; }
 
+   int get_stream_id() const;
+   bool should_record_stat() const;
+
 private:
    // request source information
    unsigned m_request_uid;

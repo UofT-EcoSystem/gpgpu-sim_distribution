@@ -1534,8 +1534,8 @@ data_cache::rd_miss_base( new_addr_type addr,
         if(wb && (m_config.m_write_policy != WRITE_THROUGH) ){ 
             mem_fetch *wb = m_memfetch_creator->alloc(evicted.m_block_addr,
                 m_wrbk_type,evicted.m_modified_size,true);
-        send_write_request(wb, WRITE_BACK_REQUEST_SENT, time, events);
-    }
+            send_write_request(wb, WRITE_BACK_REQUEST_SENT, time, events);
+        }
         return MISS;
     }
         return RESERVATION_FAIL;

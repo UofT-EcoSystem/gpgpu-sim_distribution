@@ -39,7 +39,7 @@ public:
                    const struct memory_config *mem_config );
 
    unsigned memlatstat_done( class mem_fetch *mf );
-   unsigned memlatstat_read_done( class mem_fetch *mf );
+   void memlatstat_read_done( class mem_fetch *mf );
    void memlatstat_dram_access( class mem_fetch *mf );
    void memlatstat_icnt2mem_pop( class mem_fetch *mf);
    void memlatstat_lat_pw();
@@ -52,7 +52,6 @@ public:
 
    unsigned m_n_shader;
 
-   const struct shader_core_config *m_shader_config;
    const struct memory_config *m_memory_config;
 
    unsigned max_mrq_latency;
@@ -86,6 +85,17 @@ public:
    unsigned int *position_of_mrq_chosen; //position of mrq in m_queue chosen 
    
    unsigned ***mem_access_type_stats; // dram access type classification
+
+   // per stream stats
+   static const unsigned NUM_STREAMS = 2;
+   unsigned num_mfs_streams[NUM_STREAMS];
+   unsigned long long int tot_icnt2mem_latency_streams[NUM_STREAMS];
+   unsigned long long int tot_icnt2sh_latency_streams[NUM_STREAMS];
+   unsigned long long int mf_total_lat_streams[NUM_STREAMS];
+
+   unsigned long long int tot_mrq_num_streams[NUM_STREAMS];
+   unsigned long long int tot_mrq_latency_streams[NUM_STREAMS];
+
 
    // AerialVision L2 stats
    unsigned L2_read_miss;

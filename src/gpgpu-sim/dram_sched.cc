@@ -111,7 +111,7 @@ void frfcfs_scheduler::data_collection(unsigned int bank)
 	    // static priority: always issue request from stream 1 first
 	    dram_req_t* current_req = (**iter);
 	    assert(current_req->data != NULL);
-	    if (current_req->data->get_inst().get_stream_id() == 1) {
+	    if (current_req->data->get_stream_id() == 1) {
 	        result = *iter;
 	        m_current_last_row[bank]->erase(--(iter.base()));
 
@@ -207,7 +207,7 @@ dram_req_t *frfcfs_scheduler::schedule( unsigned bank, unsigned curr_row, bool p
         // earliest request at the tail of the list, hence reverse iterator
         // std::list<dram_req_t*>::reverse_iterator riter;
         for (auto riter = m_current_queue[bank].rbegin(); riter != m_current_queue[bank].rend(); riter++) {
-            if ((*riter)->data->get_inst().get_stream_id() == 1) {
+            if ((*riter)->data->get_stream_id()== 1) {
                 priority_req_in_queue = *riter;
                 break;
             }
@@ -335,6 +335,15 @@ void dram_t::scheduler_frfcfs(bool priority/*=false*/)
                mrq_latency = gpu_sim_cycle + gpu_tot_sim_cycle - bk[b]->mrq->timestamp;
                m_stats->tot_mrq_latency += mrq_latency;
                m_stats->tot_mrq_num++;
+
+               int stream_id = req->data->get_stream_id();
+               if (stream_id != -1 && req->data->should_record_stat()) {
+            	   assert(stream_id <= memory_stats_t::NUM_STREAMS);
+
+                   m_stats->tot_mrq_latency_streams[stream_id] += mrq_latency;
+                   m_stats->tot_mrq_num_streams[stream_id] += 1;
+               }
+
                bk[b]->mrq->timestamp = gpu_tot_sim_cycle + gpu_sim_cycle;
                m_stats->mrq_lat_table[LOGB2(mrq_latency)]++;
                if (mrq_latency > m_stats->max_mrq_latency) {

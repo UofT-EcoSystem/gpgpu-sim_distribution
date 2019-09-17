@@ -49,6 +49,7 @@ mem_fetch::mem_fetch( const mem_access_t &access,
    if( inst ) { 
        m_inst = *inst;
        assert( wid == m_inst.warp_id() );
+       assert(inst->get_stream_id() != -1);
    }
    m_data_size = access.get_size();
    m_ctrl_size = ctrl_size;
@@ -60,6 +61,7 @@ mem_fetch::mem_fetch( const mem_access_t &access,
    m_type = m_access.is_write()?WRITE_REQUEST:READ_REQUEST;
    m_timestamp = gpu_sim_cycle + gpu_tot_sim_cycle;
    m_timestamp2 = 0;
+   m_icnt_receive_time = 0;
    m_status = MEM_FETCH_INITIALIZED;
    m_status_change = gpu_sim_cycle + gpu_tot_sim_cycle;
    m_mem_config = config;
@@ -137,6 +139,30 @@ unsigned mem_fetch::get_num_flits(bool simt_to_mem){
 
 	return (sz/icnt_flit_size) + ( (sz % icnt_flit_size)? 1:0);
 }
+
+int mem_fetch::get_stream_id() const
+{
+    if (!m_inst.empty()) {
+        return m_inst.get_stream_id();
+    } else if (original_mf) {
+        return original_mf->get_inst().get_stream_id();
+    }
+
+    return -1;
+}
+
+bool mem_fetch::should_record_stat() const
+{
+    if (!m_inst.empty()) {
+        return m_inst.should_record_stat();
+    } else if (original_mf) {
+        return original_mf->get_inst().should_record_stat();
+    }
+
+    return false;
+}
+
+
 
 
 

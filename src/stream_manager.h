@@ -231,9 +231,8 @@ public:
     stream_operation &front() { return m_operations.front(); }
     void print( FILE *fp );
     unsigned get_uid() const { return m_uid; }
-    bool done_one_kerenl();
+    bool should_record_stat() ;
     void cancel_remaining();
-    void print_stats_per_stream();
 
 private:
     unsigned m_uid;
@@ -243,9 +242,6 @@ private:
     bool m_pending; // front operation has started but not yet completed
 
     pthread_mutex_t m_lock; // ensure only one host or gpu manipulates stream operation at one time
-
-    unsigned m_num_done_mf;
-    unsigned long long m_tot_mf_lat;
 
     // we are only interested in stats of the first kernel in each stream
     bool m_done_first;
@@ -270,7 +266,6 @@ public:
     bool all_stream_done_one_kernel();
     void cancel_remaining_kernels();
 
-    void print_stream_stats();
 private:
     void print_impl( FILE *fp);
 

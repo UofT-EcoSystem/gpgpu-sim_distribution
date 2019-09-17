@@ -894,7 +894,14 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     // get stream info
     unsigned tid = warp_id*m_config->warp_size;
     unsigned stream_id = m_thread[tid]->get_kernel().get_stream_id();
-    (*pipe_reg)->issue( active_mask, warp_id, gpu_tot_sim_cycle + gpu_sim_cycle, m_warp[warp_id].get_dynamic_warp_id(), sch_id, stream_id ); // dynamic instruction information
+    bool should_record_stat = m_thread[tid]->get_kernel().should_record_stat();
+    (*pipe_reg)->issue( active_mask,
+            warp_id,
+            gpu_tot_sim_cycle + gpu_sim_cycle,
+            m_warp[warp_id].get_dynamic_warp_id(),
+            sch_id,
+            stream_id,
+            should_record_stat ); // dynamic instruction information
     m_stats->shader_cycle_distro[2+(*pipe_reg)->active_count()]++;
     func_exec_inst( **pipe_reg );
     if( next_inst->op == BARRIER_OP ){
@@ -2914,11 +2921,6 @@ void shader_core_ctx::display_simt_state(FILE *fout, int mask ) const
     }
 }
 
-void shader_core_ctx::update_mflat_for_kernel(unsigned warpid, unsigned mf_lat) {
-	kernel_info_t & kernel = m_thread[warpid * m_config->warp_size]->get_kernel();
-	kernel.add_mf_lat(mf_lat);
-}
-
 void ldst_unit::print(FILE *fout) const
 {
     fprintf(fout,"LD/ST unit  = ");
@@ -4272,12 +4274,7 @@ void simt_core_cluster::icnt_cycle()
             // data response
             if( !m_core[cid]->ldst_unit_response_buffer_full() ) {
                 m_response_fifo.pop_front();
-
-                unsigned mf_lat = m_memory_stats->memlatstat_read_done(mf);
-
-                // smk stats: update mem latency per stream
-                m_core[cid]->update_mflat_for_kernel(mf->get_wid(), mf_lat);
-
+                m_memory_stats->memlatstat_read_done(mf);
                 m_core[cid]->accept_ldst_unit_response(mf);
             }
         }

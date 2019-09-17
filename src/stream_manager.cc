@@ -37,9 +37,6 @@ CUstream_st::CUstream_st()
     m_pending = false;
     m_uid = sm_next_stream_uid++;
 
-    m_num_done_mf = 0;
-    m_tot_mf_lat = 0;
-
     m_done_first = false;
     pthread_mutex_init(&m_lock,NULL);
 }
@@ -86,11 +83,6 @@ void CUstream_st::record_next_done()
     assert(m_pending);
 
     if (m_operations.front().is_kernel() && !m_done_first) {
-    	kernel_info_t* pKernel = m_operations.front().get_kernel();
-
-    	m_num_done_mf = pKernel->get_num_mf();
-    	m_tot_mf_lat = pKernel->get_tot_mf_lat();
-
     	m_done_first = true;
     }
 
@@ -119,35 +111,9 @@ void CUstream_st::cancel_front()
 
 }
 
-void CUstream_st::cancel_remaining()
-{
+bool CUstream_st::should_record_stat() {
 	pthread_mutex_lock(&m_lock);
-	auto start_it = m_operations.begin();
-
-	if (m_pending) {
-		// remove operations after the first one
-		++start_it;
-	}
-
-	if (start_it != m_operations.end()) {
-		m_operations.erase(start_it, m_operations.end());
-	}
-
-	pthread_mutex_unlock(&m_lock);
-}
-
-void CUstream_st::print_stats_per_stream() {
-	pthread_mutex_lock(&m_lock);
-	// print out stats per stream
-	// don't care about small decimal places, truncate to integer
-	printf("Stream #%d: avg_mf_lat = %lld\n", get_uid(), m_tot_mf_lat / m_num_done_mf);
-
-	pthread_mutex_unlock(&m_lock);
-}
-
-bool CUstream_st::done_one_kerenl() {
-	pthread_mutex_lock(&m_lock);
-	bool result = (m_num_done_mf > 0);
+	bool result = !m_done_first;
 	pthread_mutex_unlock(&m_lock);
 
 	return result;
@@ -223,6 +189,7 @@ bool stream_operation::do_operation( gpgpu_sim *gpu )
                     printf("kernel %d: \'%s\' transfer to GPU hardware scheduler\n", m_kernel->get_uid(), m_kernel->name().c_str() );
                     m_kernel->print_parent_info();
                 }
+                m_kernel->set_should_record_stat(m_stream->should_record_stat());
                 gpu->set_cache_config(m_kernel->name());
                 gpu->launch( m_kernel );
             }
@@ -343,22 +310,6 @@ bool stream_manager::register_finished_kernel(unsigned grid_uid)
     return false;
 }
 
-void stream_manager::print_stream_stats() {
-	pthread_mutex_lock(&m_lock);
-
-	printf("\n\n---------------------- Start Stream Instruction Stats ------------------------\n\n");
-
-	for( auto s = m_streams.begin(); s != m_streams.end(); s++ ) {
-		if (*s) {
-			(*s)->print_stats_per_stream();
-		}
-	}
-
-	printf("\n---------------------- End Stream Instruction Stats ------------------------\n\n");
-
-	pthread_mutex_unlock(&m_lock);
-}
-
 void stream_manager::stop_all_running_kernels(){
     pthread_mutex_lock(&m_lock);
 
@@ -457,8 +408,6 @@ void stream_manager::destroy_stream( CUstream_st *stream )
         if( *s == stream ) {
             m_streams.erase(s);
 
-            // print out stream instruction count info
-            (*s)->print_stats_per_stream();
             break;
         }
     }
