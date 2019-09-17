@@ -1561,6 +1561,11 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
   m_stats->m_num_sim_winsn[m_sid]++;
   m_gpu->gpu_sim_insn += inst.active_count();
 
+  int stream_id = inst.get_stream_id();
+  assert(stream_id != -1 && stream_id <= gpgpu_sim::NUM_STREAMS);
+  m_gpu->gpu_sim_insn_stream[stream_id] += inst.active_count();
+
+
   inst.completed(gpu_tot_sim_cycle + gpu_sim_cycle);
 }
 

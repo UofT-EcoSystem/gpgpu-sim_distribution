@@ -583,7 +583,9 @@ private:
 
 
 public:
+   static const int NUM_STREAMS = 2;
    unsigned long long  gpu_sim_insn;
+   unsigned long long  gpu_sim_insn_stream[NUM_STREAMS];
    unsigned long long  gpu_sim_sp_insn;
    unsigned long long  gpu_sim_sfu_insn;
    unsigned long long  gpu_sim_mem_insn;

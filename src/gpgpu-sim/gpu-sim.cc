@@ -886,6 +886,10 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
     m_power_stats = new power_stat_t(m_shader_config,average_pipeline_duty_cycle,active_sms,m_shader_stats,m_memory_config,m_memory_stats);
 
     gpu_sim_insn = 0;
+    for (int i = 0; i < NUM_STREAMS; i++) {
+        gpu_sim_insn_stream[i] = 0;
+    }
+
     gpu_tot_sim_insn = 0;
     gpu_tot_issued_cta = 0;
     m_total_cta_launched = 0;
@@ -1034,6 +1038,9 @@ void gpgpu_sim::init()
     // run a CUDA grid on the GPU microarchitecture simulator
     gpu_sim_cycle = 0;
     gpu_sim_insn = 0;
+    for (int i = 0; i < NUM_STREAMS; i++) {
+        gpu_sim_insn_stream[i] = 0;
+    }
     last_gpu_sim_insn = 0;
     m_total_cta_launched=0;
     partiton_reqs_in_parallel = 0;
@@ -1258,6 +1265,9 @@ void gpgpu_sim::gpu_print_stat()
 
    printf("gpu_sim_cycle = %lld\n", gpu_sim_cycle);
    printf("gpu_sim_insn = %lld\n", gpu_sim_insn);
+   for (int i = 0; i < NUM_STREAMS; i++) {
+       printf("gpu_sim_insn[%d]: %lld\n", i, gpu_sim_insn_stream[i]);
+   }
    printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn / gpu_sim_cycle);
    printf("gpu_tot_sim_cycle = %lld\n", gpu_tot_sim_cycle+gpu_sim_cycle);
    printf("gpu_tot_sim_insn = %lld\n", gpu_tot_sim_insn+gpu_sim_insn);
