@@ -342,8 +342,6 @@ public:
     size_t sync_depth_limit() const {return runtime_sync_depth_limit; }
     size_t pending_launch_count_limit() const {return runtime_pending_launch_count_limit;}
 
-    bool finish_one_kernel_per_stream() const {return finish_first_kernel_per_stream;}
-
 private:
     void init_clock_domains(void ); 
 
@@ -396,11 +394,6 @@ private:
     unsigned int gpgpu_compute_capability_major;
     unsigned int gpgpu_compute_capability_minor;
     unsigned long long liveness_message_freq; 
-
-
-    // for measuring weighted speedup for concurrent kernel
-    bool finish_first_kernel_per_stream;
-
 
     friend class gpgpu_sim;
 };
@@ -510,7 +503,6 @@ public:
 
     const std::vector<kernel_info_t*>& get_running_kernels() {return m_running_kernels;}
     void update_executed_kernel(kernel_info_t* kernel);
-    bool config_finish_first_kernel() {return m_config.finish_first_kernel_per_stream;}
 private:
    // clocks
    void reinit_clock_domains(void);

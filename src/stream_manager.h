@@ -232,7 +232,6 @@ public:
     void print( FILE *fp );
     unsigned get_uid() const { return m_uid; }
     bool should_record_stat() ;
-    void cancel_remaining();
 
 private:
     unsigned m_uid;
@@ -263,8 +262,6 @@ public:
     void pushCudaStreamWaitEventToAllStreams( CUevent_st *e, unsigned int flags );
     bool operation(bool * sim);
     void stop_all_running_kernels();
-    bool all_stream_done_one_kernel();
-    void cancel_remaining_kernels();
 
 private:
     void print_impl( FILE *fp);

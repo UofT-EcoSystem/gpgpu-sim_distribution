@@ -329,16 +329,6 @@ void stream_manager::stop_all_running_kernels(){
     pthread_mutex_unlock(&m_lock);
 }
 
-void stream_manager::cancel_remaining_kernels() {
-    pthread_mutex_lock(&m_lock);
-
-    for( auto s = m_streams.begin(); s != m_streams.end(); s++ ) {
-    	(*s)->cancel_remaining();
-    }
-
-    pthread_mutex_unlock(&m_lock);
-}
-
 stream_operation stream_manager::front() 
 {
     // called by gpu simulation thread
@@ -381,21 +371,6 @@ void stream_manager::add_stream( struct CUstream_st *stream )
     pthread_mutex_lock(&m_lock);
     m_streams.push_back(stream);
     pthread_mutex_unlock(&m_lock);
-}
-
-bool stream_manager::all_stream_done_one_kernel()
-{
-    bool result = true;
-    pthread_mutex_lock(&m_lock);
-	for( auto s=m_streams.begin(); s != m_streams.end(); s++ ) {
-		if (!(*s)->done_one_kerenl()) {
-			result = false;
-			break;
-		}
-	}
-    pthread_mutex_unlock(&m_lock);
-
-	return result;
 }
 
 void stream_manager::destroy_stream( CUstream_st *stream )

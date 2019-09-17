@@ -566,11 +566,6 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
    ptx_file_line_stats_options(opp);
 
 
-
-   option_parser_register(opp, "-finish_first_kernel_per_stream", OPT_BOOL,
-                          &finish_first_kernel_per_stream, "Only complete the first kernel instance in each stream",
-                          "0");
-
     //Jin: kernel launch latency
     extern unsigned g_kernel_launch_latency;
     option_parser_register(opp, "-gpgpu_kernel_launch_latency", OPT_INT32, 
