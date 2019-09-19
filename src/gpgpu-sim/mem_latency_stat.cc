@@ -42,7 +42,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-memory_stats_t::memory_stats_t( unsigned n_shader, const struct shader_core_config *shader_config, const struct memory_config *mem_config )
+memory_stats_t::memory_stats_t( unsigned n_shader,
+        const struct shader_core_config *shader_config,
+        const struct memory_config *mem_config,
+        unsigned n_streams )
 {
    assert( mem_config->m_valid );
    assert( shader_config->m_valid );
@@ -91,12 +94,13 @@ memory_stats_t::memory_stats_t( unsigned n_shader, const struct shader_core_conf
    mf_total_lat = 0;
    num_mfs = 0;
 
-   memset(num_mfs_streams, 0, sizeof(unsigned) * NUM_STREAMS);
-   memset(tot_icnt2mem_latency_streams, 0, sizeof(unsigned long long int) * NUM_STREAMS);
-   memset(tot_icnt2sh_latency_streams, 0, sizeof(unsigned long long int) * NUM_STREAMS);
-   memset(mf_total_lat_streams, 0, sizeof(unsigned long long int ) * NUM_STREAMS);
-   memset(tot_mrq_num_streams, 0, sizeof(unsigned long long int) * NUM_STREAMS);
-   memset(tot_mrq_latency_streams, 0, sizeof(unsigned long long int ) * NUM_STREAMS);
+   num_streams = n_streams;
+   num_mfs_streams = (unsigned*)calloc(num_streams, sizeof(unsigned));
+   tot_icnt2mem_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
+   tot_icnt2sh_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
+   mf_total_lat_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int ));
+   tot_mrq_num_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
+   tot_mrq_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int ));
 
 
    printf("*** Initializing Memory Statistics ***\n");
@@ -162,7 +166,7 @@ unsigned memory_stats_t::memlatstat_done(mem_fetch *mf )
 
    int stream_id = mf->get_stream_id();
    if (stream_id != -1 && mf->should_record_stat()) {
-       assert(stream_id <= memory_stats_t::NUM_STREAMS);
+       assert(stream_id < num_streams);
 
        num_mfs_streams[stream_id] += 1;
        mf_total_lat_streams[stream_id] += mf_latency;
@@ -190,7 +194,7 @@ void memory_stats_t::memlatstat_read_done(mem_fetch *mf)
 
       int stream_id = mf->get_stream_id();
       if (stream_id != -1 && mf->should_record_stat()) {
-    	  assert(stream_id <= memory_stats_t::NUM_STREAMS);
+    	  assert(stream_id < num_streams);
           tot_icnt2sh_latency_streams[stream_id] += icnt2sh_latency;
       }
 
@@ -232,7 +236,7 @@ void memory_stats_t::memlatstat_icnt2mem_pop(mem_fetch *mf)
 
       int stream_id = mf->get_stream_id();
       if (stream_id != -1 && mf->should_record_stat()) {
-    	  assert(stream_id <= memory_stats_t::NUM_STREAMS);
+    	  assert(stream_id < num_streams);
           tot_icnt2mem_latency_streams[stream_id] += icnt2mem_latency;
       }
 
@@ -275,14 +279,14 @@ void memory_stats_t::memlatstat_print( unsigned n_mem, unsigned gpu_mem_n_bk )
 
          // per stream info
          printf("Per stream mem stat:\n");
-         for (int i = 0; i < NUM_STREAMS; i++) {
+         for (int i = 0; i < num_streams; i++) {
              if (num_mfs_streams[i]) {
                  printf("averagemflatency[%d] = %lld \n", i, mf_total_lat_streams[i]/num_mfs_streams[i]);
                  printf("avg_icnt2mem_latency[%d] = %lld \n", i, tot_icnt2mem_latency_streams[i]/num_mfs_streams[i]);
                  if(tot_mrq_num_streams[i])
                      printf("avg_mrq_latency[%d] = %lld \n", i, tot_mrq_latency_streams[i]/tot_mrq_num_streams[i]);
 
-                 printf("avg_icnt2sh_latency[i] = %lld \n", i, tot_icnt2sh_latency_streams[i]/num_mfs_streams[i]);
+                 printf("avg_icnt2sh_latency[%d] = %lld \n", i, tot_icnt2sh_latency_streams[i]/num_mfs_streams[i]);
              }
          }
       }

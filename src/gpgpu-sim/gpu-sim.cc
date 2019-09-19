@@ -578,6 +578,12 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
     option_parser_register(opp, "-delayed_cycle_btw_kernels", OPT_INT32,
     		&delayed_cycle_btw_kernels, "Number of cycles to delay the second kernel", "0");
 
+
+    // customize number of ctas for each stream
+    // FIXME: this only applies to two stream for now
+    option_parser_register(opp, "-max_cta_in_stream", OPT_CSTR, &max_cta_in_stream,
+            "<max_cta_in_stream_default>:<in_stream_1>:<in_stream_2>", "0:0:0");
+
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -701,10 +707,19 @@ void gpgpu_sim::resource_partition_smk() {
 
 	// write back the partitioning results
 	for (auto k_usage : rK) {
-		m_running_kernels[k_usage.first]->set_cta_quota(k_usage.second.cta_quota);
+	    unsigned stream_id = m_running_kernels[k_usage.first]->get_stream_id();
+	    unsigned config_max_cta = m_config.get_max_cta_by_stream(stream_id);
+	    // check if the config file has overridden the cta
+	    // only effective when we have multiple kernels
+	    if (rK.size() > 1 && config_max_cta > 0) {
+            m_running_kernels[k_usage.first]->set_cta_quota(config_max_cta);
+	    }
+	    else {
+	        m_running_kernels[k_usage.first]->set_cta_quota(k_usage.second.cta_quota);
+	    }
 
 		// print the resource partition results
-		printf("%s: %d ctas\n", m_running_kernels[k_usage.first]->name().c_str(), k_usage.second.cta_quota);
+		printf("%s: %d ctas\n", m_running_kernels[k_usage.first]->name().c_str(), m_running_kernels[k_usage.first]->get_cta_quota());
 	}
 
 }
@@ -880,15 +895,13 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
 #endif
 
     m_shader_stats = new shader_core_stats(m_shader_config);
-    m_memory_stats = new memory_stats_t(m_config.num_shader(),m_shader_config,m_memory_config);
+    m_memory_stats = new memory_stats_t(m_config.num_shader(),m_shader_config,m_memory_config,m_config.get_config_num_streams());
     average_pipeline_duty_cycle = (float *)malloc(sizeof(float));
     active_sms=(float *)malloc(sizeof(float));
     m_power_stats = new power_stat_t(m_shader_config,average_pipeline_duty_cycle,active_sms,m_shader_stats,m_memory_config,m_memory_stats);
 
     gpu_sim_insn = 0;
-    for (int i = 0; i < NUM_STREAMS; i++) {
-        gpu_sim_insn_stream[i] = 0;
-    }
+    gpu_sim_insn_stream = (unsigned long long*) calloc(m_config.get_config_num_streams(), sizeof(unsigned long long));
 
     gpu_tot_sim_insn = 0;
     gpu_tot_issued_cta = 0;
@@ -1038,7 +1051,7 @@ void gpgpu_sim::init()
     // run a CUDA grid on the GPU microarchitecture simulator
     gpu_sim_cycle = 0;
     gpu_sim_insn = 0;
-    for (int i = 0; i < NUM_STREAMS; i++) {
+    for (int i = 0; i < m_config.get_config_num_streams(); i++) {
         gpu_sim_insn_stream[i] = 0;
     }
     last_gpu_sim_insn = 0;
@@ -1265,7 +1278,7 @@ void gpgpu_sim::gpu_print_stat()
 
    printf("gpu_sim_cycle = %lld\n", gpu_sim_cycle);
    printf("gpu_sim_insn = %lld\n", gpu_sim_insn);
-   for (int i = 0; i < NUM_STREAMS; i++) {
+   for (int i = 0; i < m_config.get_config_num_streams(); i++) {
        printf("gpu_sim_insn[%d]: %lld\n", i, gpu_sim_insn_stream[i]);
    }
    printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn / gpu_sim_cycle);

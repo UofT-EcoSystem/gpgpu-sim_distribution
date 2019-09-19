@@ -36,7 +36,8 @@ class memory_stats_t {
 public:
    memory_stats_t( unsigned n_shader, 
                    const struct shader_core_config *shader_config, 
-                   const struct memory_config *mem_config );
+                   const struct memory_config *mem_config,
+                   unsigned n_streams);
 
    unsigned memlatstat_done( class mem_fetch *mf );
    void memlatstat_read_done( class mem_fetch *mf );
@@ -87,14 +88,14 @@ public:
    unsigned ***mem_access_type_stats; // dram access type classification
 
    // per stream stats
-   static const unsigned NUM_STREAMS = 2;
-   unsigned num_mfs_streams[NUM_STREAMS];
-   unsigned long long int tot_icnt2mem_latency_streams[NUM_STREAMS];
-   unsigned long long int tot_icnt2sh_latency_streams[NUM_STREAMS];
-   unsigned long long int mf_total_lat_streams[NUM_STREAMS];
+   unsigned num_streams;
+   unsigned * num_mfs_streams;
+   unsigned long long int * tot_icnt2mem_latency_streams;
+   unsigned long long int * tot_icnt2sh_latency_streams;
+   unsigned long long int * mf_total_lat_streams;
 
-   unsigned long long int tot_mrq_num_streams[NUM_STREAMS];
-   unsigned long long int tot_mrq_latency_streams[NUM_STREAMS];
+   unsigned long long int * tot_mrq_num_streams;
+   unsigned long long int * tot_mrq_latency_streams;
 
 
    // AerialVision L2 stats

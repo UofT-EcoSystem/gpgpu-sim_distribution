@@ -35,6 +35,11 @@
 #include "shader.h"
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <string>
+#include <algorithm>
+#include <iterator>
+#include <vector>
 #include <list>
 #include <stdio.h>
 
@@ -329,6 +334,13 @@ public:
         snprintf(buf,1024,"gpgpusim_visualizer__%s.log.gz",date);
         g_visualizer_filename = strdup(buf);
 
+        std::stringstream ss_cta;
+        ss_cta << max_cta_in_stream;
+        std::string token;
+        while (std::getline(ss_cta, token, ':')) {
+            max_cta_per_stream.push_back(std::stoul(token));
+        }
+
         m_valid=true;
     }
 
@@ -342,6 +354,11 @@ public:
     size_t sync_depth_limit() const {return runtime_sync_depth_limit; }
     size_t pending_launch_count_limit() const {return runtime_pending_launch_count_limit;}
 
+    unsigned get_config_num_streams() const { return max_cta_per_stream.size(); }
+    unsigned get_max_cta_by_stream(unsigned stream_id) const {
+        assert(stream_id < get_config_num_streams());
+        return max_cta_per_stream[stream_id];
+    }
 private:
     void init_clock_domains(void ); 
 
@@ -371,6 +388,8 @@ private:
     int   gpgpu_cflog_interval;
     char * gpgpu_clock_domains;
     unsigned max_concurrent_kernel;
+    char *max_cta_in_stream;
+    std::vector<unsigned> max_cta_per_stream;
 
     unsigned delayed_cycle_btw_kernels;
 
@@ -583,9 +602,8 @@ private:
 
 
 public:
-   static const int NUM_STREAMS = 2;
    unsigned long long  gpu_sim_insn;
-   unsigned long long  gpu_sim_insn_stream[NUM_STREAMS];
+   unsigned long long * gpu_sim_insn_stream;
    unsigned long long  gpu_sim_sp_insn;
    unsigned long long  gpu_sim_sfu_insn;
    unsigned long long  gpu_sim_mem_insn;

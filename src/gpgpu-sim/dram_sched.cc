@@ -338,7 +338,7 @@ void dram_t::scheduler_frfcfs(bool priority/*=false*/)
 
                int stream_id = req->data->get_stream_id();
                if (stream_id != -1 && req->data->should_record_stat()) {
-            	   assert(stream_id <= memory_stats_t::NUM_STREAMS);
+            	   assert(stream_id < m_stats->num_streams);
 
                    m_stats->tot_mrq_latency_streams[stream_id] += mrq_latency;
                    m_stats->tot_mrq_num_streams[stream_id] += 1;
