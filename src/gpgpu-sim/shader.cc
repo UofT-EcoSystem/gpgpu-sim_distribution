@@ -3095,9 +3095,10 @@ unsigned int shader_core_config::max_cta( const kernel_info_t &k ) const
    result = gs_min2(result, result_regs);
    result = gs_min2(result, result_cta);
 
-   static const struct gpgpu_ptx_sim_info* last_kinfo = NULL;
-   if (last_kinfo != kernel_info) {   //Only print out stats if kernel_info struct changes
-      last_kinfo = kernel_info;
+   static std::map<unsigned, const struct gpgpu_ptx_sim_info*> last_kinfo;
+   const int stream_id = k.get_stream_id();
+   if (last_kinfo.count(stream_id) == 0 || last_kinfo[stream_id] != kernel_info) {   //Only print out stats if kernel_info struct changes
+      last_kinfo[stream_id] = kernel_info;
       printf ("GPGPU-Sim uArch: CTA/core = %u, limited by:", result);
       if (result == result_thread) printf (" threads");
       if (result == result_shmem) printf (" shmem");
@@ -4160,19 +4161,53 @@ unsigned simt_core_cluster::issue_block2core()
         kernel_info_t * kernel;
          //Jin: fetch kernel according to concurrent kernel setting
         if(m_config->gpgpu_concurrent_kernel_sm) {//concurrent kernel on sm 
-        	// first, check if there is a candidate kernel that should initiate preemption
-        	kernel_info_t* victim = NULL, *candidate = NULL;
-        	bool should_preempt = m_core[core]->should_preempt_kernel(victim, candidate);
+            if (m_config->gpgpu_sharing_intra_sm) {
+                // first, check if there is a candidate kernel that should initiate preemption
+                kernel_info_t* victim = NULL, *candidate = NULL;
+                bool should_preempt = m_core[core]->should_preempt_kernel(victim, candidate);
 
-        	if (should_preempt) {
-        		// check what is the victim kernel and how many ctas need to be swapped out
-        		// do nothing if preemption is already in progress
-        		m_core[core]->preempt_ctas(victim, candidate);
-        		continue;
-        	}
-        	else {
-        		kernel = candidate;
-        	}
+                if (should_preempt) {
+                    // check what is the victim kernel and how many ctas need to be swapped out
+                    // do nothing if preemption is already in progress
+                    m_core[core]->preempt_ctas(victim, candidate);
+                    continue;
+                }
+                else {
+                    kernel = candidate;
+                }
+            } else {
+                // inter SM sharing, find out which stream can run on this core
+                const int sid = m_config->cid_to_sid(core, this->m_cluster_id);
+                const int stream_id = m_config->sid_to_stream_id_inter_sm(sid);
+
+                if (stream_id == -1) {
+                    // no streams should be able to run on this shader core
+                    continue;
+                }
+
+                const std::vector<kernel_info_t*>& running_kernels = m_gpu->get_running_kernels();
+                bool found_kernel = false;
+
+                // find out which kernel has the matching stream id
+                for (unsigned idx = 0; idx < running_kernels.size(); idx++) {
+                    kernel_info_t* current_kernel = running_kernels[idx];
+
+                    if (!current_kernel || current_kernel->done()) {
+                        continue;
+                    }
+
+                    if (current_kernel->get_stream_id() == stream_id) {
+                        kernel = current_kernel;
+                        found_kernel = true;
+                        break;
+                    }
+                }
+
+                if (!found_kernel) {
+                    // if we didn't find a kernel that has a matching stream id, continue to the next SM
+                    continue;
+                }
+            }
         }
         else {
             //first select core kernel, if no more cta, get a new kernel

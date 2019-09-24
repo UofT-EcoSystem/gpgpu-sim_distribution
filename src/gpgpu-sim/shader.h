@@ -1365,56 +1365,81 @@ const char* const pipeline_stage_name_decode[] = {
 struct shader_core_config : public core_config
 {
     shader_core_config(){
-	pipeline_widths_string = NULL;
+        pipeline_widths_string = NULL;
     }
 
     void init()
     {
         int ntok = sscanf(gpgpu_shader_core_pipeline_opt,"%d:%d", 
-                          &n_thread_per_shader,
-                          &warp_size);
+                &n_thread_per_shader,
+                &warp_size);
         if(ntok != 2) {
-           printf("GPGPU-Sim uArch: error while parsing configuration string gpgpu_shader_core_pipeline_opt\n");
-           abort();
-	}
+            printf("GPGPU-Sim uArch: error while parsing configuration string gpgpu_shader_core_pipeline_opt\n");
+            abort();
+        }
 
-	char* toks = new char[100];
-	char* tokd = toks;
-	strcpy(toks,pipeline_widths_string);
-                                  
-	toks = strtok(toks,",");
+        char* toks = new char[100];
+        char* tokd = toks;
+        strcpy(toks,pipeline_widths_string);
 
-	/*	Removing the tensorcore pipeline while reading the config files if the tensor core is not available.
+        toks = strtok(toks,",");
+
+        /*	Removing the tensorcore pipeline while reading the config files if the tensor core is not available.
 	 	If we won't remove it, old regression will be broken.
 		So to support the legacy config files it's best to handle in this way.
          */  
-	int num_config_to_read=N_PIPELINE_STAGES-2*(!gpgpu_tensor_core_avail);
+        int num_config_to_read=N_PIPELINE_STAGES-2*(!gpgpu_tensor_core_avail);
 
         for (unsigned i = 0; i <num_config_to_read; i++) { 
-	    assert(toks);
-	    ntok = sscanf(toks,"%d", &pipe_widths[i]);
-	    assert(ntok == 1); 
-	    toks = strtok(NULL,",");
-	}
+            assert(toks);
+            ntok = sscanf(toks,"%d", &pipe_widths[i]);
+            assert(ntok == 1);
+            toks = strtok(NULL,",");
+        }
 
-	delete[] tokd;
-	
+        delete[] tokd;
+
         if (n_thread_per_shader > MAX_THREAD_PER_SM) {
-           printf("GPGPU-Sim uArch: Error ** increase MAX_THREAD_PER_SM in abstract_hardware_model.h from %u to %u\n", 
-                  MAX_THREAD_PER_SM, n_thread_per_shader);
-           abort();
+            printf("GPGPU-Sim uArch: Error ** increase MAX_THREAD_PER_SM in abstract_hardware_model.h from %u to %u\n",
+                    MAX_THREAD_PER_SM, n_thread_per_shader);
+            abort();
         }
         max_warps_per_shader =  n_thread_per_shader/warp_size;
         assert( !(n_thread_per_shader % warp_size) );
 
         set_pipeline_latency();
-        
-	m_L1I_config.init(m_L1I_config.m_config_string,FuncCachePreferNone);
+
+        m_L1I_config.init(m_L1I_config.m_config_string,FuncCachePreferNone);
         m_L1T_config.init(m_L1T_config.m_config_string,FuncCachePreferNone);
         m_L1C_config.init(m_L1C_config.m_config_string,FuncCachePreferNone);
         m_L1D_config.init(m_L1D_config.m_config_string,FuncCachePreferNone);
         gpgpu_cache_texl1_linesize = m_L1T_config.get_line_sz();
         gpgpu_cache_constl1_linesize = m_L1C_config.get_line_sz();
+
+        std::stringstream ss_cta;
+        ss_cta << inter_sm_resource_ratio;
+        std::string token;
+
+        std::vector<float> vec_rsrc_ratio;
+        float sum = 0.0f;
+
+        while (std::getline(ss_cta, token, ':')) {
+            float ratio = std::stof(token);
+            vec_rsrc_ratio.push_back(ratio);
+            sum += ratio;
+        }
+        assert(sum <= 1.0f);
+
+        unsigned min = 0;
+        for (auto ratio : vec_rsrc_ratio) {
+            unsigned max = min + unsigned(floor(num_shader() * ratio));
+            // range is left inclusive and right exclusive
+            inter_sm_id_range.push_back(std::make_tuple(min, max));
+
+            min = max;
+        }
+
+
         m_valid = true;
     }
     void reg_options(class OptionParser * opp );
@@ -1424,6 +1449,17 @@ struct shader_core_config : public core_config
     unsigned sid_to_cid( unsigned sid )     const { return sid % n_simt_cores_per_cluster; }
     unsigned cid_to_sid( unsigned cid, unsigned cluster_id ) const { return cluster_id*n_simt_cores_per_cluster + cid; }
     void set_pipeline_latency();
+    int sid_to_stream_id_inter_sm(unsigned sid) const {
+        for (int stream_id = 0; stream_id < inter_sm_id_range.size(); stream_id++) {
+            const unsigned min = std::get<0>(inter_sm_id_range[stream_id]);
+            const unsigned max = std::get<1>(inter_sm_id_range[stream_id]);
+            if (sid >= min && sid < max) {
+                return stream_id;
+            }
+        }
+
+        return -1;
+    }
 
 // data
     char *gpgpu_shader_core_pipeline_opt;
@@ -1516,6 +1552,10 @@ struct shader_core_config : public core_config
 
     //Jin: concurrent kernel on sm
     bool gpgpu_concurrent_kernel_sm;
+
+    bool gpgpu_sharing_intra_sm;
+    char* inter_sm_resource_ratio;
+    std::vector<std::tuple<unsigned, unsigned>> inter_sm_id_range;
 
     bool adpative_volta_cache_config;
 

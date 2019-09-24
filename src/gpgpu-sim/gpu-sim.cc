@@ -479,6 +479,13 @@ void shader_core_config::reg_options(class OptionParser * opp)
                 "Support concurrent kernels on a SM (default = disabled)", 
                 "0");
 
+    option_parser_register(opp, "-gpgpu_sharing_intra_sm", OPT_BOOL, &gpgpu_sharing_intra_sm,
+                "Use intra SM sharing for concurrent kernel implementation",
+                "1");
+    option_parser_register(opp, "-inter_sm_resource_ratio", OPT_CSTR, &inter_sm_resource_ratio,
+            "<num_sm_ratio_in_stream_default>:<in_stream_1>:<in_stream_2>",
+            "0:0.5:0.5");
+
 }
 
 void gpgpu_sim_config::reg_options(option_parser_t opp)
@@ -580,7 +587,7 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
 
 
     // customize number of ctas for each stream
-    // FIXME: this only applies to two stream for now
+    // FIXME: move to shader config
     option_parser_register(opp, "-max_cta_in_stream", OPT_CSTR, &max_cta_in_stream,
             "<max_cta_in_stream_default>:<in_stream_1>:<in_stream_2>", "0:0:0");
 
