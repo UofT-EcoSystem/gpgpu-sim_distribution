@@ -712,6 +712,33 @@ void gpgpu_sim::resource_partition_smk() {
 
 	printf(">>>>>>>>> resource_partition_smk:\n");
 
+	// reset volta cache / shared mem config
+	const struct shader_core_config* shader_config = getShaderCoreConfig();
+    if(shader_config->adaptive_volta_cache_config) {
+        //For Volta, we assign the remaining shared memory to L1 cache
+        //For more info, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#shared-memory-7-x
+        unsigned total_shmed_bytes = ceil(tot_smem * shader_config->gpgpu_shmem_size);
+        assert(total_shmed_bytes >=0 && total_shmed_bytes <= shader_config->gpgpu_shmem_size);
+        assert(shader_config->m_L1D_config.get_nset() == 4);  //Volta L1 has four sets
+
+        if(total_shmed_bytes == 0)
+            shader_config->m_L1D_config.set_assoc(256);  //L1 is 128KB ans shd=0
+        else if(total_shmed_bytes > 0 && total_shmed_bytes <= 8192)
+            shader_config->m_L1D_config.set_assoc(240);  //L1 is 120KB ans shd=8KB
+        else if(total_shmed_bytes > 8192 && total_shmed_bytes <= 16384)
+            shader_config->m_L1D_config.set_assoc(224);  //L1 is 112KB ans shd=16KB
+        else if(total_shmed_bytes > 16384 && total_shmed_bytes <= 32768)
+            shader_config->m_L1D_config.set_assoc(192);  //L1 is 96KB ans shd=32KB
+        else if(total_shmed_bytes > 32768 && total_shmed_bytes <= 65536)
+            shader_config->m_L1D_config.set_assoc(128);    //L1 is 64KB ans shd=64KB
+        else if(total_shmed_bytes > 65536 && total_shmed_bytes <= shader_config->gpgpu_shmem_size)
+            shader_config->m_L1D_config.set_assoc(64); //L1 is 32KB and shd=96KB
+        else
+            assert(0);
+
+        printf ("GPGPU-Sim: Reconfigure L1 cache in Volta Archi to %uKB\n", shader_config->m_L1D_config.get_total_size_inKB());
+    }
+
 	// write back the partitioning results
 	for (auto k_usage : rK) {
 	    unsigned stream_id = m_running_kernels[k_usage.first]->get_stream_id();
@@ -753,8 +780,12 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
            // block the next kernel launch for default_launch_wait_cycle
            m_blocked_launch_cycle = m_config.delayed_cycle_btw_kernels;
 
-           // call resource partitioning algorithm to update cta quota for each kernel
-           resource_partition_smk();
+           if (getShaderCoreConfig()->gpgpu_concurrent_kernel_sm &&
+                   getShaderCoreConfig()->gpgpu_sharing_intra_sm) {
+               // call resource partitioning algorithm to update cta quota for each kernel
+               resource_partition_smk();
+           }
+
            break;
        }
    }

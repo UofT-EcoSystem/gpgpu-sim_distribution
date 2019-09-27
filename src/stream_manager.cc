@@ -189,8 +189,13 @@ bool stream_operation::do_operation( gpgpu_sim *gpu )
                     printf("kernel %d: \'%s\' transfer to GPU hardware scheduler\n", m_kernel->get_uid(), m_kernel->name().c_str() );
                     m_kernel->print_parent_info();
                 }
+
                 m_kernel->set_should_record_stat(m_stream->should_record_stat());
-                gpu->set_cache_config(m_kernel->name());
+
+                if (!gpu->getShaderCoreConfig()->gpgpu_concurrent_kernel_sm) {
+                    gpu->set_cache_config(m_kernel->name());
+                }
+
                 gpu->launch( m_kernel );
             }
             else {

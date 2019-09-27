@@ -3124,14 +3124,14 @@ unsigned int shader_core_config::max_cta( const kernel_info_t &k ) const
        abort();
     }
 
-    if(adaptive_volta_cache_config && !k.volta_cache_config_set) {
+    // only set volta config here if concurrent kernel is OFF
+    if(!gpgpu_concurrent_kernel_sm && adaptive_volta_cache_config && !k.volta_cache_config_set) {
     	//For Volta, we assign the remaining shared memory to L1 cache
     	//For more info, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#shared-memory-7-x
     	unsigned total_shmed = kernel_info->smem * result;
 //    	unsigned total_shmed = 69632 * result;
     	assert(total_shmed >=0 && total_shmed <= gpgpu_shmem_size);
-    	// FIXME: this assertion might fail if the cache has been reconfigured by a concurrent kernel
-//    	assert(gpgpu_shmem_size == 98304); //Volta has 96 KB shared
+    	assert(gpgpu_shmem_size == 98304); //Volta has 96 KB shared
     	assert(m_L1D_config.get_nset() == 4);  //Volta L1 has four sets
     	if(total_shmed < gpgpu_shmem_size){
     		if(total_shmed == 0)
