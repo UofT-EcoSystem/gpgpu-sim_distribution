@@ -176,6 +176,12 @@ void InterconnectInterface::Push(unsigned input_deviceID, unsigned output_device
   Flit::FlitType packet_type;
   mem_fetch* mf = static_cast<mem_fetch*>(data);
 
+  // class of mem fetch based on stream id
+  int class_id = mf->get_stream_id();
+  if (class_id == -1) {
+      class_id = 0;
+  }
+
   switch (mf->get_type()) {
     case READ_REQUEST:  packet_type = Flit::READ_REQUEST   ;break;
     case WRITE_REQUEST: packet_type = Flit::WRITE_REQUEST  ;break;
@@ -189,7 +195,7 @@ void InterconnectInterface::Push(unsigned input_deviceID, unsigned output_device
   }
 
   //TODO: _include_queuing ?
-  _traffic_manager->_GeneratePacket( input_icntID, -1, 0 /*class*/, _traffic_manager->_time, subnet, n_flits, packet_type, data, output_icntID);
+  _traffic_manager->_GeneratePacket( input_icntID, -1, class_id /*class*/, _traffic_manager->_time, subnet, n_flits, packet_type, data, output_icntID);
 
 #if DOUB
   cout <<"Traffic[" << subnet << "] (mapped) sending form "<< input_icntID << " to " << output_icntID << endl;
