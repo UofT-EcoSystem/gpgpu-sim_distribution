@@ -1121,6 +1121,11 @@ void gpgpu_sim::init()
     if (g_network_mode)
        icnt_init();
 
+    if (getShaderCoreConfig()->gpgpu_concurrent_kernel_sm) {
+        // set cache config now to default
+        change_cache_config(FuncCachePreferNone);
+    }
+
     // McPAT initialization function. Called on first launch of GPU
 #ifdef GPGPUSIM_POWER_MODEL
     if(m_config.g_power_simulation_enabled){
