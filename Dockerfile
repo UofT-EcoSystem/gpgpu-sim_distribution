@@ -14,4 +14,13 @@ apt-get install -y --no-install-recommends \
     python3-setuptools \
     build-essential xutils-dev bison zlib1g-dev flex libglu1-mesa-dev \
     python-pmw python-ply libpng12-dev python-matplotlib && \ 
+apt-get update && \
+apt-get -y --no-install-recommends install apt-transport-https \
+    ca-certificates \
+    gnupg \
+    software-properties-common \
+    wget && \
+apt-add-repository 'deb https://apt.kitware.com/ubuntu/ xenial main' && \
+apt-get update && \
+apt-get install cmake && \
 rm -rf /var/lib/apt/lists/* # installation 
