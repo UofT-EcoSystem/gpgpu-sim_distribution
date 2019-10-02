@@ -1,7 +1,9 @@
 FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
 RUN apt-get update && \ 
 apt-get install -y --no-install-recommends \ 
+    sudo \
     gdb \
+    git \
     vim g++ make pkg-config \ 
     libopencv-dev \ 
     libopenblas-dev \ 
@@ -20,7 +22,12 @@ apt-get -y --no-install-recommends install apt-transport-https \
     gnupg \
     software-properties-common \
     wget && \
+wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add - && \
 apt-add-repository 'deb https://apt.kitware.com/ubuntu/ xenial main' && \
 apt-get update && \
-apt-get install cmake && \
-rm -rf /var/lib/apt/lists/* # installation 
+apt-get install -y --no-install-recommends cmake
+
+RUN adduser --home /home/serinatan --shell /bin/bash --uid 3724 --gecos '' --disabled-password serinatan  
+RUN adduser serinatan sudo
+RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers 
+RUN rm -rf /var/lib/apt/lists/* # installation 
