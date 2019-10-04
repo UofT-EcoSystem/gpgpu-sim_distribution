@@ -749,6 +749,8 @@ void gpgpu_sim::resource_partition_smk() {
             m_running_kernels[k_usage.first]->set_cta_quota(config_max_cta);
 	    }
 	    else {
+	        // make sure we are setting a non-zero cta quota
+	        assert(k_usage.second.cta_quota > 0);
 	        m_running_kernels[k_usage.first]->set_cta_quota(k_usage.second.cta_quota);
 	    }
 

@@ -142,6 +142,7 @@
 
 #include <pthread.h>
 #include <semaphore.h>
+#include <mutex>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
@@ -191,6 +192,9 @@ struct cudaArray
 cudaError_t g_last_cudaError = cudaSuccess;
 
 extern stream_manager *g_stream_manager;
+
+// lock for exclusive access to GPU context
+std::mutex lock_context;
 
 void register_ptx_function( const char *name, function_info *impl )
 {
@@ -415,6 +419,8 @@ static CUctx_st* GPGPUSim_Context()
 
  void ptxinfo_addinfo()
 {
+     std::lock_guard<std::mutex> guard(lock_context);
+
 	 if(!get_ptxinfo_kname()){
 		 /* This info is not per kernel (since CUDA 5.0 some info (e.g. gmem, and cmem) is added at the beginning for the whole binary ) */
 		CUctx_st *context = GPGPUSim_Context();
@@ -507,6 +513,8 @@ cudaError_t cudaPeekAtLastError(void)
 
 __host__ cudaError_t CUDARTAPI cudaMalloc(void **devPtr, size_t size) 
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -525,6 +533,8 @@ __host__ cudaError_t CUDARTAPI cudaMalloc(void **devPtr, size_t size)
 
 __host__ cudaError_t CUDARTAPI cudaMallocHost(void **ptr, size_t size)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -540,6 +550,8 @@ __host__ cudaError_t CUDARTAPI cudaMallocHost(void **ptr, size_t size)
 }
 __host__ cudaError_t CUDARTAPI cudaMallocPitch(void **devPtr, size_t *pitch, size_t width, size_t height)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -557,6 +569,8 @@ __host__ cudaError_t CUDARTAPI cudaMallocPitch(void **devPtr, size_t *pitch, siz
 
 __host__ cudaError_t CUDARTAPI cudaMallocArray(struct cudaArray **array, const struct cudaChannelFormatDesc *desc, size_t width, size_t height __dv(1))
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -651,6 +665,8 @@ __host__ cudaError_t CUDARTAPI cudaMemcpy(void *dst, const void *src, size_t cou
 
 __host__ cudaError_t CUDARTAPI cudaMemcpyToArray(struct cudaArray *dst, size_t wOffset, size_t hOffset, const void *src, size_t count, enum cudaMemcpyKind kind)
 { 
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -695,6 +711,8 @@ __host__ cudaError_t CUDARTAPI cudaMemcpyArrayToArray(struct cudaArray *dst, siz
 
 __host__ cudaError_t CUDARTAPI cudaMemcpy2D(void *dst, size_t dpitch, const void *src, size_t spitch, size_t width, size_t height, enum cudaMemcpyKind kind)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -718,6 +736,8 @@ __host__ cudaError_t CUDARTAPI cudaMemcpy2D(void *dst, size_t dpitch, const void
 
 __host__ cudaError_t CUDARTAPI cudaMemcpy2DToArray(struct cudaArray *dst, size_t wOffset, size_t hOffset, const void *src, size_t spitch, size_t width, size_t height, enum cudaMemcpyKind kind)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -889,6 +909,8 @@ __host__ cudaError_t CUDARTAPI cudaMemcpy2DFromArrayAsync(void *dst, size_t dpit
 
 __host__ cudaError_t CUDARTAPI cudaMemset(void *mem, int c, size_t count)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -901,6 +923,8 @@ __host__ cudaError_t CUDARTAPI cudaMemset(void *mem, int c, size_t count)
 //memset operation is done but i think its not async?
 __host__ cudaError_t CUDARTAPI cudaMemsetAsync(void *mem, int c, size_t count, 	cudaStream_t stream=0)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -1314,6 +1338,8 @@ __host__ cudaError_t CUDARTAPI cudaBindTexture(size_t *offset,
 		const struct cudaChannelFormatDesc *desc,
 		size_t size __dv(UINT_MAX))
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -1345,6 +1371,8 @@ __host__ cudaError_t CUDARTAPI cudaBindTexture(size_t *offset,
 
 __host__ cudaError_t CUDARTAPI cudaBindTextureToArray(const struct textureReference *texref, const struct cudaArray *array, const struct cudaChannelFormatDesc *desc)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -1358,7 +1386,10 @@ __host__ cudaError_t CUDARTAPI cudaBindTextureToArray(const struct textureRefere
 	return g_last_cudaError = cudaSuccess;
 }
 
-__host__ cudaError_t CUDARTAPI cudaUnbindTexture(const struct textureReference *texref){
+__host__ cudaError_t CUDARTAPI cudaUnbindTexture(const struct textureReference *texref)
+{
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -1444,6 +1475,8 @@ __host__ const char* CUDARTAPI cudaGetErrorString(cudaError_t error)
 
 __host__ cudaError_t CUDARTAPI cudaConfigureCall(dim3 gridDim, dim3 blockDim, size_t sharedMem, cudaStream_t stream)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -1454,6 +1487,8 @@ __host__ cudaError_t CUDARTAPI cudaConfigureCall(dim3 gridDim, dim3 blockDim, si
 
 __host__ cudaError_t CUDARTAPI cudaSetupArgument(const void *arg, size_t size, size_t offset)
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -1468,6 +1503,8 @@ __host__ cudaError_t CUDARTAPI cudaSetupArgument(const void *arg, size_t size, s
 
 __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -1549,6 +1586,7 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 
 __host__ cudaError_t CUDARTAPI cudaLaunchKernel ( const char* hostFun, dim3 gridDim, dim3 blockDim, const void** args, size_t sharedMem, cudaStream_t stream )
 {
+    printf("WARNING in cudaLaunchKernel: not sure if this is thread safe!\n");
 
 	if(g_debug_execution >= 3){
 		announce_call(__my_func__);
@@ -2598,6 +2636,8 @@ void cuobjdumpParseBinary(unsigned int handle){
 
 void** CUDARTAPI __cudaRegisterFatBinary( void *fatCubin )
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -2788,6 +2828,8 @@ extern void __cudaRegisterVar(
 		int constant,
 		int global )
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
@@ -2841,6 +2883,8 @@ void __cudaRegisterTexture(
 		int ext
 ) //passes in a newly created textureReference
 {
+    std::lock_guard<std::mutex> guard(lock_context);
+
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
