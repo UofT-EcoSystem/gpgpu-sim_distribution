@@ -905,6 +905,12 @@ void gpgpu_sim::set_kernel_done( kernel_info_t *kernel )
 
     assert( k != m_running_kernels.end() ); 
 
+    if (kernel->should_record_stat()) {
+        const unsigned stream_id = kernel->get_stream_id();
+        assert(stream_id < m_config.get_config_num_streams());
+        gpu_tot_sim_cycle_stream[stream_id] = kernel->end_cycle - kernel->start_cycle;
+    }
+
     printf(">>>>>>>> kernel %s launched @ %llu, started @ %llu, ended @ %llu. \n",
     		kernel->name().c_str(), kernel->launch_cycle, kernel->start_cycle,
 			kernel->end_cycle);
@@ -941,7 +947,8 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
     m_power_stats = new power_stat_t(m_shader_config,average_pipeline_duty_cycle,active_sms,m_shader_stats,m_memory_config,m_memory_stats);
 
     gpu_sim_insn = 0;
-    gpu_sim_insn_stream = (unsigned long long*) calloc(m_config.get_config_num_streams(), sizeof(unsigned long long));
+    gpu_tot_sim_insn_stream = (unsigned long long*) calloc(m_config.get_config_num_streams(), sizeof(unsigned long long));
+    gpu_tot_sim_cycle_stream = (unsigned long long*) calloc(m_config.get_config_num_streams(), sizeof(unsigned long long));
 
     gpu_tot_sim_insn = 0;
     gpu_tot_issued_cta = 0;
@@ -1092,7 +1099,8 @@ void gpgpu_sim::init()
     gpu_sim_cycle = 0;
     gpu_sim_insn = 0;
     for (int i = 0; i < m_config.get_config_num_streams(); i++) {
-        gpu_sim_insn_stream[i] = 0;
+        gpu_tot_sim_insn_stream[i] = 0;
+        gpu_tot_sim_cycle_stream[i] = 0;
     }
     last_gpu_sim_insn = 0;
     m_total_cta_launched=0;
@@ -1323,12 +1331,16 @@ void gpgpu_sim::gpu_print_stat()
 
    printf("gpu_sim_cycle = %lld\n", gpu_sim_cycle);
    printf("gpu_sim_insn = %lld\n", gpu_sim_insn);
-   for (int i = 0; i < m_config.get_config_num_streams(); i++) {
-       printf("gpu_sim_insn[%d]: %lld\n", i, gpu_sim_insn_stream[i]);
-   }
+
    printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn / gpu_sim_cycle);
    printf("gpu_tot_sim_cycle = %lld\n", gpu_tot_sim_cycle+gpu_sim_cycle);
+   for (int i = 0; i < m_config.get_config_num_streams(); i++) {
+       printf("gpu_tot_sim_cycle[%d]: %lld\n", i, gpu_tot_sim_cycle_stream[i]);
+   }
    printf("gpu_tot_sim_insn = %lld\n", gpu_tot_sim_insn+gpu_sim_insn);
+   for (int i = 0; i < m_config.get_config_num_streams(); i++) {
+       printf("gpu_tot_sim_insn[%d]: %lld\n", i, gpu_tot_sim_insn_stream[i]);
+   }
    printf("gpu_tot_ipc = %12.4f\n", (float)(gpu_tot_sim_insn+gpu_sim_insn) / (gpu_tot_sim_cycle+gpu_sim_cycle));
    printf("gpu_tot_issued_cta = %lld\n", gpu_tot_issued_cta + m_total_cta_launched);
    printf("gpu_occupancy = %.4f\% \n", gpu_occupancy.get_occ_fraction() * 100);

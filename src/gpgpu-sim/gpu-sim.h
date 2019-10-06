@@ -603,7 +603,8 @@ private:
 
 public:
    unsigned long long  gpu_sim_insn;
-   unsigned long long * gpu_sim_insn_stream;
+   unsigned long long * gpu_tot_sim_insn_stream;
+   unsigned long long * gpu_tot_sim_cycle_stream;
    unsigned long long  gpu_sim_sp_insn;
    unsigned long long  gpu_sim_sfu_insn;
    unsigned long long  gpu_sim_mem_insn;
