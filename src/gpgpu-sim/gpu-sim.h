@@ -452,7 +452,7 @@ public:
    void launch( kernel_info_t *kinfo );
    bool can_start_kernel();
    unsigned finished_kernel();
-   void set_kernel_done( kernel_info_t *kernel );
+   void set_kernel_done( kernel_info_t *kernel, bool has_completed );
    void stop_all_running_kernels();
 
    void init();

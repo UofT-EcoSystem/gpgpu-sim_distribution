@@ -887,7 +887,7 @@ unsigned gpgpu_sim::finished_kernel()
     return result;
 }
 
-void gpgpu_sim::set_kernel_done( kernel_info_t *kernel ) 
+void gpgpu_sim::set_kernel_done( kernel_info_t *kernel, bool has_completed )
 { 
     unsigned uid = kernel->get_uid();
     m_finished_kernel.push_back(uid);
@@ -905,7 +905,7 @@ void gpgpu_sim::set_kernel_done( kernel_info_t *kernel )
 
     assert( k != m_running_kernels.end() ); 
 
-    if (kernel->should_record_stat()) {
+    if (has_completed && kernel->should_record_stat()) {
         const unsigned stream_id = kernel->get_stream_id();
         assert(stream_id < m_config.get_config_num_streams());
         gpu_tot_sim_cycle_stream[stream_id] = kernel->end_cycle - kernel->start_cycle;
@@ -920,7 +920,7 @@ void gpgpu_sim::stop_all_running_kernels(){
     std::vector<kernel_info_t *>::iterator k;
     for(k = m_running_kernels.begin(); k != m_running_kernels.end(); ++k){
         if(*k != NULL){ // If a kernel is active
-            set_kernel_done(*k); // Stop the kernel
+            set_kernel_done(*k, false); // Stop the kernel
             assert(*k==NULL);
         }
     }

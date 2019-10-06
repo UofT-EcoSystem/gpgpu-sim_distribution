@@ -2605,7 +2605,8 @@ void shader_core_ctx::register_cta_thread_exit( unsigned cta_num, kernel_info_t 
 
               if(m_kernel == kernel)
                 m_kernel = NULL;
-              m_gpu->set_kernel_done( kernel );
+
+              m_gpu->set_kernel_done( kernel, true );
           }
       }
 
