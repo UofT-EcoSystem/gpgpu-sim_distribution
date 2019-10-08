@@ -1475,7 +1475,7 @@ __host__ const char* CUDARTAPI cudaGetErrorString(cudaError_t error)
 
 __host__ cudaError_t CUDARTAPI cudaConfigureCall(dim3 gridDim, dim3 blockDim, size_t sharedMem, cudaStream_t stream)
 {
-    std::lock_guard<std::mutex> guard(lock_context);
+    lock_context.lock();
 
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
@@ -1487,7 +1487,7 @@ __host__ cudaError_t CUDARTAPI cudaConfigureCall(dim3 gridDim, dim3 blockDim, si
 
 __host__ cudaError_t CUDARTAPI cudaSetupArgument(const void *arg, size_t size, size_t offset)
 {
-    std::lock_guard<std::mutex> guard(lock_context);
+    // this assumes a cudaConfigureCall has been called and locked the context
 
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
@@ -1503,7 +1503,7 @@ __host__ cudaError_t CUDARTAPI cudaSetupArgument(const void *arg, size_t size, s
 
 __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 {
-    std::lock_guard<std::mutex> guard(lock_context);
+    // This is called by runtime API directly or by cudaLaunchKernel from driver API
 
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
@@ -1581,12 +1581,15 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 	stream_operation op(grid,g_ptx_sim_mode,stream);
 	g_stream_manager->push(op);
 	g_cuda_launch_stack.pop_back();
+
+	lock_context.unlock();
+
 	return g_last_cudaError = cudaSuccess;
 }
 
 __host__ cudaError_t CUDARTAPI cudaLaunchKernel ( const char* hostFun, dim3 gridDim, dim3 blockDim, const void** args, size_t sharedMem, cudaStream_t stream )
 {
-    printf("WARNING in cudaLaunchKernel: not sure if this is thread safe!\n");
+    // This is called by driver API
 
 	if(g_debug_execution >= 3){
 		announce_call(__my_func__);
