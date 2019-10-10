@@ -755,7 +755,7 @@ void gpgpu_sim::resource_partition_smk() {
 	    }
 
 		// print the resource partition results
-		printf("%s: %d ctas\n", m_running_kernels[k_usage.first]->name().c_str(), m_running_kernels[k_usage.first]->get_cta_quota());
+		printf("Stream %d/%d (%s): %d ctas/SM\n", m_running_kernels[k_usage.first]->get_stream_id(), rK.size(), m_running_kernels[k_usage.first]->name().c_str(), m_running_kernels[k_usage.first]->get_cta_quota());
 	}
 
 }
