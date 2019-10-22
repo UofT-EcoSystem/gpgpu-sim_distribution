@@ -59,7 +59,7 @@ protected:
 
   virtual void _UpdateOverallStats( );
 
-  virtual string _OverallStatsCSV(int c = 0) const;
+  virtual string _OverallStatsCSV(int subnet = 0, int c = 0) const;
 
 public:
 

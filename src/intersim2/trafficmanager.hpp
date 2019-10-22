@@ -139,49 +139,50 @@ protected:
 
   // ============ Statistics ============
 
-  vector<Stats *> _plat_stats;     
-  vector<double> _overall_min_plat;  
-  vector<double> _overall_avg_plat;  
-  vector<double> _overall_max_plat;  
+  vector<vector<Stats *> > _plat_stats;
+  vector<vector<double> > _overall_min_plat;
+  vector<vector<double> > _overall_avg_plat;
+  vector<vector<double> > _overall_max_plat;
 
-  vector<Stats *> _nlat_stats;     
-  vector<double> _overall_min_nlat;  
-  vector<double> _overall_avg_nlat;  
-  vector<double> _overall_max_nlat;  
+  vector<vector<Stats *> > _nlat_stats;
+  vector<vector<double> > _overall_min_nlat;
+  vector<vector<double> > _overall_avg_nlat;
+  vector<vector<double> > _overall_max_nlat;
 
-  vector<Stats *> _flat_stats;     
-  vector<double> _overall_min_flat;  
-  vector<double> _overall_avg_flat;  
-  vector<double> _overall_max_flat;  
+  vector<vector<Stats *> > _flat_stats;
+  vector<vector<double> > _overall_min_flat;
+  vector<vector<double> > _overall_avg_flat;
+  vector<vector<double> > _overall_max_flat;
 
-  vector<Stats *> _frag_stats;
-  vector<double> _overall_min_frag;
-  vector<double> _overall_avg_frag;
-  vector<double> _overall_max_frag;
+  vector<vector<Stats *> > _frag_stats;
+  vector<vector<double> > _overall_min_frag;
+  vector<vector<double> > _overall_avg_frag;
+  vector<vector<double> > _overall_max_frag;
 
   vector<vector<Stats *> > _pair_plat;
   vector<vector<Stats *> > _pair_nlat;
   vector<vector<Stats *> > _pair_flat;
 
-  vector<Stats *> _hop_stats;
-  vector<double> _overall_hop_stats;
+  vector<vector<Stats *> > _hop_stats;
+  vector<vector<double> > _overall_hop_stats;
 
-  vector<vector<int> > _sent_packets;
-  vector<double> _overall_min_sent_packets;
-  vector<double> _overall_avg_sent_packets;
-  vector<double> _overall_max_sent_packets;
-  vector<vector<int> > _accepted_packets;
-  vector<double> _overall_min_accepted_packets;
-  vector<double> _overall_avg_accepted_packets;
-  vector<double> _overall_max_accepted_packets;
-  vector<vector<int> > _sent_flits;
-  vector<double> _overall_min_sent;
-  vector<double> _overall_avg_sent;
-  vector<double> _overall_max_sent;
-  vector<vector<int> > _accepted_flits;
-  vector<double> _overall_min_accepted;
-  vector<double> _overall_avg_accepted;
-  vector<double> _overall_max_accepted;
+  // index: [subnet, class, node]
+  vector<vector<vector<int> > > _sent_packets;
+  vector<vector<double> > _overall_min_sent_packets;
+  vector<vector<double> > _overall_avg_sent_packets;
+  vector<vector<double> > _overall_max_sent_packets;
+  vector<vector<vector<int> > > _accepted_packets;
+  vector<vector<double> > _overall_min_accepted_packets;
+  vector<vector<double> > _overall_avg_accepted_packets;
+  vector<vector<double> > _overall_max_accepted_packets;
+  vector<vector<vector<int> > > _sent_flits;
+  vector<vector<double> > _overall_min_sent;
+  vector<vector<double> > _overall_avg_sent;
+  vector<vector<double> > _overall_max_sent;
+  vector<vector<vector<int> > > _accepted_flits;
+  vector<vector<double> > _overall_min_accepted;
+  vector<vector<double> > _overall_avg_accepted;
+  vector<vector<double> > _overall_max_accepted;
 
 #ifdef TRACK_STALLS
   vector<vector<int> > _buffer_busy_stalls;
@@ -196,8 +197,8 @@ protected:
   vector<double> _overall_crossbar_conflict_stalls;
 #endif
 
-  vector<int> _slowest_packet;
-  vector<int> _slowest_flit;
+  vector<vector<int>> _slowest_packet;
+  vector<vector<int>> _slowest_flit;
 
   map<string, Stats *> _stats;
 
@@ -262,7 +263,7 @@ protected:
   // ============ Internal methods ============ 
 protected:
 
-  virtual void _RetireFlit( Flit *f, int dest );
+  virtual void _RetireFlit( Flit *f, int dest, int subnet );
 
   void _Inject();
   virtual void _Step( );
@@ -284,7 +285,7 @@ protected:
 
   virtual void _UpdateOverallStats();
 
-  virtual string _OverallStatsCSV(int c = 0) const;
+  virtual string _OverallStatsCSV(int subnet = 0, int c = 0) const;
 
   int _GetNextPacketSize(int cl) const;
   double _GetAveragePacketSize(int cl) const;

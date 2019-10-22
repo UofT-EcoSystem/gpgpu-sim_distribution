@@ -66,7 +66,7 @@ void BatchTrafficManager::_RetireFlit( Flit *f, int dest )
 {
   _last_id = f->id;
   _last_pid = f->pid;
-  TrafficManager::_RetireFlit(f, dest);
+  TrafficManager::_RetireFlit(f, dest, 0);
 }
 
 int BatchTrafficManager::_IssuePacket( int source, int cl )
@@ -186,10 +186,10 @@ void BatchTrafficManager::_UpdateOverallStats() {
   _overall_max_batch_time += _batch_time->Max();
 }
   
-string BatchTrafficManager::_OverallStatsCSV(int c) const
+string BatchTrafficManager::_OverallStatsCSV(int subnet, int c) const
 {
   ostringstream os;
-  os << TrafficManager::_OverallStatsCSV(c) << ','
+  os << TrafficManager::_OverallStatsCSV(subnet, c) << ','
      << _overall_min_batch_time / (double)_total_sims << ','
      << _overall_avg_batch_time / (double)_total_sims << ','
      << _overall_max_batch_time / (double)_total_sims;

@@ -446,26 +446,39 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
 #endif
 
     // ============ Statistics ============ 
+    auto resize_vv = [&](auto & vv, auto value) {
+        vv.resize(_subnets);
+        for (auto & vec : vv) {
+                vec.resize(_classes, value);
+        }
+    };
 
-    _plat_stats.resize(_classes);
-    _overall_min_plat.resize(_classes, 0.0);
-    _overall_avg_plat.resize(_classes, 0.0);
-    _overall_max_plat.resize(_classes, 0.0);
+    auto resize_vvv = [&](auto & vvv) {
+        vvv.resize(_subnets);
+        for (auto & vv : vvv) {
+                vv.resize(_classes);
+        }
+    };
 
-    _nlat_stats.resize(_classes);
-    _overall_min_nlat.resize(_classes, 0.0);
-    _overall_avg_nlat.resize(_classes, 0.0);
-    _overall_max_nlat.resize(_classes, 0.0);
+    resize_vv(_plat_stats, nullptr);
+    resize_vv(_overall_min_plat, 0.0);
+    resize_vv(_overall_avg_plat, 0.0);
+    resize_vv(_overall_max_plat, 0.0);
 
-    _flat_stats.resize(_classes);
-    _overall_min_flat.resize(_classes, 0.0);
-    _overall_avg_flat.resize(_classes, 0.0);
-    _overall_max_flat.resize(_classes, 0.0);
+    resize_vv(_nlat_stats, nullptr);
+    resize_vv(_overall_min_nlat, 0.0);
+    resize_vv(_overall_avg_nlat, 0.0);
+    resize_vv(_overall_max_nlat, 0.0);
 
-    _frag_stats.resize(_classes);
-    _overall_min_frag.resize(_classes, 0.0);
-    _overall_avg_frag.resize(_classes, 0.0);
-    _overall_max_frag.resize(_classes, 0.0);
+    resize_vv(_flat_stats, nullptr);
+    resize_vv(_overall_min_flat, 0.0);
+    resize_vv(_overall_avg_flat, 0.0);
+    resize_vv(_overall_max_flat, 0.0);
+
+    resize_vv(_frag_stats, nullptr);
+    resize_vv(_overall_min_frag, 0.0);
+    resize_vv(_overall_avg_frag, 0.0);
+    resize_vv(_overall_max_frag, 0.0);
 
     if(_pair_stats){
         _pair_plat.resize(_classes);
@@ -473,26 +486,31 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
         _pair_flat.resize(_classes);
     }
   
-    _hop_stats.resize(_classes);
-    _overall_hop_stats.resize(_classes, 0.0);
+    resize_vv(_hop_stats, nullptr);
+    resize_vv(_overall_hop_stats, 0.0);
   
-    _sent_packets.resize(_classes);
-    _overall_min_sent_packets.resize(_classes, 0.0);
-    _overall_avg_sent_packets.resize(_classes, 0.0);
-    _overall_max_sent_packets.resize(_classes, 0.0);
-    _accepted_packets.resize(_classes);
-    _overall_min_accepted_packets.resize(_classes, 0.0);
-    _overall_avg_accepted_packets.resize(_classes, 0.0);
-    _overall_max_accepted_packets.resize(_classes, 0.0);
+    resize_vvv(_sent_packets);
+    resize_vv(_overall_min_sent_packets, 0.0);
+    resize_vv(_overall_avg_sent_packets, 0.0);
+    resize_vv(_overall_max_sent_packets, 0.0);
 
-    _sent_flits.resize(_classes);
-    _overall_min_sent.resize(_classes, 0.0);
-    _overall_avg_sent.resize(_classes, 0.0);
-    _overall_max_sent.resize(_classes, 0.0);
-    _accepted_flits.resize(_classes);
-    _overall_min_accepted.resize(_classes, 0.0);
-    _overall_avg_accepted.resize(_classes, 0.0);
-    _overall_max_accepted.resize(_classes, 0.0);
+    resize_vvv(_accepted_packets);
+    resize_vv(_overall_min_accepted_packets, 0.0);
+    resize_vv(_overall_avg_accepted_packets, 0.0);
+    resize_vv(_overall_max_accepted_packets, 0.0);
+
+    resize_vvv(_sent_flits);
+    resize_vv(_overall_min_sent, 0.0);
+    resize_vv(_overall_avg_sent, 0.0);
+    resize_vv(_overall_max_sent, 0.0);
+
+    resize_vvv(_accepted_flits);
+    resize_vv(_overall_min_accepted, 0.0);
+    resize_vv(_overall_avg_accepted, 0.0);
+    resize_vv(_overall_max_accepted, 0.0);
+
+    resize_vv(_slowest_flit, -1);
+    resize_vv(_slowest_packet, -1);
 
 #ifdef TRACK_STALLS
     _buffer_busy_stalls.resize(_classes);
@@ -507,79 +525,75 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _overall_crossbar_conflict_stalls.resize(_classes, 0);
 #endif
 
-    for ( int c = 0; c < _classes; ++c ) {
-        ostringstream tmp_name;
+    for (int subnet; subnet < _subnets; subnet++) {
+        for ( int c = 0; c < _classes; ++c ) {
+            ostringstream tmp_name;
 
-        tmp_name << "plat_stat_" << c;
-        _plat_stats[c] = new Stats( this, tmp_name.str( ), 1.0, 1000 );
-        _stats[tmp_name.str()] = _plat_stats[c];
-        tmp_name.str("");
+            tmp_name << "plat_stat_" << subnet << "_" << c;
+            _plat_stats[subnet][c] = new Stats( this, tmp_name.str( ), 1.0, 1000 );
+            _stats[tmp_name.str()] = _plat_stats[subnet][c];
+            tmp_name.str("");
 
-        tmp_name << "nlat_stat_" << c;
-        _nlat_stats[c] = new Stats( this, tmp_name.str( ), 1.0, 1000 );
-        _stats[tmp_name.str()] = _nlat_stats[c];
-        tmp_name.str("");
+            tmp_name << "nlat_stat_" << subnet << "_" << c;
+            _nlat_stats[subnet][c] = new Stats( this, tmp_name.str( ), 1.0, 1000 );
+            _stats[tmp_name.str()] = _nlat_stats[subnet][c];
+            tmp_name.str("");
 
-        tmp_name << "flat_stat_" << c;
-        _flat_stats[c] = new Stats( this, tmp_name.str( ), 1.0, 1000 );
-        _stats[tmp_name.str()] = _flat_stats[c];
-        tmp_name.str("");
+            tmp_name << "flat_stat_" << subnet << "_" << c;
+            _flat_stats[subnet][c] = new Stats( this, tmp_name.str( ), 1.0, 1000 );
+            _stats[tmp_name.str()] = _flat_stats[subnet][c];
+            tmp_name.str("");
 
-        tmp_name << "frag_stat_" << c;
-        _frag_stats[c] = new Stats( this, tmp_name.str( ), 1.0, 100 );
-        _stats[tmp_name.str()] = _frag_stats[c];
-        tmp_name.str("");
+            tmp_name << "frag_stat_" << subnet << "_" << c;
+            _frag_stats[subnet][c] = new Stats( this, tmp_name.str( ), 1.0, 100 );
+            _stats[tmp_name.str()] = _frag_stats[subnet][c];
+            tmp_name.str("");
 
-        tmp_name << "hop_stat_" << c;
-        _hop_stats[c] = new Stats( this, tmp_name.str( ), 1.0, 20 );
-        _stats[tmp_name.str()] = _hop_stats[c];
-        tmp_name.str("");
+            tmp_name << "hop_stat_" << subnet << "_" << c;
+            _hop_stats[subnet][c] = new Stats( this, tmp_name.str( ), 1.0, 20 );
+            _stats[tmp_name.str()] = _hop_stats[subnet][c];
+            tmp_name.str("");
 
-        if(_pair_stats){
-            _pair_plat[c].resize(_nodes*_nodes);
-            _pair_nlat[c].resize(_nodes*_nodes);
-            _pair_flat[c].resize(_nodes*_nodes);
-        }
+            if(_pair_stats){
+                _pair_plat[c].resize(_nodes*_nodes);
+                _pair_nlat[c].resize(_nodes*_nodes);
+                _pair_flat[c].resize(_nodes*_nodes);
+            }
 
-        _sent_packets[c].resize(_nodes, 0);
-        _accepted_packets[c].resize(_nodes, 0);
-        _sent_flits[c].resize(_nodes, 0);
-        _accepted_flits[c].resize(_nodes, 0);
+            _sent_packets[subnet][c].resize(_nodes, 0);
+            _accepted_packets[subnet][c].resize(_nodes, 0);
+            _sent_flits[subnet][c].resize(_nodes, 0);
+            _accepted_flits[subnet][c].resize(_nodes, 0);
 
 #ifdef TRACK_STALLS
-        _buffer_busy_stalls[c].resize(_subnets*_routers, 0);
-        _buffer_conflict_stalls[c].resize(_subnets*_routers, 0);
-        _buffer_full_stalls[c].resize(_subnets*_routers, 0);
-        _buffer_reserved_stalls[c].resize(_subnets*_routers, 0);
-        _crossbar_conflict_stalls[c].resize(_subnets*_routers, 0);
+            _buffer_busy_stalls[c].resize(_subnets*_routers, 0);
+            _buffer_conflict_stalls[c].resize(_subnets*_routers, 0);
+            _buffer_full_stalls[c].resize(_subnets*_routers, 0);
+            _buffer_reserved_stalls[c].resize(_subnets*_routers, 0);
+            _crossbar_conflict_stalls[c].resize(_subnets*_routers, 0);
 #endif
-        if(_pair_stats){
-            for ( int i = 0; i < _nodes; ++i ) {
-                for ( int j = 0; j < _nodes; ++j ) {
-                    tmp_name << "pair_plat_stat_" << c << "_" << i << "_" << j;
-                    _pair_plat[c][i*_nodes+j] = new Stats( this, tmp_name.str( ), 1.0, 250 );
-                    _stats[tmp_name.str()] = _pair_plat[c][i*_nodes+j];
-                    tmp_name.str("");
-	  
-                    tmp_name << "pair_nlat_stat_" << c << "_" << i << "_" << j;
-                    _pair_nlat[c][i*_nodes+j] = new Stats( this, tmp_name.str( ), 1.0, 250 );
-                    _stats[tmp_name.str()] = _pair_nlat[c][i*_nodes+j];
-                    tmp_name.str("");
-	  
-                    tmp_name << "pair_flat_stat_" << c << "_" << i << "_" << j;
-                    _pair_flat[c][i*_nodes+j] = new Stats( this, tmp_name.str( ), 1.0, 250 );
-                    _stats[tmp_name.str()] = _pair_flat[c][i*_nodes+j];
-                    tmp_name.str("");
+            if(_pair_stats){
+                for ( int i = 0; i < _nodes; ++i ) {
+                    for ( int j = 0; j < _nodes; ++j ) {
+                        tmp_name << "pair_plat_stat_" << c << "_" << i << "_" << j;
+                        _pair_plat[c][i*_nodes+j] = new Stats( this, tmp_name.str( ), 1.0, 250 );
+                        _stats[tmp_name.str()] = _pair_plat[c][i*_nodes+j];
+                        tmp_name.str("");
+
+                        tmp_name << "pair_nlat_stat_" << c << "_" << i << "_" << j;
+                        _pair_nlat[c][i*_nodes+j] = new Stats( this, tmp_name.str( ), 1.0, 250 );
+                        _stats[tmp_name.str()] = _pair_nlat[c][i*_nodes+j];
+                        tmp_name.str("");
+
+                        tmp_name << "pair_flat_stat_" << c << "_" << i << "_" << j;
+                        _pair_flat[c][i*_nodes+j] = new Stats( this, tmp_name.str( ), 1.0, 250 );
+                        _stats[tmp_name.str()] = _pair_flat[c][i*_nodes+j];
+                        tmp_name.str("");
+                    }
                 }
             }
         }
     }
-
-    _slowest_flit.resize(_classes, -1);
-    _slowest_packet.resize(_classes, -1);
-
- 
-
 }
 
 TrafficManager::~TrafficManager( )
@@ -591,21 +605,23 @@ TrafficManager::~TrafficManager( )
         }
     }
   
-    for ( int c = 0; c < _classes; ++c ) {
-        delete _plat_stats[c];
-        delete _nlat_stats[c];
-        delete _flat_stats[c];
-        delete _frag_stats[c];
-        delete _hop_stats[c];
+    for ( int subnet = 0; subnet < _subnets; subnet++) {
+        for ( int c = 0; c < _classes; ++c ) {
+            delete _plat_stats[subnet][c];
+            delete _nlat_stats[subnet][c];
+            delete _flat_stats[subnet][c];
+            delete _frag_stats[subnet][c];
+            delete _hop_stats[subnet][c];
 
-        delete _traffic_pattern[c];
-        delete _injection_process[c];
-        if(_pair_stats){
-            for ( int i = 0; i < _nodes; ++i ) {
-                for ( int j = 0; j < _nodes; ++j ) {
-                    delete _pair_plat[c][i*_nodes+j];
-                    delete _pair_nlat[c][i*_nodes+j];
-                    delete _pair_flat[c][i*_nodes+j];
+            delete _traffic_pattern[c];
+            delete _injection_process[c];
+            if(_pair_stats){
+                for ( int i = 0; i < _nodes; ++i ) {
+                    for ( int j = 0; j < _nodes; ++j ) {
+                        delete _pair_plat[c][i*_nodes+j];
+                        delete _pair_nlat[c][i*_nodes+j];
+                        delete _pair_flat[c][i*_nodes+j];
+                    }
                 }
             }
         }
@@ -636,7 +652,7 @@ TrafficManager::~TrafficManager( )
 }
 
 
-void TrafficManager::_RetireFlit( Flit *f, int dest )
+void TrafficManager::_RetireFlit( Flit *f, int dest, int subnet )
 {
     _deadlock_timer = 0;
 
@@ -666,10 +682,10 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
         Error( err.str( ) );
     }
   
-    if((_slowest_flit[f->cl] < 0) ||
-       (_flat_stats[f->cl]->Max() < (f->atime - f->itime)))
-        _slowest_flit[f->cl] = f->id;
-    _flat_stats[f->cl]->AddSample( f->atime - f->itime);
+    if((_slowest_flit[subnet][f->cl] < 0) ||
+       (_flat_stats[subnet][f->cl]->Max() < (f->atime - f->itime)))
+        _slowest_flit[subnet][f->cl] = f->id;
+    _flat_stats[subnet][f->cl]->AddSample( f->atime - f->itime);
     if(_pair_stats){
         _pair_flat[f->cl][f->src*_nodes+dest]->AddSample( f->atime - f->itime );
     }
@@ -719,14 +735,14 @@ void TrafficManager::_RetireFlit( Flit *f, int dest )
         // and based on the simulation state
         if ( ( _sim_state == warming_up ) || f->record ) {
       
-            _hop_stats[f->cl]->AddSample( f->hops );
+            _hop_stats[subnet][f->cl]->AddSample( f->hops );
 
-            if((_slowest_packet[f->cl] < 0) ||
-               (_plat_stats[f->cl]->Max() < (f->atime - head->itime)))
-                _slowest_packet[f->cl] = f->pid;
-            _plat_stats[f->cl]->AddSample( f->atime - head->ctime);
-            _nlat_stats[f->cl]->AddSample( f->atime - head->itime);
-            _frag_stats[f->cl]->AddSample( (f->atime - head->atime) - (f->id - head->id) );
+            if((_slowest_packet[subnet][f->cl] < 0) ||
+               (_plat_stats[subnet][f->cl]->Max() < (f->atime - head->itime)))
+                _slowest_packet[subnet][f->cl] = f->pid;
+            _plat_stats[subnet][f->cl]->AddSample( f->atime - head->ctime);
+            _nlat_stats[subnet][f->cl]->AddSample( f->atime - head->itime);
+            _frag_stats[subnet][f->cl]->AddSample( (f->atime - head->atime) - (f->id - head->id) );
    
             if(_pair_stats){
                 _pair_plat[f->cl][f->src*_nodes+dest]->AddSample( f->atime - head->ctime );
@@ -974,9 +990,9 @@ void TrafficManager::_Step( )
                 }
                 flits[subnet].insert(make_pair(n, f));
                 if((_sim_state == warming_up) || (_sim_state == running)) {
-                    ++_accepted_flits[f->cl][n];
+                    ++_accepted_flits[subnet][f->cl][n];
                     if(f->tail) {
-                        ++_accepted_packets[f->cl][n];
+                        ++_accepted_packets[subnet][f->cl][n];
                     }
                 }
             }
@@ -1216,9 +1232,9 @@ void TrafficManager::_Step( )
                 }
 	
                 if((_sim_state == warming_up) || (_sim_state == running)) {
-                    ++_sent_flits[c][n];
+                    ++_sent_flits[subnet][c][n];
                     if(f->head) {
-                        ++_sent_packets[c][n];
+                        ++_sent_packets[subnet][c][n];
                     }
                 }
 	
@@ -1254,7 +1270,7 @@ void TrafficManager::_Step( )
                 ++_ejected_flits[f->cl][n];
 #endif
 	
-                _RetireFlit(f, n);
+                _RetireFlit(f, n, subnet);
             }
         }
         flits[subnet].clear();
@@ -1298,40 +1314,42 @@ bool TrafficManager::_PacketsOutstanding( ) const
 
 void TrafficManager::_ClearStats( )
 {
-    _slowest_flit.assign(_classes, -1);
-    _slowest_packet.assign(_classes, -1);
 
-    for ( int c = 0; c < _classes; ++c ) {
+    for (int subnet = 0; subnet < _subnets; subnet++) {
+        _slowest_flit[subnet].assign(_classes, -1);
+        _slowest_packet[subnet].assign(_classes, -1);
+        for ( int c = 0; c < _classes; ++c ) {
 
-        _plat_stats[c]->Clear( );
-        _nlat_stats[c]->Clear( );
-        _flat_stats[c]->Clear( );
+            _plat_stats[subnet][c]->Clear( );
+            _nlat_stats[subnet][c]->Clear( );
+            _flat_stats[subnet][c]->Clear( );
 
-        _frag_stats[c]->Clear( );
+            _frag_stats[subnet][c]->Clear( );
 
-        _sent_packets[c].assign(_nodes, 0);
-        _accepted_packets[c].assign(_nodes, 0);
-        _sent_flits[c].assign(_nodes, 0);
-        _accepted_flits[c].assign(_nodes, 0);
+            _sent_packets[subnet][c].assign(_nodes, 0);
+            _accepted_packets[subnet][c].assign(_nodes, 0);
+            _sent_flits[subnet][c].assign(_nodes, 0);
+            _accepted_flits[subnet][c].assign(_nodes, 0);
 
 #ifdef TRACK_STALLS
-        _buffer_busy_stalls[c].assign(_subnets*_routers, 0);
-        _buffer_conflict_stalls[c].assign(_subnets*_routers, 0);
-        _buffer_full_stalls[c].assign(_subnets*_routers, 0);
-        _buffer_reserved_stalls[c].assign(_subnets*_routers, 0);
-        _crossbar_conflict_stalls[c].assign(_subnets*_routers, 0);
+            _buffer_busy_stalls[c].assign(_subnets*_routers, 0);
+            _buffer_conflict_stalls[c].assign(_subnets*_routers, 0);
+            _buffer_full_stalls[c].assign(_subnets*_routers, 0);
+            _buffer_reserved_stalls[c].assign(_subnets*_routers, 0);
+            _crossbar_conflict_stalls[c].assign(_subnets*_routers, 0);
 #endif
-        if(_pair_stats){
-            for ( int i = 0; i < _nodes; ++i ) {
-                for ( int j = 0; j < _nodes; ++j ) {
-                    _pair_plat[c][i*_nodes+j]->Clear( );
-                    _pair_nlat[c][i*_nodes+j]->Clear( );
-                    _pair_flat[c][i*_nodes+j]->Clear( );
+            if(_pair_stats){
+                for ( int i = 0; i < _nodes; ++i ) {
+                    for ( int j = 0; j < _nodes; ++j ) {
+                        _pair_plat[c][i*_nodes+j]->Clear( );
+                        _pair_nlat[c][i*_nodes+j]->Clear( );
+                        _pair_flat[c][i*_nodes+j]->Clear( );
+                    }
                 }
             }
-        }
-        _hop_stats[c]->Clear();
+            _hop_stats[subnet][c]->Clear();
 
+        }
     }
 
     _reset_time = _time;
@@ -1441,68 +1459,70 @@ bool TrafficManager::_SingleSim( )
         int lat_chg_exc_class = -1;
         int acc_chg_exc_class = -1;
     
-        for(int c = 0; c < _classes; ++c) {
-      
-            if(_measure_stats[c] == 0) {
-                continue;
-            }
+        for (int subnet = 0; subnet < _subnets; subnet++) {
+            for(int c = 0; c < _classes; ++c) {
 
-            double cur_latency = _plat_stats[c]->Average( );
-
-            int total_accepted_count;
-            _ComputeStats( _accepted_flits[c], &total_accepted_count );
-            double total_accepted_rate = (double)total_accepted_count / (double)(_time - _reset_time);
-            double cur_accepted = total_accepted_rate / (double)_nodes;
-
-            double latency_change = fabs((cur_latency - prev_latency[c]) / cur_latency);
-            prev_latency[c] = cur_latency;
-
-            double accepted_change = fabs((cur_accepted - prev_accepted[c]) / cur_accepted);
-            prev_accepted[c] = cur_accepted;
-
-            double latency = (double)_plat_stats[c]->Sum();
-            double count = (double)_plat_stats[c]->NumSamples();
-      
-            map<int, Flit *>::const_iterator iter;
-            for(iter = _total_in_flight_flits[c].begin(); 
-                iter != _total_in_flight_flits[c].end(); 
-                iter++) {
-                latency += (double)(_time - iter->second->ctime);
-                count++;
-            }
-      
-            if((lat_exc_class < 0) &&
-               (_latency_thres[c] >= 0.0) &&
-               ((latency / count) > _latency_thres[c])) {
-                lat_exc_class = c;
-            }
-      
-            cout << "latency change    = " << latency_change << endl;
-            if(lat_chg_exc_class < 0) {
-                if((_sim_state == warming_up) &&
-                   (_warmup_threshold[c] >= 0.0) &&
-                   (latency_change > _warmup_threshold[c])) {
-                    lat_chg_exc_class = c;
-                } else if((_sim_state == running) &&
-                          (_stopping_threshold[c] >= 0.0) &&
-                          (latency_change > _stopping_threshold[c])) {
-                    lat_chg_exc_class = c;
+                if(_measure_stats[c] == 0) {
+                    continue;
                 }
-            }
-      
-            cout << "throughput change = " << accepted_change << endl;
-            if(acc_chg_exc_class < 0) {
-                if((_sim_state == warming_up) &&
-                   (_acc_warmup_threshold[c] >= 0.0) &&
-                   (accepted_change > _acc_warmup_threshold[c])) {
-                    acc_chg_exc_class = c;
-                } else if((_sim_state == running) &&
-                          (_acc_stopping_threshold[c] >= 0.0) &&
-                          (accepted_change > _acc_stopping_threshold[c])) {
-                    acc_chg_exc_class = c;
+
+                double cur_latency = _plat_stats[subnet][c]->Average( );
+
+                int total_accepted_count;
+                _ComputeStats( _accepted_flits[subnet][c], &total_accepted_count );
+                double total_accepted_rate = (double)total_accepted_count / (double)(_time - _reset_time);
+                double cur_accepted = total_accepted_rate / (double)_nodes;
+
+                double latency_change = fabs((cur_latency - prev_latency[c]) / cur_latency);
+                prev_latency[c] = cur_latency;
+
+                double accepted_change = fabs((cur_accepted - prev_accepted[c]) / cur_accepted);
+                prev_accepted[c] = cur_accepted;
+
+                double latency = (double)_plat_stats[subnet][c]->Sum();
+                double count = (double)_plat_stats[subnet][c]->NumSamples();
+
+                map<int, Flit *>::const_iterator iter;
+                for(iter = _total_in_flight_flits[c].begin();
+                        iter != _total_in_flight_flits[c].end();
+                        iter++) {
+                    latency += (double)(_time - iter->second->ctime);
+                    count++;
                 }
+
+                if((lat_exc_class < 0) &&
+                        (_latency_thres[c] >= 0.0) &&
+                        ((latency / count) > _latency_thres[c])) {
+                    lat_exc_class = c;
+                }
+
+                cout << "latency change    = " << latency_change << endl;
+                if(lat_chg_exc_class < 0) {
+                    if((_sim_state == warming_up) &&
+                            (_warmup_threshold[c] >= 0.0) &&
+                            (latency_change > _warmup_threshold[c])) {
+                        lat_chg_exc_class = c;
+                    } else if((_sim_state == running) &&
+                            (_stopping_threshold[c] >= 0.0) &&
+                            (latency_change > _stopping_threshold[c])) {
+                        lat_chg_exc_class = c;
+                    }
+                }
+
+                cout << "throughput change = " << accepted_change << endl;
+                if(acc_chg_exc_class < 0) {
+                    if((_sim_state == warming_up) &&
+                            (_acc_warmup_threshold[c] >= 0.0) &&
+                            (accepted_change > _acc_warmup_threshold[c])) {
+                        acc_chg_exc_class = c;
+                    } else if((_sim_state == running) &&
+                            (_acc_stopping_threshold[c] >= 0.0) &&
+                            (accepted_change > _acc_stopping_threshold[c])) {
+                        acc_chg_exc_class = c;
+                    }
+                }
+
             }
-      
         }
     
         // Fail safe for latency mode, throughput will ust continue
@@ -1557,31 +1577,33 @@ bool TrafficManager::_SingleSim( )
 	  
                     int lat_exc_class = -1;
 	  
-                    for(int c = 0; c < _classes; c++) {
-	    
-                        double threshold = _latency_thres[c];
-	    
-                        if(threshold < 0.0) {
-                            continue;
+                    for (int subnet = 0; subnet < _subnets; subnet++) {
+                        for(int c = 0; c < _classes; c++) {
+
+                            double threshold = _latency_thres[c];
+
+                            if(threshold < 0.0) {
+                                continue;
+                            }
+
+                            double acc_latency = _plat_stats[subnet][c]->Sum();
+                            double acc_count = (double)_plat_stats[subnet][c]->NumSamples();
+
+                            map<int, Flit *>::const_iterator iter;
+                            for(iter = _total_in_flight_flits[c].begin();
+                                    iter != _total_in_flight_flits[c].end();
+                                    iter++) {
+                                acc_latency += (double)(_time - iter->second->ctime);
+                                acc_count++;
+                            }
+
+                            if((acc_latency / acc_count) > threshold) {
+                                lat_exc_class = c;
+                                break;
+                            }
                         }
-	    
-                        double acc_latency = _plat_stats[c]->Sum();
-                        double acc_count = (double)_plat_stats[c]->NumSamples();
-	    
-                        map<int, Flit *>::const_iterator iter;
-                        for(iter = _total_in_flight_flits[c].begin(); 
-                            iter != _total_in_flight_flits[c].end(); 
-                            iter++) {
-                            acc_latency += (double)(_time - iter->second->ctime);
-                            acc_count++;
-                        }
-	    
-                        if((acc_latency / acc_count) > threshold) {
-                            lat_exc_class = c;
-                            break;
-                        }
+
                     }
-	  
                     if(lat_exc_class >= 0) {
                         cout << "Average latency for class " << lat_exc_class << " exceeded " << _latency_thres[lat_exc_class] << " cycles. Aborting simulation." << endl;
                         converged = 0; 
@@ -1692,88 +1714,90 @@ bool TrafficManager::Run( )
 }
 
 void TrafficManager::_UpdateOverallStats() {
-    for ( int c = 0; c < _classes; ++c ) {
-    
-        if(_measure_stats[c] == 0) {
-            continue;
-        }
-    
-        _overall_min_plat[c] += _plat_stats[c]->Min();
-        _overall_avg_plat[c] += _plat_stats[c]->Average();
-        _overall_max_plat[c] += _plat_stats[c]->Max();
-        _overall_min_nlat[c] += _nlat_stats[c]->Min();
-        _overall_avg_nlat[c] += _nlat_stats[c]->Average();
-        _overall_max_nlat[c] += _nlat_stats[c]->Max();
-        _overall_min_flat[c] += _flat_stats[c]->Min();
-        _overall_avg_flat[c] += _flat_stats[c]->Average();
-        _overall_max_flat[c] += _flat_stats[c]->Max();
-    
-        _overall_min_frag[c] += _frag_stats[c]->Min();
-        _overall_avg_frag[c] += _frag_stats[c]->Average();
-        _overall_max_frag[c] += _frag_stats[c]->Max();
+    for (int subnet = 0; subnet < _subnets; subnet++) {
+        for ( int c = 0; c < _classes; ++c ) {
 
-        _overall_hop_stats[c] += _hop_stats[c]->Average();
+            if(_measure_stats[c] == 0) {
+                continue;
+            }
 
-        int count_min, count_sum, count_max;
-        double rate_min, rate_sum, rate_max;
-        double rate_avg;
-        double time_delta = (double)(_drain_time - _reset_time);
-        _ComputeStats( _sent_flits[c], &count_sum, &count_min, &count_max );
-        rate_min = (double)count_min / time_delta;
-        rate_sum = (double)count_sum / time_delta;
-        rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
-        _overall_min_sent[c] += rate_min;
-        _overall_avg_sent[c] += rate_avg;
-        _overall_max_sent[c] += rate_max;
-        _ComputeStats( _sent_packets[c], &count_sum, &count_min, &count_max );
-        rate_min = (double)count_min / time_delta;
-        rate_sum = (double)count_sum / time_delta;
-        rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
-        _overall_min_sent_packets[c] += rate_min;
-        _overall_avg_sent_packets[c] += rate_avg;
-        _overall_max_sent_packets[c] += rate_max;
-        _ComputeStats( _accepted_flits[c], &count_sum, &count_min, &count_max );
-        rate_min = (double)count_min / time_delta;
-        rate_sum = (double)count_sum / time_delta;
-        rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
-        _overall_min_accepted[c] += rate_min;
-        _overall_avg_accepted[c] += rate_avg;
-        _overall_max_accepted[c] += rate_max;
-        _ComputeStats( _accepted_packets[c], &count_sum, &count_min, &count_max );
-        rate_min = (double)count_min / time_delta;
-        rate_sum = (double)count_sum / time_delta;
-        rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
-        _overall_min_accepted_packets[c] += rate_min;
-        _overall_avg_accepted_packets[c] += rate_avg;
-        _overall_max_accepted_packets[c] += rate_max;
+            _overall_min_plat[subnet][c] += _plat_stats[subnet][c]->Min();
+            _overall_avg_plat[subnet][c] += _plat_stats[subnet][c]->Average();
+            _overall_max_plat[subnet][c] += _plat_stats[subnet][c]->Max();
+            _overall_min_nlat[subnet][c] += _nlat_stats[subnet][c]->Min();
+            _overall_avg_nlat[subnet][c] += _nlat_stats[subnet][c]->Average();
+            _overall_max_nlat[subnet][c] += _nlat_stats[subnet][c]->Max();
+            _overall_min_flat[subnet][c] += _flat_stats[subnet][c]->Min();
+            _overall_avg_flat[subnet][c] += _flat_stats[subnet][c]->Average();
+            _overall_max_flat[subnet][c] += _flat_stats[subnet][c]->Max();
+
+            _overall_min_frag[subnet][c] += _frag_stats[subnet][c]->Min();
+            _overall_avg_frag[subnet][c] += _frag_stats[subnet][c]->Average();
+            _overall_max_frag[subnet][c] += _frag_stats[subnet][c]->Max();
+
+            _overall_hop_stats[subnet][c] += _hop_stats[subnet][c]->Average();
+
+            int count_min, count_sum, count_max;
+            double rate_min, rate_sum, rate_max;
+            double rate_avg;
+            double time_delta = (double)(_drain_time - _reset_time);
+            _ComputeStats( _sent_flits[subnet][c], &count_sum, &count_min, &count_max );
+            rate_min = (double)count_min / time_delta;
+            rate_sum = (double)count_sum / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)_nodes;
+            _overall_min_sent[subnet][c] += rate_min;
+            _overall_avg_sent[subnet][c] += rate_avg;
+            _overall_max_sent[subnet][c] += rate_max;
+            _ComputeStats( _sent_packets[subnet][c], &count_sum, &count_min, &count_max );
+            rate_min = (double)count_min / time_delta;
+            rate_sum = (double)count_sum / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)_nodes;
+            _overall_min_sent_packets[subnet][c] += rate_min;
+            _overall_avg_sent_packets[subnet][c] += rate_avg;
+            _overall_max_sent_packets[subnet][c] += rate_max;
+            _ComputeStats( _accepted_flits[subnet][c], &count_sum, &count_min, &count_max );
+            rate_min = (double)count_min / time_delta;
+            rate_sum = (double)count_sum / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)_nodes;
+            _overall_min_accepted[subnet][c] += rate_min;
+            _overall_avg_accepted[subnet][c] += rate_avg;
+            _overall_max_accepted[subnet][c] += rate_max;
+            _ComputeStats( _accepted_packets[subnet][c], &count_sum, &count_min, &count_max );
+            rate_min = (double)count_min / time_delta;
+            rate_sum = (double)count_sum / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)_nodes;
+            _overall_min_accepted_packets[subnet][c] += rate_min;
+            _overall_avg_accepted_packets[subnet][c] += rate_avg;
+            _overall_max_accepted_packets[subnet][c] += rate_max;
 
 #ifdef TRACK_STALLS
-        _ComputeStats(_buffer_busy_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        _overall_buffer_busy_stalls[c] += rate_avg;
-        _ComputeStats(_buffer_conflict_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        _overall_buffer_conflict_stalls[c] += rate_avg;
-        _ComputeStats(_buffer_full_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        _overall_buffer_full_stalls[c] += rate_avg;
-        _ComputeStats(_buffer_reserved_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        _overall_buffer_reserved_stalls[c] += rate_avg;
-        _ComputeStats(_crossbar_conflict_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        _overall_crossbar_conflict_stalls[c] += rate_avg;
+            _ComputeStats(_buffer_busy_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            _overall_buffer_busy_stalls[c] += rate_avg;
+            _ComputeStats(_buffer_conflict_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            _overall_buffer_conflict_stalls[c] += rate_avg;
+            _ComputeStats(_buffer_full_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            _overall_buffer_full_stalls[c] += rate_avg;
+            _ComputeStats(_buffer_reserved_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            _overall_buffer_reserved_stalls[c] += rate_avg;
+            _ComputeStats(_crossbar_conflict_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            _overall_crossbar_conflict_stalls[c] += rate_avg;
 #endif
 
+        }
     }
 }
 
@@ -1781,111 +1805,114 @@ void TrafficManager::WriteStats(ostream & os) const {
   
     os << "%=================================" << endl;
 
-    for(int c = 0; c < _classes; ++c) {
-    
-        if(_measure_stats[c] == 0) {
-            continue;
-        }
-    
-        //c+1 due to matlab array starting at 1
-        os << "plat(" << c+1 << ") = " << _plat_stats[c]->Average() << ";" << endl
-           << "plat_hist(" << c+1 << ",:) = " << *_plat_stats[c] << ";" << endl
-           << "nlat(" << c+1 << ") = " << _nlat_stats[c]->Average() << ";" << endl
-           << "nlat_hist(" << c+1 << ",:) = " << *_nlat_stats[c] << ";" << endl
-           << "flat(" << c+1 << ") = " << _flat_stats[c]->Average() << ";" << endl
-           << "flat_hist(" << c+1 << ",:) = " << *_flat_stats[c] << ";" << endl
-           << "frag_hist(" << c+1 << ",:) = " << *_frag_stats[c] << ";" << endl
-           << "hops(" << c+1 << ",:) = " << *_hop_stats[c] << ";" << endl;
-        if(_pair_stats){
-            os<< "pair_sent(" << c+1 << ",:) = [ ";
-            for(int i = 0; i < _nodes; ++i) {
-                for(int j = 0; j < _nodes; ++j) {
-                    os << _pair_plat[c][i*_nodes+j]->NumSamples() << " ";
-                }
-            }
-            os << "];" << endl
-               << "pair_plat(" << c+1 << ",:) = [ ";
-            for(int i = 0; i < _nodes; ++i) {
-                for(int j = 0; j < _nodes; ++j) {
-                    os << _pair_plat[c][i*_nodes+j]->Average( ) << " ";
-                }
-            }
-            os << "];" << endl
-               << "pair_nlat(" << c+1 << ",:) = [ ";
-            for(int i = 0; i < _nodes; ++i) {
-                for(int j = 0; j < _nodes; ++j) {
-                    os << _pair_nlat[c][i*_nodes+j]->Average( ) << " ";
-                }
-            }
-            os << "];" << endl
-               << "pair_flat(" << c+1 << ",:) = [ ";
-            for(int i = 0; i < _nodes; ++i) {
-                for(int j = 0; j < _nodes; ++j) {
-                    os << _pair_flat[c][i*_nodes+j]->Average( ) << " ";
-                }
-            }
-        }
+    for (int subnet = 0; subnet < _subnets; subnet++) {
+        for(int c = 0; c < _classes; ++c) {
 
-        double time_delta = (double)(_drain_time - _reset_time);
+            if(_measure_stats[c] == 0) {
+                continue;
+            }
 
-        os << "];" << endl
-           << "sent_packets(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _nodes; ++d ) {
-            os << (double)_sent_packets[c][d] / time_delta << " ";
-        }
-        os << "];" << endl
-           << "accepted_packets(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _nodes; ++d ) {
-            os << (double)_accepted_packets[c][d] / time_delta << " ";
-        }
-        os << "];" << endl
-           << "sent_flits(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _nodes; ++d ) {
-            os << (double)_sent_flits[c][d] / time_delta << " ";
-        }
-        os << "];" << endl
-           << "accepted_flits(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _nodes; ++d ) {
-            os << (double)_accepted_flits[c][d] / time_delta << " ";
-        }
-        os << "];" << endl
-           << "sent_packet_size(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _nodes; ++d ) {
-            os << (double)_sent_flits[c][d] / (double)_sent_packets[c][d] << " ";
-        }
-        os << "];" << endl
-           << "accepted_packet_size(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _nodes; ++d ) {
-            os << (double)_accepted_flits[c][d] / (double)_accepted_packets[c][d] << " ";
-        }
-        os << "];" << endl;
+            // FIXME: subnet is not properly indexed in the strings
+            //c+1 due to matlab array starting at 1
+            os << "plat(" << c+1 << ") = " << _plat_stats[subnet][c]->Average() << ";" << endl
+                    << "plat_hist(" << c+1 << ",:) = " << *_plat_stats[subnet][c] << ";" << endl
+                    << "nlat(" << c+1 << ") = " << _nlat_stats[subnet][c]->Average() << ";" << endl
+                    << "nlat_hist(" << c+1 << ",:) = " << *_nlat_stats[subnet][c] << ";" << endl
+                    << "flat(" << c+1 << ") = " << _flat_stats[subnet][c]->Average() << ";" << endl
+                    << "flat_hist(" << c+1 << ",:) = " << *_flat_stats[subnet][c] << ";" << endl
+                    << "frag_hist(" << c+1 << ",:) = " << *_frag_stats[subnet][c] << ";" << endl
+                    << "hops(" << c+1 << ",:) = " << *_hop_stats[subnet][c] << ";" << endl;
+            if(_pair_stats){
+                os<< "pair_sent(" << c+1 << ",:) = [ ";
+                for(int i = 0; i < _nodes; ++i) {
+                    for(int j = 0; j < _nodes; ++j) {
+                        os << _pair_plat[c][i*_nodes+j]->NumSamples() << " ";
+                    }
+                }
+                os << "];" << endl
+                        << "pair_plat(" << c+1 << ",:) = [ ";
+                for(int i = 0; i < _nodes; ++i) {
+                    for(int j = 0; j < _nodes; ++j) {
+                        os << _pair_plat[c][i*_nodes+j]->Average( ) << " ";
+                    }
+                }
+                os << "];" << endl
+                        << "pair_nlat(" << c+1 << ",:) = [ ";
+                for(int i = 0; i < _nodes; ++i) {
+                    for(int j = 0; j < _nodes; ++j) {
+                        os << _pair_nlat[c][i*_nodes+j]->Average( ) << " ";
+                    }
+                }
+                os << "];" << endl
+                        << "pair_flat(" << c+1 << ",:) = [ ";
+                for(int i = 0; i < _nodes; ++i) {
+                    for(int j = 0; j < _nodes; ++j) {
+                        os << _pair_flat[c][i*_nodes+j]->Average( ) << " ";
+                    }
+                }
+            }
+
+            double time_delta = (double)(_drain_time - _reset_time);
+
+            os << "];" << endl
+                    << "sent_packets(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _nodes; ++d ) {
+                os << (double)_sent_packets[subnet][c][d] / time_delta << " ";
+            }
+            os << "];" << endl
+                    << "accepted_packets(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _nodes; ++d ) {
+                os << (double)_accepted_packets[subnet][c][d] / time_delta << " ";
+            }
+            os << "];" << endl
+                    << "sent_flits(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _nodes; ++d ) {
+                os << (double)_sent_flits[subnet][c][d] / time_delta << " ";
+            }
+            os << "];" << endl
+                    << "accepted_flits(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _nodes; ++d ) {
+                os << (double)_accepted_flits[subnet][c][d] / time_delta << " ";
+            }
+            os << "];" << endl
+                    << "sent_packet_size(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _nodes; ++d ) {
+                os << (double)_sent_flits[subnet][c][d] / (double)_sent_packets[subnet][c][d] << " ";
+            }
+            os << "];" << endl
+                    << "accepted_packet_size(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _nodes; ++d ) {
+                os << (double)_accepted_flits[subnet][c][d] / (double)_accepted_packets[subnet][c][d] << " ";
+            }
+            os << "];" << endl;
 #ifdef TRACK_STALLS
-        os << "buffer_busy_stalls(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _subnets*_routers; ++d ) {
-            os << (double)_buffer_busy_stalls[c][d] / time_delta << " ";
-        }
-        os << "];" << endl
-           << "buffer_conflict_stalls(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _subnets*_routers; ++d ) {
-            os << (double)_buffer_conflict_stalls[c][d] / time_delta << " ";
-        }
-        os << "];" << endl
-           << "buffer_full_stalls(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _subnets*_routers; ++d ) {
-            os << (double)_buffer_full_stalls[c][d] / time_delta << " ";
-        }
-        os << "];" << endl
-           << "buffer_reserved_stalls(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _subnets*_routers; ++d ) {
-            os << (double)_buffer_reserved_stalls[c][d] / time_delta << " ";
-        }
-        os << "];" << endl
-           << "crossbar_conflict_stalls(" << c+1 << ",:) = [ ";
-        for ( int d = 0; d < _subnets*_routers; ++d ) {
-            os << (double)_crossbar_conflict_stalls[c][d] / time_delta << " ";
-        }
-        os << "];" << endl;
+            os << "buffer_busy_stalls(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _subnets*_routers; ++d ) {
+                os << (double)_buffer_busy_stalls[c][d] / time_delta << " ";
+            }
+            os << "];" << endl
+                    << "buffer_conflict_stalls(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _subnets*_routers; ++d ) {
+                os << (double)_buffer_conflict_stalls[c][d] / time_delta << " ";
+            }
+            os << "];" << endl
+                    << "buffer_full_stalls(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _subnets*_routers; ++d ) {
+                os << (double)_buffer_full_stalls[c][d] / time_delta << " ";
+            }
+            os << "];" << endl
+                    << "buffer_reserved_stalls(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _subnets*_routers; ++d ) {
+                os << (double)_buffer_reserved_stalls[c][d] / time_delta << " ";
+            }
+            os << "];" << endl
+                    << "crossbar_conflict_stalls(" << c+1 << ",:) = [ ";
+            for ( int d = 0; d < _subnets*_routers; ++d ) {
+                os << (double)_crossbar_conflict_stalls[c][d] / time_delta << " ";
+            }
+            os << "];" << endl;
 #endif
+        }
     }
 }
 
@@ -1968,240 +1995,254 @@ void TrafficManager::UpdateStats() {
 
 void TrafficManager::DisplayStats(ostream & os) const {
   
-    for(int c = 0; c < _classes; ++c) {
-    
-        if(_measure_stats[c] == 0) {
-            continue;
-        }
-    
-        cout << "Class " << c << ":" << endl;
-    
-        cout 
-            << "Packet latency average = " << _plat_stats[c]->Average() << endl
-            << "\tminimum = " << _plat_stats[c]->Min() << endl
-            << "\tmaximum = " << _plat_stats[c]->Max() << endl
-            << "Network latency average = " << _nlat_stats[c]->Average() << endl
-            << "\tminimum = " << _nlat_stats[c]->Min() << endl
-            << "\tmaximum = " << _nlat_stats[c]->Max() << endl
-            << "Slowest packet = " << _slowest_packet[c] << endl
-            << "Flit latency average = " << _flat_stats[c]->Average() << endl
-            << "\tminimum = " << _flat_stats[c]->Min() << endl
-            << "\tmaximum = " << _flat_stats[c]->Max() << endl
-            << "Slowest flit = " << _slowest_flit[c] << endl
-            << "Fragmentation average = " << _frag_stats[c]->Average() << endl
-            << "\tminimum = " << _frag_stats[c]->Min() << endl
-            << "\tmaximum = " << _frag_stats[c]->Max() << endl;
-    
-        int count_sum, count_min, count_max;
-        double rate_sum, rate_min, rate_max;
-        double rate_avg;
-        int sent_packets, sent_flits, accepted_packets, accepted_flits;
-        int min_pos, max_pos;
-        double time_delta = (double)(_time - _reset_time);
-        _ComputeStats(_sent_packets[c], &count_sum, &count_min, &count_max, &min_pos, &max_pos);
-        rate_sum = (double)count_sum / time_delta;
-        rate_min = (double)count_min / time_delta;
-        rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
-        sent_packets = count_sum;
-        cout << "Injected packet rate average = " << rate_avg << endl
-             << "\tminimum = " << rate_min 
-             << " (at node " << min_pos << ")" << endl
-             << "\tmaximum = " << rate_max
-             << " (at node " << max_pos << ")" << endl;
-        _ComputeStats(_accepted_packets[c], &count_sum, &count_min, &count_max, &min_pos, &max_pos);
-        rate_sum = (double)count_sum / time_delta;
-        rate_min = (double)count_min / time_delta;
-        rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
-        accepted_packets = count_sum;
-        cout << "Accepted packet rate average = " << rate_avg << endl
-             << "\tminimum = " << rate_min 
-             << " (at node " << min_pos << ")" << endl
-             << "\tmaximum = " << rate_max
-             << " (at node " << max_pos << ")" << endl;
-        _ComputeStats(_sent_flits[c], &count_sum, &count_min, &count_max, &min_pos, &max_pos);
-        rate_sum = (double)count_sum / time_delta;
-        rate_min = (double)count_min / time_delta;
-        rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
-        sent_flits = count_sum;
-        cout << "Injected flit rate average = " << rate_avg << endl
-             << "\tminimum = " << rate_min 
-             << " (at node " << min_pos << ")" << endl
-             << "\tmaximum = " << rate_max
-             << " (at node " << max_pos << ")" << endl;
-        _ComputeStats(_accepted_flits[c], &count_sum, &count_min, &count_max, &min_pos, &max_pos);
-        rate_sum = (double)count_sum / time_delta;
-        rate_min = (double)count_min / time_delta;
-        rate_max = (double)count_max / time_delta;
-        rate_avg = rate_sum / (double)_nodes;
-        accepted_flits = count_sum;
-        cout << "Accepted flit rate average= " << rate_avg << endl
-             << "\tminimum = " << rate_min 
-             << " (at node " << min_pos << ")" << endl
-             << "\tmaximum = " << rate_max
-             << " (at node " << max_pos << ")" << endl;
-    
-        cout << "Injected packet length average = " << (double)sent_flits / (double)sent_packets << endl
-             << "Accepted packet length average = " << (double)accepted_flits / (double)accepted_packets << endl;
+    for (int subnet = 0; subnet < _subnets; subnet++) {
 
-        cout << "Total in-flight flits = " << _total_in_flight_flits[c].size()
+        for(int c = 0; c < _classes; ++c) {
+
+            if(_measure_stats[c] == 0) {
+                continue;
+            }
+
+            cout << "------ Subnet " << subnet << ", " << "Class " << c << ": ------" << endl;
+
+            string index = "[" + to_string(subnet) + "," + to_string(c) + "]";
+
+            cout
+            << index << "Packet latency average = " << _plat_stats[subnet][c]->Average() << endl
+            << "\tminimum = " << _plat_stats[subnet][c]->Min() << endl
+            << "\tmaximum = " << _plat_stats[subnet][c]->Max() << endl
+            << index << "Network latency average = " << _nlat_stats[subnet][c]->Average() << endl
+            << "\tminimum = " << _nlat_stats[subnet][c]->Min() << endl
+            << "\tmaximum = " << _nlat_stats[subnet][c]->Max() << endl
+            << index << "Slowest packet = " << _slowest_packet[subnet][c] << endl
+            << index << "Flit latency average = " << _flat_stats[subnet][c]->Average() << endl
+            << "\tminimum = " << _flat_stats[subnet][c]->Min() << endl
+            << "\tmaximum = " << _flat_stats[subnet][c]->Max() << endl
+            << index << "Slowest flit = " << _slowest_flit[subnet][c] << endl
+            << index << "Fragmentation average = " << _frag_stats[subnet][c]->Average() << endl
+            << "\tminimum = " << _frag_stats[subnet][c]->Min() << endl
+            << "\tmaximum = " << _frag_stats[subnet][c]->Max() << endl;
+
+            int count_sum, count_min, count_max;
+            double rate_sum, rate_min, rate_max;
+            double rate_avg;
+            int sent_packets, sent_flits, accepted_packets, accepted_flits;
+            int min_pos, max_pos;
+            double time_delta = (double)(_time - _reset_time);
+            _ComputeStats(_sent_packets[subnet][c], &count_sum, &count_min, &count_max, &min_pos, &max_pos);
+            rate_sum = (double)count_sum / time_delta;
+            rate_min = (double)count_min / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)_nodes;
+            sent_packets = count_sum;
+            cout << index << "Injected packet rate average = " << rate_avg << endl
+                    << "\tminimum = " << rate_min
+                    << " (at node " << min_pos << ")" << endl
+                    << "\tmaximum = " << rate_max
+                    << " (at node " << max_pos << ")" << endl;
+            _ComputeStats(_accepted_packets[subnet][c], &count_sum, &count_min, &count_max, &min_pos, &max_pos);
+            rate_sum = (double)count_sum / time_delta;
+            rate_min = (double)count_min / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)_nodes;
+            accepted_packets = count_sum;
+            cout << index << "Accepted packet rate average = " << rate_avg << endl
+                    << "\tminimum = " << rate_min
+                    << " (at node " << min_pos << ")" << endl
+                    << "\tmaximum = " << rate_max
+                    << " (at node " << max_pos << ")" << endl;
+            _ComputeStats(_sent_flits[subnet][c], &count_sum, &count_min, &count_max, &min_pos, &max_pos);
+            rate_sum = (double)count_sum / time_delta;
+            rate_min = (double)count_min / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)_nodes;
+            sent_flits = count_sum;
+            cout << index << "Injected flit rate average = " << rate_avg << endl
+                    << "\tminimum = " << rate_min
+                    << " (at node " << min_pos << ")" << endl
+                    << "\tmaximum = " << rate_max
+                    << " (at node " << max_pos << ")" << endl;
+            _ComputeStats(_accepted_flits[subnet][c], &count_sum, &count_min, &count_max, &min_pos, &max_pos);
+            rate_sum = (double)count_sum / time_delta;
+            rate_min = (double)count_min / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)_nodes;
+            accepted_flits = count_sum;
+            cout << index << "Accepted flit rate average= " << rate_avg << endl
+                    << "\tminimum = " << rate_min
+                    << " (at node " << min_pos << ")" << endl
+                    << "\tmaximum = " << rate_max
+                    << " (at node " << max_pos << ")" << endl;
+
+            cout << index << "Injected packet length average = " << (double)sent_flits / (double)sent_packets << endl
+                    << "Accepted packet length average = " << (double)accepted_flits / (double)accepted_packets << endl;
+
+
+#ifdef TRACK_STALLS
+            _ComputeStats(_buffer_busy_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Buffer busy stall rate = " << rate_avg << endl;
+            _ComputeStats(_buffer_conflict_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Buffer conflict stall rate = " << rate_avg << endl;
+            _ComputeStats(_buffer_full_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Buffer full stall rate = " << rate_avg << endl;
+            _ComputeStats(_buffer_reserved_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Buffer reserved stall rate = " << rate_avg << endl;
+            _ComputeStats(_crossbar_conflict_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Crossbar conflict stall rate = " << rate_avg << endl;
+#endif
+
+        }
+    }
+
+    cout << "------In-flight flits------" << endl;
+
+    for (int c = 0; c < _classes; c++) {
+        cout << "class(" << c << ")" << "Total in-flight flits = " << _total_in_flight_flits[c].size()
              << " (" << _measured_in_flight_flits[c].size() << " measured)"
              << endl;
-    
-#ifdef TRACK_STALLS
-        _ComputeStats(_buffer_busy_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        os << "Buffer busy stall rate = " << rate_avg << endl;
-        _ComputeStats(_buffer_conflict_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        os << "Buffer conflict stall rate = " << rate_avg << endl;
-        _ComputeStats(_buffer_full_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        os << "Buffer full stall rate = " << rate_avg << endl;
-        _ComputeStats(_buffer_reserved_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        os << "Buffer reserved stall rate = " << rate_avg << endl;
-        _ComputeStats(_crossbar_conflict_stalls[c], &count_sum);
-        rate_sum = (double)count_sum / time_delta;
-        rate_avg = rate_sum / (double)(_subnets*_routers);
-        os << "Crossbar conflict stall rate = " << rate_avg << endl;
-#endif
-    
     }
 }
 
 void TrafficManager::DisplayOverallStats( ostream & os ) const {
 
     os << "====== Overall Traffic Statistics ======" << endl;
-    for ( int c = 0; c < _classes; ++c ) {
+    for (int subnet = 0; subnet < _subnets; subnet++) {
+        os << "====== Traffic subnet " << subnet << " ======" << endl;
 
-        if(_measure_stats[c] == 0) {
-            continue;
-        }
+        for ( int c = 0; c < _classes; ++c ) {
 
-        os << "====== Traffic class " << c << " ======" << endl;
-    
-        os << "Packet latency average = " << _overall_avg_plat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tminimum = " << _overall_min_plat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tmaximum = " << _overall_max_plat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
+            if(_measure_stats[c] == 0) {
+                continue;
+            }
 
-        os << "Network latency average = " << _overall_avg_nlat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tminimum = " << _overall_min_nlat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tmaximum = " << _overall_max_nlat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
+            os << "====== Traffic class " << c << " ======" << endl;
 
-        os << "Flit latency average = " << _overall_avg_flat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tminimum = " << _overall_min_flat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tmaximum = " << _overall_max_flat[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
+            os << "Packet latency average = " << _overall_avg_plat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tminimum = " << _overall_min_plat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tmaximum = " << _overall_max_plat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
 
-        os << "Fragmentation average = " << _overall_avg_frag[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tminimum = " << _overall_min_frag[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tmaximum = " << _overall_max_frag[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
+            os << "Network latency average = " << _overall_avg_nlat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tminimum = " << _overall_min_nlat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tmaximum = " << _overall_max_nlat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
 
-        os << "Injected packet rate average = " << _overall_avg_sent_packets[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tminimum = " << _overall_min_sent_packets[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tmaximum = " << _overall_max_sent_packets[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-    
-        os << "Accepted packet rate average = " << _overall_avg_accepted_packets[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tminimum = " << _overall_min_accepted_packets[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tmaximum = " << _overall_max_accepted_packets[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
+            os << "Flit latency average = " << _overall_avg_flat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tminimum = " << _overall_min_flat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tmaximum = " << _overall_max_flat[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
 
-        os << "Injected flit rate average = " << _overall_avg_sent[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tminimum = " << _overall_min_sent[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tmaximum = " << _overall_max_sent[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-    
-        os << "Accepted flit rate average = " << _overall_avg_accepted[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tminimum = " << _overall_min_accepted[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-        os << "\tmaximum = " << _overall_max_accepted[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-    
-        os << "Injected packet size average = " << _overall_avg_sent[c] / _overall_avg_sent_packets[c]
-           << " (" << _total_sims << " samples)" << endl;
+            os << "Fragmentation average = " << _overall_avg_frag[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tminimum = " << _overall_min_frag[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tmaximum = " << _overall_max_frag[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
 
-        os << "Accepted packet size average = " << _overall_avg_accepted[c] / _overall_avg_accepted_packets[c]
-           << " (" << _total_sims << " samples)" << endl;
-    
-        os << "Hops average = " << _overall_hop_stats[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
-    
+            os << "Injected packet rate average = " << _overall_avg_sent_packets[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tminimum = " << _overall_min_sent_packets[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tmaximum = " << _overall_max_sent_packets[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+
+            os << "Accepted packet rate average = " << _overall_avg_accepted_packets[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tminimum = " << _overall_min_accepted_packets[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tmaximum = " << _overall_max_accepted_packets[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+
+            os << "Injected flit rate average = " << _overall_avg_sent[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tminimum = " << _overall_min_sent[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tmaximum = " << _overall_max_sent[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+
+            os << "Accepted flit rate average = " << _overall_avg_accepted[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tminimum = " << _overall_min_accepted[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+            os << "\tmaximum = " << _overall_max_accepted[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+
+            os << "Injected packet size average = " << _overall_avg_sent[subnet][c] / _overall_avg_sent_packets[subnet][c]
+                                                                                                        << " (" << _total_sims << " samples)" << endl;
+
+            os << "Accepted packet size average = " << _overall_avg_accepted[subnet][c] / _overall_avg_accepted_packets[subnet][c]
+                                                                                                                << " (" << _total_sims << " samples)" << endl;
+
+            os << "Hops average = " << _overall_hop_stats[subnet][c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
+
 #ifdef TRACK_STALLS
-        os << "Buffer busy stall rate = " << (double)_overall_buffer_busy_stalls[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl
-           << "Buffer conflict stall rate = " << (double)_overall_buffer_conflict_stalls[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl
-           << "Buffer full stall rate = " << (double)_overall_buffer_full_stalls[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl
-           << "Buffer reserved stall rate = " << (double)_overall_buffer_reserved_stalls[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl
-           << "Crossbar conflict stall rate = " << (double)_overall_crossbar_conflict_stalls[c] / (double)_total_sims
-           << " (" << _total_sims << " samples)" << endl;
+            os << "Buffer busy stall rate = " << (double)_overall_buffer_busy_stalls[c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl
+                    << "Buffer conflict stall rate = " << (double)_overall_buffer_conflict_stalls[c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl
+                    << "Buffer full stall rate = " << (double)_overall_buffer_full_stalls[c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl
+                    << "Buffer reserved stall rate = " << (double)_overall_buffer_reserved_stalls[c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl
+                    << "Crossbar conflict stall rate = " << (double)_overall_crossbar_conflict_stalls[c] / (double)_total_sims
+                    << " (" << _total_sims << " samples)" << endl;
 #endif
-    
+
+        }
     }
   
 }
 
-string TrafficManager::_OverallStatsCSV(int c) const
+string TrafficManager::_OverallStatsCSV(int subnet, int c) const
 {
     ostringstream os;
     os << _traffic[c]
        << ',' << _use_read_write[c]
        << ',' << _load[c]
-       << ',' << _overall_min_plat[c] / (double)_total_sims
-       << ',' << _overall_avg_plat[c] / (double)_total_sims
-       << ',' << _overall_max_plat[c] / (double)_total_sims
-       << ',' << _overall_min_nlat[c] / (double)_total_sims
-       << ',' << _overall_avg_nlat[c] / (double)_total_sims
-       << ',' << _overall_max_nlat[c] / (double)_total_sims
-       << ',' << _overall_min_flat[c] / (double)_total_sims
-       << ',' << _overall_avg_flat[c] / (double)_total_sims
-       << ',' << _overall_max_flat[c] / (double)_total_sims
-       << ',' << _overall_min_frag[c] / (double)_total_sims
-       << ',' << _overall_avg_frag[c] / (double)_total_sims
-       << ',' << _overall_max_frag[c] / (double)_total_sims
-       << ',' << _overall_min_sent_packets[c] / (double)_total_sims
-       << ',' << _overall_avg_sent_packets[c] / (double)_total_sims
-       << ',' << _overall_max_sent_packets[c] / (double)_total_sims
-       << ',' << _overall_min_accepted_packets[c] / (double)_total_sims
-       << ',' << _overall_avg_accepted_packets[c] / (double)_total_sims
-       << ',' << _overall_max_accepted_packets[c] / (double)_total_sims
-       << ',' << _overall_min_sent[c] / (double)_total_sims
-       << ',' << _overall_avg_sent[c] / (double)_total_sims
-       << ',' << _overall_max_sent[c] / (double)_total_sims
-       << ',' << _overall_min_accepted[c] / (double)_total_sims
-       << ',' << _overall_avg_accepted[c] / (double)_total_sims
-       << ',' << _overall_max_accepted[c] / (double)_total_sims
-       << ',' << _overall_avg_sent[c] / _overall_avg_sent_packets[c]
-       << ',' << _overall_avg_accepted[c] / _overall_avg_accepted_packets[c]
-       << ',' << _overall_hop_stats[c] / (double)_total_sims;
+       << ',' << _overall_min_plat[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_plat[subnet][c] / (double)_total_sims
+       << ',' << _overall_max_plat[subnet][c] / (double)_total_sims
+       << ',' << _overall_min_nlat[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_nlat[subnet][c] / (double)_total_sims
+       << ',' << _overall_max_nlat[subnet][c] / (double)_total_sims
+       << ',' << _overall_min_flat[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_flat[subnet][c] / (double)_total_sims
+       << ',' << _overall_max_flat[subnet][c] / (double)_total_sims
+       << ',' << _overall_min_frag[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_frag[subnet][c] / (double)_total_sims
+       << ',' << _overall_max_frag[subnet][c] / (double)_total_sims
+       << ',' << _overall_min_sent_packets[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_sent_packets[subnet][c] / (double)_total_sims
+       << ',' << _overall_max_sent_packets[subnet][c] / (double)_total_sims
+       << ',' << _overall_min_accepted_packets[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_accepted_packets[subnet][c] / (double)_total_sims
+       << ',' << _overall_max_accepted_packets[subnet][c] / (double)_total_sims
+       << ',' << _overall_min_sent[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_sent[subnet][c] / (double)_total_sims
+       << ',' << _overall_max_sent[subnet][c] / (double)_total_sims
+       << ',' << _overall_min_accepted[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_accepted[subnet][c] / (double)_total_sims
+       << ',' << _overall_max_accepted[subnet][c] / (double)_total_sims
+       << ',' << _overall_avg_sent[subnet][c] / _overall_avg_sent_packets[subnet][c]
+       << ',' << _overall_avg_accepted[subnet][c] / _overall_avg_accepted_packets[subnet][c]
+       << ',' << _overall_hop_stats[subnet][c] / (double)_total_sims;
 
 #ifdef TRACK_STALLS
     os << ',' << (double)_overall_buffer_busy_stalls[c] / (double)_total_sims
@@ -2215,8 +2256,10 @@ string TrafficManager::_OverallStatsCSV(int c) const
 }
 
 void TrafficManager::DisplayOverallStatsCSV(ostream & os) const {
-    for(int c = 0; c < _classes; ++c) {
-        os << "results:" << c << ',' << _OverallStatsCSV() << endl;
+    for (int subnet = 0; subnet < _subnets; subnet++) {
+        for(int c = 0; c < _classes; ++c) {
+            os << "results:" << subnet << ',' << c << ',' << _OverallStatsCSV(subnet, c) << endl;
+        }
     }
 }
 

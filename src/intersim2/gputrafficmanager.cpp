@@ -61,7 +61,7 @@ void GPUTrafficManager::Init()
   
 }
 
-void GPUTrafficManager::_RetireFlit( Flit *f, int dest )
+void GPUTrafficManager::_RetireFlit( Flit *f, int dest, int subnet )
 {
   _deadlock_timer = 0;
   
@@ -91,11 +91,11 @@ void GPUTrafficManager::_RetireFlit( Flit *f, int dest )
     Error( err.str( ) );
   }
   
-  if((_slowest_flit[f->cl] < 0) ||
-     (_flat_stats[f->cl]->Max() < (f->atime - f->itime)))
-    _slowest_flit[f->cl] = f->id;
+  if((_slowest_flit[subnet][f->cl] < 0) ||
+     (_flat_stats[subnet][f->cl]->Max() < (f->atime - f->itime)))
+    _slowest_flit[subnet][f->cl] = f->id;
   
-  _flat_stats[f->cl]->AddSample( f->atime - f->itime);
+  _flat_stats[subnet][f->cl]->AddSample( f->atime - f->itime);
   if(_pair_stats){
     _pair_flat[f->cl][f->src*_nodes+dest]->AddSample( f->atime - f->itime );
   }
@@ -156,14 +156,14 @@ void GPUTrafficManager::_RetireFlit( Flit *f, int dest )
     // and based on the simulation state
     if ( ( _sim_state == warming_up ) || f->record ) {
       
-      _hop_stats[f->cl]->AddSample( f->hops );
+      _hop_stats[subnet][f->cl]->AddSample( f->hops );
       
-      if((_slowest_packet[f->cl] < 0) ||
-         (_plat_stats[f->cl]->Max() < (f->atime - head->itime)))
-        _slowest_packet[f->cl] = f->pid;
-      _plat_stats[f->cl]->AddSample( f->atime - head->ctime);
-      _nlat_stats[f->cl]->AddSample( f->atime - head->itime);
-      _frag_stats[f->cl]->AddSample( (f->atime - head->atime) - (f->id - head->id) );
+      if((_slowest_packet[subnet][f->cl] < 0) ||
+         (_plat_stats[subnet][f->cl]->Max() < (f->atime - head->itime)))
+        _slowest_packet[subnet][f->cl] = f->pid;
+      _plat_stats[subnet][f->cl]->AddSample( f->atime - head->ctime);
+      _nlat_stats[subnet][f->cl]->AddSample( f->atime - head->itime);
+      _frag_stats[subnet][f->cl]->AddSample( (f->atime - head->atime) - (f->id - head->id) );
       
       if(_pair_stats){
         _pair_plat[f->cl][f->src*_nodes+dest]->AddSample( f->atime - head->ctime );
@@ -375,9 +375,9 @@ void GPUTrafficManager::_Step()
         }
         flits[subnet].insert(make_pair(n, ejected_flit));
         if((_sim_state == warming_up) || (_sim_state == running)) {
-          ++_accepted_flits[ejected_flit->cl][n];
+          ++_accepted_flits[subnet][ejected_flit->cl][n];
           if(ejected_flit->tail) {
-            ++_accepted_packets[ejected_flit->cl][n];
+            ++_accepted_packets[subnet][ejected_flit->cl][n];
           }
         }
       }
@@ -619,9 +619,9 @@ void GPUTrafficManager::_Step()
         }
         
         if((_sim_state == warming_up) || (_sim_state == running)) {
-          ++_sent_flits[c][n];
+          ++_sent_flits[subnet][c][n];
           if(f->head) {
-            ++_sent_packets[c][n];
+            ++_sent_packets[subnet][c][n];
           }
         }
         
@@ -657,7 +657,7 @@ void GPUTrafficManager::_Step()
         ++_ejected_flits[f->cl][n];
 #endif
         
-        _RetireFlit(f, n);
+        _RetireFlit(f, n, subnet);
       }
     }
     flits[subnet].clear();
