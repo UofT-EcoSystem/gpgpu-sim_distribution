@@ -1173,7 +1173,7 @@ void gpgpu_sim::print_stats()
     if (g_network_mode) {
         printf("----------------------------Interconnect-DETAILS--------------------------------\n" );
         icnt_display_stats();
-        icnt_display_overall_stats();
+//        icnt_display_overall_stats();
         printf("----------------------------END-of-Interconnect-DETAILS-------------------------\n" );
     }
 }
