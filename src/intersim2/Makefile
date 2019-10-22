@@ -48,6 +48,7 @@ CPPFLAGS += -O3
 endif
 CPPFLAGS += -g
 CPPFLAGS += -fPIC
+CPPFLAGS += -std=c++14
 LFLAGS +=
 
 
