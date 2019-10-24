@@ -79,6 +79,7 @@ memory_stats_t::memory_stats_t( unsigned n_shader,
    max_icnt2mem_latency = 0;
    max_icnt2sh_latency = 0;
    tot_icnt2mem_latency = 0;
+   tot_offchip2mem_latency = 0;
    tot_icnt2sh_latency = 0;
    tot_mrq_num = 0;
    tot_mrq_latency = 0;
@@ -97,6 +98,7 @@ memory_stats_t::memory_stats_t( unsigned n_shader,
    num_streams = n_streams;
    num_mfs_streams = (unsigned*)calloc(num_streams, sizeof(unsigned));
    tot_icnt2mem_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
+   tot_offchip2mem_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
    tot_icnt2sh_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
    mf_total_lat_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int ));
    tot_mrq_num_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
@@ -234,10 +236,15 @@ void memory_stats_t::memlatstat_icnt2mem_pop(mem_fetch *mf)
       tot_icnt2mem_latency += icnt2mem_latency;
       icnt2mem_lat_table[LOGB2(icnt2mem_latency)]++;
 
+      unsigned offchip2mem_latency;
+      offchip2mem_latency = (gpu_tot_sim_cycle+gpu_sim_cycle) - mf->get_timestamp_offchip();
+      tot_offchip2mem_latency += offchip2mem_latency;
+
       int stream_id = mf->get_stream_id();
       if (stream_id != -1 && mf->should_record_stat()) {
     	  assert(stream_id < num_streams);
           tot_icnt2mem_latency_streams[stream_id] += icnt2mem_latency;
+          tot_offchip2mem_latency_streams[stream_id] += offchip2mem_latency;
       }
 
       if (icnt2mem_latency > max_icnt2mem_latency)
@@ -272,6 +279,8 @@ void memory_stats_t::memlatstat_print( unsigned n_mem, unsigned gpu_mem_n_bk )
       if (num_mfs) {
          printf("averagemflatency = %lld \n", mf_total_lat/num_mfs);
          printf("avg_icnt2mem_latency = %lld \n", tot_icnt2mem_latency/num_mfs);
+         printf("avg_offchip2mem_latency = %lld\n", tot_offchip2mem_latency/num_mfs);
+
          if(tot_mrq_num)
         	 printf("avg_mrq_latency = %lld \n", tot_mrq_latency/tot_mrq_num);
 
@@ -283,6 +292,7 @@ void memory_stats_t::memlatstat_print( unsigned n_mem, unsigned gpu_mem_n_bk )
              if (num_mfs_streams[i]) {
                  printf("averagemflatency[%d] = %lld \n", i, mf_total_lat_streams[i]/num_mfs_streams[i]);
                  printf("avg_icnt2mem_latency[%d] = %lld \n", i, tot_icnt2mem_latency_streams[i]/num_mfs_streams[i]);
+                 printf("avg_offchip2mem_latency[%d] = %lld \n", i, tot_offchip2mem_latency_streams[i]/num_mfs_streams[i]);
                  if(tot_mrq_num_streams[i])
                      printf("avg_mrq_latency[%d] = %lld \n", i, tot_mrq_latency_streams[i]/tot_mrq_num_streams[i]);
 

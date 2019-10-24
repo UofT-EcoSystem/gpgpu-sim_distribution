@@ -60,6 +60,7 @@ public:
    unsigned max_mf_latency;
    unsigned max_icnt2mem_latency;
    unsigned long long int tot_icnt2mem_latency;
+   unsigned long long int tot_offchip2mem_latency;
    unsigned long long int tot_icnt2sh_latency;
    unsigned long long int tot_mrq_latency;
    unsigned long long int tot_mrq_num;
@@ -91,6 +92,7 @@ public:
    unsigned num_streams;
    unsigned * num_mfs_streams;
    unsigned long long int * tot_icnt2mem_latency_streams;
+   unsigned long long int * tot_offchip2mem_latency_streams;
    unsigned long long int * tot_icnt2sh_latency_streams;
    unsigned long long int * mf_total_lat_streams;
 

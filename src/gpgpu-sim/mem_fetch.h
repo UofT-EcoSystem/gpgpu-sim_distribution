@@ -97,9 +97,13 @@ public:
    enum mf_type get_type() const { return m_type; }
    bool isatomic() const;
 
+   void set_timestamp_offchip(unsigned t) { m_timestamp1 = t;}
    void set_return_timestamp( unsigned t ) { m_timestamp2=t; }
+
    void set_icnt_receive_time( unsigned t ) { m_icnt_receive_time=t; }
-   unsigned get_timestamp() const { return m_timestamp; }
+
+   unsigned get_timestamp() const { return m_timestamp0; }
+   unsigned get_timestamp_offchip() const {return m_timestamp1;}
    unsigned get_return_timestamp() const { return m_timestamp2; }
    unsigned get_icnt_receive_time() const { return m_icnt_receive_time; }
 
@@ -142,8 +146,11 @@ private:
    enum mf_type m_type;
 
    // statistics
-   unsigned m_timestamp;  // set to gpu_sim_cycle+gpu_tot_sim_cycle at struct creation
+   unsigned m_timestamp0;  // set to gpu_sim_cycle+gpu_tot_sim_cycle at struct creation
+   unsigned m_timestamp1; // set to gpu_sim_cycle+gpu_tot_sim_cycle when leaving l1 miss queue
    unsigned m_timestamp2; // set to gpu_sim_cycle+gpu_tot_sim_cycle when pushed onto icnt to shader; only used for reads
+
+
    unsigned m_icnt_receive_time; // set to gpu_sim_cycle + interconnect_latency when fixed icnt latency mode is enabled
 
    // requesting instruction (put last so mem_fetch prints nicer in gdb)

@@ -59,7 +59,8 @@ mem_fetch::mem_fetch( const mem_access_t &access,
    config->m_address_mapping.addrdec_tlx(access.get_addr(),&m_raw_addr);
    m_partition_addr = config->m_address_mapping.partition_address(access.get_addr());
    m_type = m_access.is_write()?WRITE_REQUEST:READ_REQUEST;
-   m_timestamp = gpu_sim_cycle + gpu_tot_sim_cycle;
+   m_timestamp0 = gpu_sim_cycle + gpu_tot_sim_cycle;
+   m_timestamp1 = 0;
    m_timestamp2 = 0;
    m_icnt_receive_time = 0;
    m_status = MEM_FETCH_INITIALIZED;

@@ -1011,6 +1011,9 @@ bool baseline_cache::bandwidth_management::fill_port_free() const
     return (m_fill_port_occupied_cycles == 0); 
 }
 
+extern unsigned long long  gpu_sim_cycle;
+extern unsigned long long  gpu_tot_sim_cycle;
+
 /// Sends next request to lower level of memory
 void baseline_cache::cycle(){
     if ( !m_miss_queue.empty() ) {
@@ -1018,6 +1021,7 @@ void baseline_cache::cycle(){
         if ( !m_memport->full(mf->size(),mf->get_is_write()) ) {
             m_miss_queue.pop_front();
             m_memport->push(mf);
+            mf->set_timestamp_offchip(gpu_sim_cycle+gpu_tot_sim_cycle);
         }
     }
     bool data_port_busy = !m_bandwidth_management.data_port_free(); 
