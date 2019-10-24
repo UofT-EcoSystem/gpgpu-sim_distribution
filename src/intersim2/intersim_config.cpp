@@ -38,6 +38,10 @@ IntersimConfig::IntersimConfig()
   // config SMs and memory nodes map
   AddStrField("memory_node_map", "");
 
+  // shader and memory chip count for display stat purposes
+  _int_map["n_shader"] = 1;
+  _int_map["n_mem"] = 1;
+
   _int_map["flit_size"] = 32;
   
   _int_map["input_buffer_size"] = 0;
