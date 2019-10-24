@@ -46,9 +46,13 @@ protected:
   virtual void _GeneratePacket(int source, int stype, int cl, int time, int subnet, int package_size, const Flit::FlitType& packet_type, void* const data, int dest);
   virtual int  _IssuePacket( int source, int cl );
   virtual void _Step();
-  
+
+  void _ComputeStatsSubVector( const vector<int> & stats, const int left, const int count, int *sum, int *min, int *max, int *min_pos, int *max_pos ) const;
+
   // record size of _partial_packets for each subnet
   vector<vector<vector<list<Flit *> > > > _input_queue;
+  int _n_shader;
+  int _n_mem;
   
 public:
   
@@ -57,14 +61,13 @@ public:
   
   // correspond to TrafficManger::Run/SingleSim
   void Init();
-  
+
+  void DisplayStats( ostream & os = cout ) const;
+
   // TODO: if it is not good...
   friend class InterconnectInterface;
   
-  
-  
   //    virtual void WriteStats( ostream & os = cout ) const;
-  //    virtual void DisplayStats( ostream & os = cout ) const;
   //    virtual void DisplayOverallStats( ostream & os = cout ) const;
   
 };

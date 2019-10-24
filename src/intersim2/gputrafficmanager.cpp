@@ -47,6 +47,9 @@ GPUTrafficManager::GPUTrafficManager( const Configuration &config, const vector<
       _input_queue[subnet][node].resize(_classes);
     }
   }
+
+  _n_shader = config.GetInt("n_shader");
+  _n_mem = config.GetInt("n_mem");
 }
 
 GPUTrafficManager::~GPUTrafficManager()
@@ -674,3 +677,175 @@ void GPUTrafficManager::_Step()
   
 }
 
+void GPUTrafficManager::DisplayStats(ostream & os) const {
+
+    for (int subnet = 0; subnet < _subnets; subnet++) {
+        unsigned send_node_start, send_node_count, rcv_node_start, rcv_node_count;
+
+        if (subnet == 0) {
+            send_node_start = 0;
+            send_node_count = _n_shader;
+            rcv_node_start = _n_shader;
+            rcv_node_count = _n_mem;
+        } else {
+            send_node_start = _n_shader;
+            send_node_count = _n_mem;
+            rcv_node_start = 0;
+            rcv_node_count = _n_shader;
+        }
+
+        for(int c = 0; c < _classes; ++c) {
+
+            if(_measure_stats[c] == 0) {
+                continue;
+            }
+
+            cout << "------ Subnet " << subnet << ", " << "Class " << c << ": ------" << endl;
+
+            string index = "[" + to_string(subnet) + "," + to_string(c) + "]";
+
+            cout
+            << index << "Packet latency average = " << _plat_stats[subnet][c]->Average() << endl
+            << "\tminimum = " << _plat_stats[subnet][c]->Min() << endl
+            << "\tmaximum = " << _plat_stats[subnet][c]->Max() << endl
+            << index << "Network latency average = " << _nlat_stats[subnet][c]->Average() << endl
+            << "\tminimum = " << _nlat_stats[subnet][c]->Min() << endl
+            << "\tmaximum = " << _nlat_stats[subnet][c]->Max() << endl
+            << index << "Slowest packet = " << _slowest_packet[subnet][c] << endl
+            << index << "Flit latency average = " << _flat_stats[subnet][c]->Average() << endl
+            << "\tminimum = " << _flat_stats[subnet][c]->Min() << endl
+            << "\tmaximum = " << _flat_stats[subnet][c]->Max() << endl
+            << index << "Slowest flit = " << _slowest_flit[subnet][c] << endl
+            << index << "Fragmentation average = " << _frag_stats[subnet][c]->Average() << endl
+            << "\tminimum = " << _frag_stats[subnet][c]->Min() << endl
+            << "\tmaximum = " << _frag_stats[subnet][c]->Max() << endl;
+
+            int count_sum, count_min, count_max;
+            double rate_sum, rate_min, rate_max;
+            double rate_avg;
+            int sent_packets, sent_flits, accepted_packets, accepted_flits;
+            int min_pos, max_pos;
+            double time_delta = (double)(_time - _reset_time);
+            _ComputeStatsSubVector(_sent_packets[subnet][c], send_node_start, send_node_count, &count_sum, &count_min, &count_max, &min_pos, &max_pos);
+            rate_sum = (double)count_sum / time_delta;
+            rate_min = (double)count_min / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)send_node_count;
+            sent_packets = count_sum;
+            cout << index << "Injected packet rate average = " << rate_avg << endl
+                    << "\tminimum = " << rate_min
+                    << " (at node " << min_pos << ")" << endl
+                    << "\tmaximum = " << rate_max
+                    << " (at node " << max_pos << ")" << endl;
+            _ComputeStatsSubVector(_accepted_packets[subnet][c], rcv_node_start, rcv_node_count, &count_sum, &count_min, &count_max, &min_pos, &max_pos);
+            rate_sum = (double)count_sum / time_delta;
+            rate_min = (double)count_min / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)rcv_node_count;
+            accepted_packets = count_sum;
+            cout << index << "Accepted packet rate average = " << rate_avg << endl
+                    << "\tminimum = " << rate_min
+                    << " (at node " << min_pos << ")" << endl
+                    << "\tmaximum = " << rate_max
+                    << " (at node " << max_pos << ")" << endl;
+            _ComputeStatsSubVector(_sent_flits[subnet][c], send_node_start, send_node_count, &count_sum, &count_min, &count_max, &min_pos, &max_pos);
+            rate_sum = (double)count_sum / time_delta;
+            rate_min = (double)count_min / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)send_node_count;
+            sent_flits = count_sum;
+            cout << index << "Injected flit rate average = " << rate_avg << endl
+                    << "\tminimum = " << rate_min
+                    << " (at node " << min_pos << ")" << endl
+                    << "\tmaximum = " << rate_max
+                    << " (at node " << max_pos << ")" << endl;
+            _ComputeStatsSubVector(_accepted_flits[subnet][c], rcv_node_start, rcv_node_count, &count_sum, &count_min, &count_max, &min_pos, &max_pos);
+            rate_sum = (double)count_sum / time_delta;
+            rate_min = (double)count_min / time_delta;
+            rate_max = (double)count_max / time_delta;
+            rate_avg = rate_sum / (double)rcv_node_count;
+            accepted_flits = count_sum;
+            cout << index << "Accepted flit rate average= " << rate_avg << endl
+                    << "\tminimum = " << rate_min
+                    << " (at node " << min_pos << ")" << endl
+                    << "\tmaximum = " << rate_max
+                    << " (at node " << max_pos << ")" << endl;
+
+            cout << index << "Injected packet length average = " << (double)sent_flits / (double)sent_packets << endl
+                    << "Accepted packet length average = " << (double)accepted_flits / (double)accepted_packets << endl;
+
+
+#ifdef TRACK_STALLS
+            _ComputeStats(_buffer_busy_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Buffer busy stall rate = " << rate_avg << endl;
+            _ComputeStats(_buffer_conflict_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Buffer conflict stall rate = " << rate_avg << endl;
+            _ComputeStats(_buffer_full_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Buffer full stall rate = " << rate_avg << endl;
+            _ComputeStats(_buffer_reserved_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Buffer reserved stall rate = " << rate_avg << endl;
+            _ComputeStats(_crossbar_conflict_stalls[c], &count_sum);
+            rate_sum = (double)count_sum / time_delta;
+            rate_avg = rate_sum / (double)(_subnets*_routers);
+            os << "Crossbar conflict stall rate = " << rate_avg << endl;
+#endif
+
+        }
+    }
+
+    cout << "------In-flight flits------" << endl;
+
+    for (int c = 0; c < _classes; c++) {
+        cout << "class(" << c << ")" << "Total in-flight flits = " << _total_in_flight_flits[c].size()
+             << " (" << _measured_in_flight_flits[c].size() << " measured)"
+             << endl;
+    }
+}
+
+void GPUTrafficManager::_ComputeStatsSubVector( const vector<int> & stats, const int left, const int count,
+        int *sum, int *min, int *max, int *min_pos, int *max_pos ) const
+{
+    assert(count > 0);
+    assert((left < stats.size()) && (left + count <= stats.size()));
+
+    if(min_pos) {
+        *min_pos = left;
+    }
+    if(max_pos) {
+        *max_pos = left;
+    }
+
+    if(min) {
+        *min = stats[left];
+    }
+    if(max) {
+        *max = stats[left];
+    }
+
+    *sum = stats[left];
+
+    for ( int i = 1; i < count; ++i ) {
+        int curr = stats[left + i];
+        if ( min  && ( curr < *min ) ) {
+            *min = curr;
+            if ( min_pos ) {
+                *min_pos = left + i;
+            }
+        }
+        if ( max && ( curr > *max ) ) {
+            *max = curr;
+            if ( max_pos ) {
+                *max_pos = left + i;
+            }
+        }
+        *sum += curr;
+    }
+}

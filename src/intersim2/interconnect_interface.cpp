@@ -85,6 +85,11 @@ void InterconnectInterface::CreateInterconnect(unsigned n_shader, unsigned n_mem
   _n_shader = n_shader;
   _n_mem = n_mem;
 
+  // Hack: insert n_shader and n_mem into the intersim config
+  // so that GPUTrafficManager is aware of them for stat display
+  _icnt_config->Assign("n_shader", (int)n_shader);
+  _icnt_config->Assign("n_mem", (int)n_mem);
+
   InitializeRoutingMap(*_icnt_config);
 
   gPrintActivity = (_icnt_config->GetInt("print_activity") > 0);
