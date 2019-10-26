@@ -85,6 +85,8 @@ void InterconnectInterface::CreateInterconnect(unsigned n_shader, unsigned n_mem
   _n_shader = n_shader;
   _n_mem = n_mem;
 
+  _fixed_lat_per_hop = _icnt_config->GetInt("fixed_lat_per_hop");
+
   // Hack: insert n_shader and n_mem into the intersim config
   // so that GPUTrafficManager is aware of them for stat display
   _icnt_config->Assign("n_shader", (int)n_shader);
@@ -187,25 +189,45 @@ void InterconnectInterface::Push(unsigned input_deviceID, unsigned output_device
       class_id = 0;
   }
 
-  switch (mf->get_type()) {
-    case READ_REQUEST:  packet_type = Flit::READ_REQUEST   ;break;
-    case WRITE_REQUEST: packet_type = Flit::WRITE_REQUEST  ;break;
-    case READ_REPLY:    packet_type = Flit::READ_REPLY     ;break;
-    case WRITE_ACK:     packet_type = Flit::WRITE_REPLY    ;break;
-    default:
-    	{
-    		cout<<"Type "<<mf->get_type()<<" is undefined!"<<endl;
-    		assert (0 && "Type is undefined");
-    	}
-  }
+  if (_fixed_lat_per_hop == 0) {
+      switch (mf->get_type()) {
+      case READ_REQUEST:  packet_type = Flit::READ_REQUEST   ;break;
+      case WRITE_REQUEST: packet_type = Flit::WRITE_REQUEST  ;break;
+      case READ_REPLY:    packet_type = Flit::READ_REPLY     ;break;
+      case WRITE_ACK:     packet_type = Flit::WRITE_REPLY    ;break;
+      default:
+      {
+          cout<<"Type "<<mf->get_type()<<" is undefined!"<<endl;
+          assert (0 && "Type is undefined");
+      }
+      }
 
-  //TODO: _include_queuing ?
-  _traffic_manager->_GeneratePacket( input_icntID, -1, class_id /*class*/, _traffic_manager->_time, subnet, n_flits, packet_type, data, output_icntID);
+      //TODO: _include_queuing ?
+      _traffic_manager->_GeneratePacket( input_icntID, -1, class_id /*class*/, _traffic_manager->_time, subnet, n_flits, packet_type, data, output_icntID);
 
 #if DOUB
-  cout <<"Traffic[" << subnet << "] (mapped) sending form "<< input_icntID << " to " << output_icntID << endl;
+      cout <<"Traffic[" << subnet << "] (mapped) sending form "<< input_icntID << " to " << output_icntID << endl;
 #endif
-//  }
+  } else {
+      auto fixed_latency = [&] (int input, int output) -> int{
+          int latency;
+          latency = 2;
+
+//          int dim = _icnt_config->GetInt("k");
+//          int xhops = abs ( input%dim - output%dim);
+//          int yhops = abs ( input/dim - output/dim);
+//          latency = ( (xhops+yhops)*_fixed_lat_per_hop );
+
+          return latency;
+      };
+
+      ((mem_fetch*)data)->set_icnt_receive_time(gpu_sim_cycle + gpu_tot_sim_cycle + fixed_latency(input_icntID, output_icntID));
+      _out_buf_fixedlat[subnet][output_icntID].push(data);
+      if (_out_buf_fixedlat[subnet][output_icntID].size() > _max_fixedlat_buf_size[subnet][output_icntID]) {
+          _max_fixedlat_buf_size[subnet][output_icntID] = _out_buf_fixedlat[subnet][output_icntID].size();
+      }
+  }
+
 }
 
 void* InterconnectInterface::Pop(unsigned deviceID)
@@ -222,16 +244,26 @@ void* InterconnectInterface::Pop(unsigned deviceID)
   if (deviceID < _n_shader)
     subnet = 1;
 
-  int turn = _round_robin_turn[subnet][icntID];
-  for (int vc=0;(vc<_vcs) && (data==NULL);vc++) {
-    if (_boundary_buffer[subnet][icntID][turn].HasPacket()) {
-      data = _boundary_buffer[subnet][icntID][turn].PopPacket();
-    }
-    turn++;
-    if (turn == _vcs) turn = 0;
-  }
-  if (data) {
-    _round_robin_turn[subnet][icntID] = turn;
+  if (_fixed_lat_per_hop == 0) {
+      int turn = _round_robin_turn[subnet][icntID];
+      for (int vc=0;(vc<_vcs) && (data==NULL);vc++) {
+          if (_boundary_buffer[subnet][icntID][turn].HasPacket()) {
+              data = _boundary_buffer[subnet][icntID][turn].PopPacket();
+          }
+          turn++;
+          if (turn == _vcs) turn = 0;
+      }
+      if (data) {
+          _round_robin_turn[subnet][icntID] = turn;
+      }
+  } else {
+      if (!_out_buf_fixedlat[subnet][icntID].empty()) {
+          if (((mem_fetch*)_out_buf_fixedlat[subnet][icntID].top())->get_icnt_receive_time() <= gpu_sim_cycle + gpu_tot_sim_cycle) {
+              data = _out_buf_fixedlat[subnet][icntID].top();
+              _out_buf_fixedlat[subnet][icntID].pop();
+              assert (((mem_fetch *)data)->get_icnt_receive_time());
+          }
+      }
   }
 
   return data;
@@ -240,7 +272,9 @@ void* InterconnectInterface::Pop(unsigned deviceID)
 
 void InterconnectInterface::Advance()
 {
-  _traffic_manager->_Step();
+    if (_fixed_lat_per_hop == 0) {
+        _traffic_manager->_Step();
+    }
 }
 
 bool InterconnectInterface::Busy() const
@@ -274,18 +308,34 @@ bool InterconnectInterface::HasBuffer(unsigned deviceID, unsigned int size) cons
   unsigned int n_flits = size / _flit_size + ((size % _flit_size)? 1:0);
   int icntID = _node_map.find(deviceID)->second;
 
-  has_buffer = _traffic_manager->_input_queue[0][icntID][0].size() +n_flits <= _input_buffer_capacity;
+  if (_fixed_lat_per_hop == 0) {
+      has_buffer = _traffic_manager->_input_queue[0][icntID][0].size() +n_flits <= _input_buffer_capacity;
 
-  if ((_subnets>1) && deviceID >= _n_shader) // deviceID is memory node
-    has_buffer = _traffic_manager->_input_queue[1][icntID][0].size() +n_flits <= _input_buffer_capacity;
+      if ((_subnets>1) && deviceID >= _n_shader) // deviceID is memory node
+          has_buffer = _traffic_manager->_input_queue[1][icntID][0].size() +n_flits <= _input_buffer_capacity;
+  }
+  else {
+      has_buffer = true;
+  }
 
   return has_buffer;
 }
 
 void InterconnectInterface::DisplayStats() const
 {
-  _traffic_manager->UpdateStats();
-  _traffic_manager->DisplayStats();
+    if (_fixed_lat_per_hop == 0) {
+        _traffic_manager->UpdateStats();
+        _traffic_manager->DisplayStats();
+    } else {
+        cout << "--------------- Fixed latency stats -----------------" << endl;
+        for (unsigned subnet = 0; subnet < _subnets; subnet++) {
+            cout << "Subnet " << subnet << endl;
+            for (unsigned i = 0; i < _net[0]->NumNodes(); i++) {
+                cout << " node[" << i << "] is " << _max_fixedlat_buf_size[subnet][i];
+            }
+            cout << endl;
+        }
+    }
 }
 
 unsigned InterconnectInterface::GetFlitSize() const
@@ -389,6 +439,11 @@ void InterconnectInterface::_CreateBuffer()
   _round_robin_turn.resize(_subnets);
   _ejected_flit_queue.resize(_subnets);
 
+  if (_fixed_lat_per_hop != 0) {
+      _out_buf_fixedlat.resize(_subnets);
+      _max_fixedlat_buf_size.resize(_subnets);
+  }
+
   for (int subnet = 0; subnet < _subnets; ++subnet) {
     _ejection_buffer[subnet].resize(nodes);
     _boundary_buffer[subnet].resize(nodes);
@@ -398,6 +453,11 @@ void InterconnectInterface::_CreateBuffer()
     for (unsigned node=0;node < nodes;++node){
       _ejection_buffer[subnet][node].resize(_vcs);
       _boundary_buffer[subnet][node].resize(_vcs);
+    }
+
+    if (_fixed_lat_per_hop != 0) {
+        _out_buf_fixedlat[subnet].resize(nodes);
+        _max_fixedlat_buf_size[subnet].resize(nodes, 0);
     }
   }
 }

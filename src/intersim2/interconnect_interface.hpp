@@ -34,6 +34,8 @@
 #include <map>
 using namespace std;
 
+#include "../gpgpu-sim/mem_fetch.h"
+
 
 // Do not use #include since it will not compile in icnt_wrapper or change the makefile to make it
 class Flit;
@@ -101,6 +103,18 @@ protected:
   unsigned int _boundary_buffer_capacity;
   // size: [subnets][nodes][vcs]
   vector<vector<vector<_EjectionBufferItem> > > _ejection_buffer;
+
+  class mycomparison {
+  public:
+     bool operator() (const void* lhs, const void* rhs) const
+     {
+        return( ((mem_fetch *)lhs)->get_icnt_receive_time() > ((mem_fetch *) rhs)->get_icnt_receive_time());
+     }
+  };
+
+  vector<vector<priority_queue<void*, vector<void*>, mycomparison> > >_out_buf_fixedlat;
+  vector<vector<int>> _max_fixedlat_buf_size;
+
   // size:[subnets][nodes]
   vector<vector<queue<Flit* > > > _ejected_flit_queue;
   
@@ -124,6 +138,8 @@ protected:
   
   //icntID to deviceID map
   map<unsigned, unsigned> _reverse_node_map;
+
+  int _fixed_lat_per_hop;
 
 };
 
