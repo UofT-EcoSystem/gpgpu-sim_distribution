@@ -1033,22 +1033,22 @@ void baseline_cache::cycle(){
 /// Interface for response from lower memory level (model bandwidth restictions in caller)
 void baseline_cache::fill(mem_fetch *mf, unsigned time){
 
-	if(m_config.m_mshr_type == SECTOR_ASSOC) {
-	assert(mf->get_original_mf());
-	extra_mf_fields_lookup::iterator e = m_extra_mf_fields.find(mf->get_original_mf());
-    assert( e != m_extra_mf_fields.end() );
-    e->second.pending_read--;
+    if(m_config.m_mshr_type == SECTOR_ASSOC) {
+        assert(mf->get_original_mf());
+        extra_mf_fields_lookup::iterator e = m_extra_mf_fields.find(mf->get_original_mf());
+        assert( e != m_extra_mf_fields.end() );
+        e->second.pending_read--;
 
-    if(e->second.pending_read > 0) {
-    	//wait for the other requests to come back
-    	delete mf;
-    	return;
-      } else {
-    	mem_fetch *temp = mf;
-    	mf = mf->get_original_mf();
-    	delete temp;
-      }
-	}
+        if(e->second.pending_read > 0) {
+            //wait for the other requests to come back
+            delete mf;
+            return;
+        } else {
+            mem_fetch *temp = mf;
+            mf = mf->get_original_mf();
+            delete temp;
+        }
+    }
 
     extra_mf_fields_lookup::iterator e = m_extra_mf_fields.find(mf);
     assert( e != m_extra_mf_fields.end() );

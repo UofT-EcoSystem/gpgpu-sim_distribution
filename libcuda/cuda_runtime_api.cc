@@ -381,14 +381,20 @@ struct _cuda_device_id *GPGPUSim_Init()
 		prop->maxGridSize[2] = 0x40000000;
 		prop->totalConstMem = 0x40000000;
 		prop->textureAlignment = 0;
-//        * TODO: Update the .config and xml files of all GPU config files with new value of sharedMemPerBlock and regsPerBlock 
-	        prop->sharedMemPerBlock = the_gpu->shared_mem_per_block();
-    prop->l2CacheSize = the_gpu->getMemoryConfig()->m_L2_config.get_num_lines() \
-                        * the_gpu->getMemoryConfig()->m_L2_config.get_line_sz() \
-                        * the_gpu->getMemoryConfig()->m_n_mem_sub_partition;
+		//        * TODO: Update the .config and xml files of all GPU config files with new value of sharedMemPerBlock and regsPerBlock
+		prop->sharedMemPerBlock = the_gpu->shared_mem_per_block();
+
+		if (the_gpu->getMemoryConfig()->m_L2_config.disabled()) {
+		    prop->l2CacheSize = 0;
+		} else {
+		    prop->l2CacheSize = the_gpu->getMemoryConfig()->m_L2_config.get_num_lines() \
+		            * the_gpu->getMemoryConfig()->m_L2_config.get_line_sz() \
+		            * the_gpu->getMemoryConfig()->m_n_mem_sub_partition;
+		}
+
 #if (CUDART_VERSION > 5050)
 		prop->regsPerMultiprocessor = the_gpu->num_registers_per_core();
-  	        prop->sharedMemPerMultiprocessor = the_gpu->shared_mem_size();
+		prop->sharedMemPerMultiprocessor = the_gpu->shared_mem_size();
 #endif	
 		prop->sharedMemPerBlock = the_gpu->shared_mem_per_block();
 		prop->regsPerBlock = the_gpu->num_registers_per_core();

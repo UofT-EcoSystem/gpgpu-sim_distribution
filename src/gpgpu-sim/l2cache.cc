@@ -80,7 +80,10 @@ void memory_partition_unit::handle_memcpy_to_gpu( size_t addr, unsigned global_s
     std::string mystring =
         mask.to_string<char,std::string::traits_type,std::string::allocator_type>();
     MEMPART_DPRINTF("Copy Engine Request Received For Address=%llx, local_subpart=%u, global_subpart=%u, sector_mask=%s \n", addr, p, global_subpart_id, mystring.c_str()); 
-    m_sub_partition[p]->force_l2_tag_update(addr,gpu_sim_cycle+gpu_tot_sim_cycle, mask);
+
+    if (!m_config->m_L2_config.disabled()) {
+        m_sub_partition[p]->force_l2_tag_update(addr,gpu_sim_cycle+gpu_tot_sim_cycle, mask);
+    }
 }
 
 memory_partition_unit::~memory_partition_unit() 
