@@ -221,7 +221,7 @@ struct memory_config {
       fprintf(stdout, "Total number of memory sub partition = %u\n", m_n_mem_sub_partition); 
 
       m_address_mapping.init(m_n_mem, m_n_sub_partition_per_memory_channel);
-      m_L2_config.init(&m_address_mapping);
+      m_L2_config.init(&m_address_mapping, l2d_enabled_str);
 
       m_valid = true;
 
@@ -296,6 +296,7 @@ struct memory_config {
    unsigned write_high_watermark;
    unsigned write_low_watermark;
    bool m_perf_sim_memcpy;
+   char* l2d_enabled_str;
 };
 
 // global counters and flags (please try not to add to this list!!!)
@@ -490,7 +491,7 @@ public:
    void gpu_print_stat();
    void dump_pipeline( int mask, int s, int m ) const;
 
-    void perf_memcpy_to_gpu( size_t dst_start_addr, size_t count );
+    void perf_memcpy_to_gpu( size_t dst_start_addr, size_t count, unsigned stream_id );
 
    //The next three functions added to be used by the functional simulation function
    

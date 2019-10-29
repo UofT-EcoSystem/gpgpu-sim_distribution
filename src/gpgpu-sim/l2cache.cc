@@ -74,14 +74,14 @@ memory_partition_unit::memory_partition_unit( unsigned partition_id,
     }
 }
 
-void memory_partition_unit::handle_memcpy_to_gpu( size_t addr, unsigned global_subpart_id, mem_access_sector_mask_t mask )
+void memory_partition_unit::handle_memcpy_to_gpu( size_t addr, unsigned global_subpart_id, mem_access_sector_mask_t mask, unsigned stream_id )
 {
     unsigned p = global_sub_partition_id_to_local_id(global_subpart_id);
     std::string mystring =
         mask.to_string<char,std::string::traits_type,std::string::allocator_type>();
     MEMPART_DPRINTF("Copy Engine Request Received For Address=%llx, local_subpart=%u, global_subpart=%u, sector_mask=%s \n", addr, p, global_subpart_id, mystring.c_str()); 
 
-    if (!m_config->m_L2_config.disabled()) {
+    if (!m_config->m_L2_config.disabled() && m_config->m_L2_config.is_l2d_enabled(stream_id)) {
         m_sub_partition[p]->force_l2_tag_update(addr,gpu_sim_cycle+gpu_tot_sim_cycle, mask);
     }
 }
@@ -401,9 +401,26 @@ void memory_sub_partition::cache_cycle( unsigned cycle )
     // new L2 texture accesses and/or non-texture accesses
     if ( !m_L2_dram_queue->full() && !m_icnt_L2_queue->empty() ) {
         mem_fetch *mf = m_icnt_L2_queue->top();
-        if ( !m_config->m_L2_config.disabled() &&
-              ( (m_config->m_L2_texure_only && mf->istexture()) || (!m_config->m_L2_texure_only) )
-           ) {
+
+        bool l2_disabled = m_config->m_L2_config.disabled();
+
+        int stream_id = mf->get_stream_id();
+        bool l2d_disabled_stream = (stream_id == -1) ? false : !m_config->m_L2_config.is_l2d_enabled(stream_id);
+
+        enum mem_access_type acc_type = mf->get_access_type();
+        bool l1d_access = (acc_type == GLOBAL_ACC_R) || (acc_type == GLOBAL_ACC_W) ||
+                (acc_type == L1_WRBK_ACC ) || (acc_type == L1_WR_ALLOC_R);
+
+        bool non_tex_to_tex_only = !mf->istexture() && m_config->m_L2_texure_only;
+
+
+        // L2 is disabled OR l1d access to l2d disabled stream OR non-texture access to texture-only L2
+        if (l2_disabled || (l2d_disabled_stream && l1d_access) || non_tex_to_tex_only) {
+            // skip L2 access
+            mf->set_status(IN_PARTITION_L2_TO_DRAM_QUEUE,gpu_sim_cycle+gpu_tot_sim_cycle);
+            m_L2_dram_queue->push(mf);
+            m_icnt_L2_queue->pop();
+        } else {
             // L2 is enabled and access is for L2
             bool output_full = m_L2_icnt_queue->full(); 
             bool port_free = m_L2cache->data_port_free(); 
@@ -445,11 +462,6 @@ void memory_sub_partition::cache_cycle( unsigned cycle )
                     // L2 cache lock-up: will try again next cycle
                 }
             }
-        } else {
-            // L2 is disabled or non-texture access to texture-only L2
-            mf->set_status(IN_PARTITION_L2_TO_DRAM_QUEUE,gpu_sim_cycle+gpu_tot_sim_cycle);
-            m_L2_dram_queue->push(mf);
-            m_icnt_L2_queue->pop();
         }
     }
 

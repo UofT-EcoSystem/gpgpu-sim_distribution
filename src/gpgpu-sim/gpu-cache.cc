@@ -28,6 +28,7 @@
 #include "gpu-cache.h"
 #include "stat-tool.h"
 #include <assert.h>
+#include <sstream>
 
 // used to allocate memory that is large enough to adapt the changes in cache size across kernels
 
@@ -147,9 +148,21 @@ unsigned l1d_cache_config::set_index(new_addr_type addr) const{
     return set_index;
 }
 
-void l2_cache_config::init(linear_to_raw_address_translation *address_mapping){
+void l2_cache_config::init(linear_to_raw_address_translation *address_mapping, char* l2d_enabled_str){
 	cache_config::init(m_config_string,FuncCachePreferNone);
 	m_address_mapping = address_mapping;
+
+    std::stringstream ss_l2d;
+    ss_l2d << l2d_enabled_str;
+    std::string token;
+    while (std::getline(ss_l2d, token, ':')) {
+        // "1" is true while "0" is false
+        // false in any other case
+        bool enabled;
+        std::istringstream(token) >> enabled;
+
+        l2d_enabled_per_stream.push_back(enabled);
+    }
 }
 
 unsigned l2_cache_config::set_index(new_addr_type addr) const{
@@ -160,6 +173,11 @@ unsigned l2_cache_config::set_index(new_addr_type addr) const{
 		new_addr_type part_addr = m_address_mapping->partition_address(addr);
 		return(part_addr >> m_line_sz_log2) & (m_nset -1);
 	}
+}
+
+bool l2_cache_config::is_l2d_enabled(unsigned stream_id) const {
+    assert(stream_id < l2d_enabled_per_stream.size());
+    return l2d_enabled_per_stream[stream_id];
 }
 
 tag_array::~tag_array() 

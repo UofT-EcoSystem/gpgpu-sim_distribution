@@ -147,13 +147,13 @@ bool stream_operation::do_operation( gpgpu_sim *gpu )
     case stream_memcpy_host_to_device:
         if(g_debug_execution >= 3)
             printf("memcpy host-to-device\n");
-        gpu->memcpy_to_gpu(m_device_address_dst,m_host_address_src,m_cnt);
+        gpu->memcpy_to_gpu(m_device_address_dst,m_host_address_src,m_cnt, m_stream->get_uid());
         m_stream->record_next_done();
         break;
     case stream_memcpy_device_to_host:
         if(g_debug_execution >= 3)
             printf("memcpy device-to-host\n");
-        gpu->memcpy_from_gpu(m_host_address_dst,m_device_address_src,m_cnt);
+        gpu->memcpy_from_gpu(m_host_address_dst,m_device_address_src,m_cnt, m_stream->get_uid());
         m_stream->record_next_done();
         break;
     case stream_memcpy_device_to_device:

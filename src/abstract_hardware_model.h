@@ -664,8 +664,8 @@ public:
     void* gpu_malloc( size_t size );
     void* gpu_mallocarray( size_t count );
     void  gpu_memset( size_t dst_start_addr, int c, size_t count );
-    void  memcpy_to_gpu( size_t dst_start_addr, const void *src, size_t count );
-    void  memcpy_from_gpu( void *dst, size_t src_start_addr, size_t count );
+    void  memcpy_to_gpu( size_t dst_start_addr, const void *src, size_t count, unsigned stream_id = 0 );
+    void  memcpy_from_gpu( void *dst, size_t src_start_addr, size_t count, unsigned stream_id = 0 );
     void  memcpy_gpu_to_gpu( size_t dst, size_t src, size_t count );
     
     class memory_space *get_global_memory() { return m_global_mem; }
