@@ -1,4 +1,7 @@
 FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
+ARG user
+ARG userid
+RUN echo ${user}
 RUN apt-get update && \ 
 apt-get install -y --no-install-recommends \ 
     sudo \
@@ -28,8 +31,8 @@ apt-add-repository 'deb https://apt.kitware.com/ubuntu/ xenial main' && \
 apt-get update && \
 apt-get install -y --no-install-recommends cmake
 
-RUN adduser --home /home/serinatan --shell /bin/bash --uid 3724 --gecos '' --disabled-password serinatan  
-RUN adduser serinatan sudo
+RUN adduser --home /home/${user} --shell /bin/bash --uid ${userid} --gecos '' --disabled-password ${user}
+RUN adduser ${user} sudo
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers 
-RUN echo "export CUDA_INSTALL_PATH=/usr/local/cuda" >> /home/serinatan/.bashrc
+RUN echo "export CUDA_INSTALL_PATH=/usr/local/cuda" >> /home/${user}/.bashrc
 RUN rm -rf /var/lib/apt/lists/* # installation 
