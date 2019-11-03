@@ -666,6 +666,8 @@ void gpgpu_sim::resource_partition_smk() {
 
 			usage_info.cta_quota = 0;
 
+			usage_info.grid_over_sm = ceil(((float)kernel->num_blocks()) / getShaderCoreConfig()->num_shader());
+
 			usage_info.being_considered = true;
 
 			rK[idx] = usage_info;
@@ -697,7 +699,8 @@ void gpgpu_sim::resource_partition_smk() {
 		if ((rK[min_k].usage.thread_usage + tot_thread) <= 1.0
 				&& (rK[min_k].usage.smem_usage + tot_smem) <= 1.0
 				&& (rK[min_k].usage.reg_usage + tot_reg) <= 1.0
-				&& (rK[min_k].usage.cta_usage + tot_cta) <= 1.0) {
+				&& (rK[min_k].usage.cta_usage + tot_cta) <= 1.0
+				&& rK[min_k].cta_quota < rK[min_k].grid_over_sm) {
 
 			tot_thread += rK[min_k].usage.thread_usage;
 			tot_smem += rK[min_k].usage.smem_usage;
@@ -2137,18 +2140,16 @@ void shader_core_ctx::dump_warp_state( FILE *fout ) const
        m_warp[w].print(fout);
 }
 
-bool shader_core_ctx::should_preempt_kernel(kernel_info_t*& victim, kernel_info_t*& candidate) {
-
-	// normalized cta_usage: # of running ctas / cta_quota for the kernel
-	float min_cta_usage = 1;
-	float max_cta_usage = 0;
+bool shader_core_ctx::should_preempt_kernel(kernel_info_t*& victim, kernel_info_t*& candidate)
+{
+	bool found_candidate = false;
+	bool found_victim = false;
 
 	const std::vector<kernel_info_t*>& running_kernels = m_gpu->get_running_kernels();
 
-	// find the kernels with max/min cta usage
-	// only kernels with more ctas to run AND have a min cta usage will be the candidate kernel
-	// always attempt to launch the candidate kernel
-	// candidate should not be empty as long as there are kernels with more ctas to run
+	// Candidate kernel is the first kernel in the list that 1) has more ctas
+	// 2) running ctas is less than its quota
+	// Victim kernel is the first kernel in the list that has more running ctas than quota
 	for (unsigned idx = 0; idx < running_kernels.size(); idx++) {
 		kernel_info_t* current_kernel = running_kernels[idx];
 
@@ -2159,38 +2160,36 @@ bool shader_core_ctx::should_preempt_kernel(kernel_info_t*& victim, kernel_info_
 		// calculate normalized cta usage
 		const unsigned running_cta = m_kernel2ctas.count(current_kernel->get_uid()) == 0 ?
 									 0 : m_kernel2ctas[current_kernel->get_uid()].size();
-		const float cta_usage = running_cta / ((float) current_kernel->get_cta_quota());
 
 		// always pick the kernel with the least number of running ctas
-		if (m_gpu->kernel_more_cta_left(current_kernel)
-				&& cta_usage < min_cta_usage) {
-			min_cta_usage = cta_usage;
+		if (!found_candidate && m_gpu->kernel_more_cta_left(current_kernel)
+				&& running_cta < current_kernel->get_cta_quota()) {
 			candidate = current_kernel;
+			found_candidate = true;
 		}
 
-		if (cta_usage > max_cta_usage) {
-			max_cta_usage = cta_usage;
+		if (!found_victim && running_cta > current_kernel->get_cta_quota()) {
 			victim = current_kernel;
+			found_victim = true;
+		}
+
+		if (found_candidate && found_victim) {
+		    break;
 		}
 	}
 
 	// check if we need to preempt any one to fit one more cta of the candidate kernel
-	if (min_cta_usage < 1.0f && victim != candidate) {
+	if (found_victim && found_candidate) {
 		// this funky more_cta_including_pending checks whether we have in fact have
 		// enough cta preemption in progress to accommodate all the ctas candidate has
 		if (candidate->more_cta_including_pending() && !can_issue_1block(*candidate)) {
 			// candidate kernel is running under its quota and not enough resources are available to launch more cta
-			// should preempt the victim to make room
 			candidate->inc_pending();
-			return true;
 		}
 	}
 
-	// by default, should not preempt
-	// this can happen if 1) candidate is running under its quota but resources are enough to launch one cta for it
-	// 2) candidate is running over its quota and the other kernels (if any) don't have new ctas to run
-	// => should try to fit one more cta for candidate
-	return false;
+	// we should always preempt the victim if one exists
+	return found_victim;
 
 }
 
@@ -2291,6 +2290,73 @@ bool shader_core_ctx::preempt_ctas(kernel_info_t* victim, kernel_info_t* candida
 	m_preempted_ctas = std::vector<unsigned>(start_cta_it, end_cta_it+1);
 
 	return true;
+}
+
+bool shader_core_ctx::preempt_ctas(kernel_info_t* victim) {
+    assert(victim != NULL);
+
+    if (is_preemption_wip()) {
+        if ((gpu_sim_cycle+ gpu_tot_sim_cycle) % 1000 == 0)
+            printf(">>>>>>>>>>>>>>>>>>>>> WIP: victim %s on shader %d\n", victim->name().c_str(), this->m_sid);
+
+        return false;
+    }
+
+    if (m_kernel2ctas.count(victim->get_uid()) == 0)
+        return false;
+
+    // Preempt all the CTAs that are over the quota limit of victim
+    unsigned num_ctas = m_kernel2ctas[victim->get_uid()].size() - victim->get_cta_quota();
+    assert(num_ctas <  m_kernel2ctas[victim->get_uid()].size());
+
+    if (num_ctas == 0) {
+        return false;
+    }
+
+    // mark preempted ctas
+    unsigned start_tid, end_tid;
+    std::vector<unsigned>::iterator start_cta_it, end_cta_it;
+
+    // sort victim ctas list (ascending order)
+    std::sort(m_kernel2ctas[victim->get_uid()].begin(), m_kernel2ctas[victim->get_uid()].end());
+
+    unsigned int vic_padded_cta_size = victim->threads_per_cta();
+    const unsigned int warp_size = m_config->warp_size;
+    if (vic_padded_cta_size%warp_size)
+        vic_padded_cta_size = ((vic_padded_cta_size/warp_size)+1)*(warp_size);
+
+    if (victim->allocate_from_top()) {
+        start_cta_it = m_kernel2ctas[victim->get_uid()].end() - num_ctas;
+        start_tid = m_occupied_cta_to_hwtid[*start_cta_it];
+
+        end_cta_it = m_kernel2ctas[victim->get_uid()].end() - 1;
+        end_tid = m_occupied_cta_to_hwtid[*end_cta_it] + vic_padded_cta_size;
+
+    } else {
+        start_cta_it = m_kernel2ctas[victim->get_uid()].begin();
+        start_tid = m_occupied_cta_to_hwtid[*start_cta_it];
+
+        end_cta_it = m_kernel2ctas[victim->get_uid()].begin() + num_ctas - 1;
+        end_tid = m_occupied_cta_to_hwtid[*end_cta_it] + vic_padded_cta_size;
+    }
+
+    // FIXME: can increase the number of preempted cta to find contiguous tids
+    // check if the range of tids belongs to victim kernel or simply idle
+    for (unsigned tid = start_tid; tid < end_tid; ++tid) {
+        assert(tid >= 0 && tid < m_warp_count * m_warp_size);
+        if (m_occupied_hwtid.test(tid)) {
+            // if the bit is set, the thread slot might be
+            // 1. null if the slot was taken due to padded cta size
+            // 2. not null in which case we need check whether the kernel taking it is the victim kernel
+            // if not, we can't preempt this slot
+            if ( m_thread[tid] && m_thread[tid]->get_kernel().get_uid() != victim->get_uid() )
+                return false;
+        }
+    }
+
+    m_preempted_ctas = std::vector<unsigned>(start_cta_it, end_cta_it+1);
+
+    return true;
 }
 
 

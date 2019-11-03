@@ -2096,6 +2096,7 @@ public:
     bool is_preemption_wip() { return !m_preempted_ctas.empty(); }
     bool should_preempt_kernel(kernel_info_t*& victim, kernel_info_t*& candidate);
     bool preempt_ctas(kernel_info_t* victim, kernel_info_t* candidate);
+    bool preempt_ctas(kernel_info_t* victim);
     void store_preempted_context(unsigned cta_num, kernel_info_t* kernel);
     bool is_cta_preempted(unsigned cta_id) {
     	return std::find(m_preempted_ctas.begin(), m_preempted_ctas.end(), cta_id)

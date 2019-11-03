@@ -547,6 +547,7 @@ private:
 	   Usage usage;
 
 	   unsigned cta_quota;
+	   unsigned grid_over_sm;
    };
 
 ///// data /////

@@ -4159,23 +4159,20 @@ unsigned simt_core_cluster::issue_block2core()
     for( unsigned i=0; i < m_config->n_simt_cores_per_cluster; i++ ) {
         unsigned core = (i+m_cta_issue_next_core+1)%m_config->n_simt_cores_per_cluster;
 
-        kernel_info_t * kernel;
+        kernel_info_t * kernel = nullptr;
          //Jin: fetch kernel according to concurrent kernel setting
         if(m_config->gpgpu_concurrent_kernel_sm) {//concurrent kernel on sm 
             if (m_config->gpgpu_sharing_intra_sm) {
                 // first, check if there is a candidate kernel that should initiate preemption
-                kernel_info_t* victim = NULL, *candidate = NULL;
-                bool should_preempt = m_core[core]->should_preempt_kernel(victim, candidate);
+                kernel_info_t* victim = NULL;
+                bool should_preempt = m_core[core]->should_preempt_kernel(victim, kernel);
 
                 if (should_preempt) {
                     // check what is the victim kernel and how many ctas need to be swapped out
                     // do nothing if preemption is already in progress
-                    m_core[core]->preempt_ctas(victim, candidate);
-                    continue;
+                    m_core[core]->preempt_ctas(victim);
                 }
-                else {
-                    kernel = candidate;
-                }
+
             } else {
                 // inter SM sharing, find out which stream can run on this core
                 const int sid = m_config->cid_to_sid(core, this->m_cluster_id);
