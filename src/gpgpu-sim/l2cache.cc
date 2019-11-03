@@ -340,6 +340,8 @@ memory_sub_partition::memory_sub_partition( unsigned sub_partition_id,
     m_dram_L2_queue = new fifo_pipeline<mem_fetch>("dram-to-L2",0,dram_L2);
     m_L2_icnt_queue = new fifo_pipeline<mem_fetch>("L2-to-icnt",0,L2_icnt);
     wb_addr=-1;
+
+    m_pending_request_count = 0;
 }
 
 memory_sub_partition::~memory_sub_partition()
@@ -391,6 +393,9 @@ void memory_sub_partition::cache_cycle( unsigned cycle )
             mf->set_status(IN_PARTITION_L2_TO_ICNT_QUEUE,gpu_sim_cycle+gpu_tot_sim_cycle);
             m_L2_icnt_queue->push(mf);
             m_dram_L2_queue->pop();
+
+            m_pending_request_count--;
+            assert(m_pending_request_count > 0);
         }
     }
 
@@ -418,8 +423,13 @@ void memory_sub_partition::cache_cycle( unsigned cycle )
         if (l2_disabled || (l2d_disabled_stream && l1d_access) || non_tex_to_tex_only) {
             // skip L2 access
             mf->set_status(IN_PARTITION_L2_TO_DRAM_QUEUE,gpu_sim_cycle+gpu_tot_sim_cycle);
-            m_L2_dram_queue->push(mf);
-            m_icnt_L2_queue->pop();
+
+            if (m_pending_request_count < m_config->m_L2_config.m_mshr_entries) {
+                m_L2_dram_queue->push(mf);
+                m_icnt_L2_queue->pop();
+
+                m_pending_request_count++;
+            }
         } else {
             // L2 is enabled and access is for L2
             bool output_full = m_L2_icnt_queue->full(); 
