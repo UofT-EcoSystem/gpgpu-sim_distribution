@@ -262,6 +262,7 @@ public:
     void pushCudaStreamWaitEventToAllStreams( CUevent_st *e, unsigned int flags );
     bool operation(bool * sim);
     void stop_all_running_kernels();
+    bool should_record_stat(unsigned stream_id);
 
 private:
     void print_impl( FILE *fp);

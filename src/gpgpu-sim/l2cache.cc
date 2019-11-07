@@ -46,7 +46,7 @@
 #include "l2cache_trace.h"
 
 
-mem_fetch * partition_mf_allocator::alloc(new_addr_type addr, mem_access_type type, unsigned size, bool wr ) const 
+mem_fetch * partition_mf_allocator::alloc(new_addr_type addr, mem_access_type type, unsigned size, bool wr, unsigned stream_id ) const
 {
     assert( wr );
     mem_access_t access( type, addr, size, wr );
@@ -56,7 +56,8 @@ mem_fetch * partition_mf_allocator::alloc(new_addr_type addr, mem_access_type ty
                                    -1, 
                                    -1, 
                                    -1,
-                                   m_memory_config );
+                                   m_memory_config,
+                                   stream_id);
     return mf;
 }
 
@@ -82,7 +83,7 @@ void memory_partition_unit::handle_memcpy_to_gpu( size_t addr, unsigned global_s
     MEMPART_DPRINTF("Copy Engine Request Received For Address=%llx, local_subpart=%u, global_subpart=%u, sector_mask=%s \n", addr, p, global_subpart_id, mystring.c_str()); 
 
     if (!m_config->m_L2_config.disabled() && m_config->m_L2_config.is_l2d_enabled(stream_id)) {
-        m_sub_partition[p]->force_l2_tag_update(addr,gpu_sim_cycle+gpu_tot_sim_cycle, mask);
+        m_sub_partition[p]->force_l2_tag_update(addr,gpu_sim_cycle+gpu_tot_sim_cycle, mask, stream_id);
     }
 }
 
@@ -659,6 +660,7 @@ std::vector<mem_fetch*> memory_sub_partition::breakdown_request_to_sector_reques
 								mf->get_sid(),
 								mf->get_tpc(),
 								mf->get_mem_config(),
+								mf->get_stream_id(),
 								mf);
 
 			 result.push_back(n_mf);

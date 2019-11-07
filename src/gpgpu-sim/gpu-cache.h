@@ -106,10 +106,11 @@ struct cache_block_t {
     {
         m_tag=0;
         m_block_addr=0;
+        m_stream_id=-1;
     }
 
     virtual void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask) = 0;
-    virtual void fill( unsigned time, mem_access_sector_mask_t sector_mask) = 0;
+    virtual void fill( unsigned time, mem_access_sector_mask_t sector_mask, int m_stream_id) = 0;
 
     virtual bool is_invalid_line() = 0;
     virtual bool is_valid_line() = 0;
@@ -130,9 +131,11 @@ struct cache_block_t {
     virtual void print_status()=0;
     virtual ~cache_block_t() {}
 
+    int get_stream_id() {return m_stream_id;}
 
     new_addr_type    m_tag;
     new_addr_type    m_block_addr;
+    int m_stream_id;
 
 };
 
@@ -158,7 +161,7 @@ struct line_cache_block: public cache_block_t  {
 	        m_ignore_on_fill_status = false;
 	        m_set_modified_on_fill = false;
 	    }
-		void fill( unsigned time, mem_access_sector_mask_t sector_mask )
+		void fill( unsigned time, mem_access_sector_mask_t sector_mask, int stream_id )
 	    {
 	    	//if(!m_ignore_on_fill_status)
 	    	//	assert( m_status == RESERVED );
@@ -166,6 +169,8 @@ struct line_cache_block: public cache_block_t  {
 	    	m_status = m_set_modified_on_fill? MODIFIED : VALID;
 
 	        m_fill_time=time;
+
+	        m_stream_id = stream_id;
 	    }
 		virtual bool is_invalid_line()
 	    {
@@ -313,7 +318,7 @@ struct sector_cache_block : public cache_block_t {
 		m_line_fill_time=0;
 	}
 
-    virtual void fill( unsigned time, mem_access_sector_mask_t sector_mask)
+    virtual void fill( unsigned time, mem_access_sector_mask_t sector_mask, int stream_id)
     {
     	unsigned sidx = get_sector_index(sector_mask);
 
@@ -324,6 +329,8 @@ struct sector_cache_block : public cache_block_t {
 
         m_sector_fill_time[sidx]=time;
         m_line_fill_time=time;
+
+        m_stream_id = stream_id;
     }
     virtual bool is_invalid_line() {
     	//all the sectors should be invalid
@@ -800,11 +807,11 @@ public:
     enum cache_request_status probe( new_addr_type addr, unsigned &idx, mem_fetch* mf, bool probe_mode=false ) const;
     enum cache_request_status probe( new_addr_type addr, unsigned &idx, mem_access_sector_mask_t mask, bool probe_mode=false, mem_fetch* mf = NULL ) const;
     enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, mem_fetch* mf );
-    enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, evicted_block_info &evicted, mem_fetch* mf );
+    enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, int & wb_stream_id, evicted_block_info &evicted, mem_fetch* mf );
 
     void fill( new_addr_type addr, unsigned time, mem_fetch* mf );
     void fill( unsigned idx, unsigned time, mem_fetch* mf );
-    void fill( new_addr_type addr, unsigned time, mem_access_sector_mask_t mask );
+    void fill( new_addr_type addr, unsigned time, mem_access_sector_mask_t mask, int stream_id );
 
     unsigned size() const { return m_config.get_num_lines();}
     cache_block_t* get_block(unsigned idx) { return m_lines[idx];}
@@ -1172,9 +1179,9 @@ public:
     // filling the cache on cudamemcopies. We don't care about anything other than
     // L2 state after the memcopy - so just force the tag array to act as though
     // something is read or written without doing anything else.
-    void force_tag_access( new_addr_type addr, unsigned time, mem_access_sector_mask_t mask )
+    void force_tag_access( new_addr_type addr, unsigned time, mem_access_sector_mask_t mask, unsigned stream_id )
     {
-        m_tag_array->fill( addr, time, mask );
+        m_tag_array->fill( addr, time, mask, stream_id );
     }
 
 protected:
@@ -1240,7 +1247,7 @@ protected:
     		unsigned time, bool &do_miss, std::list<cache_event> &events, bool read_only, bool wa);
     /// Read miss handler. Check MSHR hit or MSHR available
     void send_read_request(new_addr_type addr, new_addr_type block_addr, unsigned cache_index, mem_fetch *mf,
-    		unsigned time, bool &do_miss, bool &wb, evicted_block_info &evicted, std::list<cache_event> &events, bool read_only, bool wa);
+    		unsigned time, bool &do_miss, bool &wb, int& wb_stream_id, evicted_block_info &evicted, std::list<cache_event> &events, bool read_only, bool wa);
 
     /// Sub-class containing all metadata for port bandwidth management 
     class bandwidth_management 

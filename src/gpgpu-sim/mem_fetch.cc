@@ -40,6 +40,7 @@ mem_fetch::mem_fetch( const mem_access_t &access,
                       unsigned sid, 
                       unsigned tpc, 
                       const struct memory_config *config,
+                      unsigned stream_id,
 					  mem_fetch *m_original_mf,
 					  mem_fetch *m_original_wr_mf)
 
@@ -69,6 +70,8 @@ mem_fetch::mem_fetch( const mem_access_t &access,
    icnt_flit_size = config->icnt_flit_size;
    original_mf = m_original_mf;
    original_wr_mf = m_original_wr_mf;
+
+   m_stream_id = stream_id;
 }
 
 mem_fetch::~mem_fetch()
@@ -143,24 +146,12 @@ unsigned mem_fetch::get_num_flits(bool simt_to_mem){
 
 int mem_fetch::get_stream_id() const
 {
-    if (!m_inst.empty()) {
-        return m_inst.get_stream_id();
-    } else if (original_mf) {
-        return original_mf->get_inst().get_stream_id();
-    }
-
-    return -1;
+    return m_stream_id;
 }
 
 bool mem_fetch::should_record_stat() const
 {
-    if (!m_inst.empty()) {
-        return m_inst.should_record_stat();
-    } else if (original_mf) {
-        return original_mf->get_inst().should_record_stat();
-    }
-
-    return false;
+    return g_stream_manager->should_record_stat(m_stream_id);
 }
 
 

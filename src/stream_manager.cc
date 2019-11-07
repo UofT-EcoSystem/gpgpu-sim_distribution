@@ -334,6 +334,18 @@ void stream_manager::stop_all_running_kernels(){
     pthread_mutex_unlock(&m_lock);
 }
 
+bool stream_manager::should_record_stat(unsigned stream_id) {
+    if (stream_id == 0) {
+        // don't even bother with default stream
+        return false;
+    } else {
+        assert(stream_id <= m_streams.size());
+        auto it = std::next(m_streams.begin(), stream_id-1);
+
+        return (*it)->should_record_stat();
+    }
+}
+
 stream_operation stream_manager::front() 
 {
     // called by gpu simulation thread

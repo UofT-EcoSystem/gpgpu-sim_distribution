@@ -841,13 +841,19 @@ void shader_core_ctx::fetch()
                     // TODO: replace with use of allocator
                     // mem_fetch *mf = m_mem_fetch_allocator->alloc()
                     mem_access_t acc(INST_ACC_R,ppc,nbytes,false);
+
+                    // get stream info
+                    const unsigned tid = warp_id*m_config->warp_size;
+                    const unsigned stream_id = m_thread[tid]->get_kernel().get_stream_id();
+
                     mem_fetch *mf = new mem_fetch(acc,
                             NULL/*we don't have an instruction yet*/,
                             READ_PACKET_SIZE,
                             warp_id,
                             m_sid,
                             m_tpc,
-                            m_memory_config );
+                            m_memory_config,
+                            stream_id);
                     std::list<cache_event> events;
                     enum cache_request_status status = m_L1I->access( (new_addr_type)ppc, mf, gpu_sim_cycle+gpu_tot_sim_cycle,events);
                     if( status == MISS ) {
@@ -894,14 +900,12 @@ void shader_core_ctx::issue_warp( register_set& pipe_reg_set, const warp_inst_t*
     // get stream info
     unsigned tid = warp_id*m_config->warp_size;
     unsigned stream_id = m_thread[tid]->get_kernel().get_stream_id();
-    bool should_record_stat = m_thread[tid]->get_kernel().should_record_stat();
     (*pipe_reg)->issue( active_mask,
             warp_id,
             gpu_tot_sim_cycle + gpu_sim_cycle,
             m_warp[warp_id].get_dynamic_warp_id(),
             sch_id,
-            stream_id,
-            should_record_stat ); // dynamic instruction information
+            stream_id); // dynamic instruction information
     m_stats->shader_cycle_distro[2+(*pipe_reg)->active_count()]++;
     func_exec_inst( **pipe_reg );
     if( next_inst->op == BARRIER_OP ){

@@ -56,6 +56,7 @@ public:
                unsigned sid, 
                unsigned tpc, 
                const struct memory_config *config,
+               unsigned stream_id,
 			   mem_fetch *original_mf = NULL,
 			   mem_fetch *original_wr_mf = NULL);
    ~mem_fetch();
@@ -164,6 +165,7 @@ private:
    mem_fetch* original_mf;  //this pointer is set up when a request is divided into sector requests at L2 cache (if the req size > L2 sector size), so the pointer refers to the original request
    mem_fetch* original_wr_mf;  //this pointer refers to the original write req, when fetch-on-write policy is used
 
+   unsigned m_stream_id;
 };
 
 #endif

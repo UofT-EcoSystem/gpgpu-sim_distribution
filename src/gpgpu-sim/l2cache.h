@@ -47,7 +47,7 @@ public:
         abort();
         return NULL;
     }
-    virtual mem_fetch * alloc(new_addr_type addr, mem_access_type type, unsigned size, bool wr) const;
+    virtual mem_fetch * alloc(new_addr_type addr, mem_access_type type, unsigned size, bool wr, unsigned stream_id) const;
 private:
     const memory_config *m_memory_config;
 };
@@ -184,9 +184,9 @@ public:
    void get_L2cache_sub_stats_pw(struct cache_sub_stats_pw &css) const;
    void clear_L2cache_stats_pw();
 
-   void force_l2_tag_update(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask)
+   void force_l2_tag_update(new_addr_type addr, unsigned time, mem_access_sector_mask_t mask, unsigned stream_id)
    {
-        m_L2cache->force_tag_access( addr, m_memcpy_cycle_offset + time, mask );
+        m_L2cache->force_tag_access( addr, m_memcpy_cycle_offset + time, mask, stream_id );
         m_memcpy_cycle_offset += 1;
    }
 

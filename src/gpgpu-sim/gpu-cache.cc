@@ -353,13 +353,14 @@ enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, m
 enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, unsigned &idx, mem_fetch* mf)
 {
     bool wb=false;
+    int wb_stream_id = -1;
     evicted_block_info evicted;
-    enum cache_request_status result = access(addr,time,idx,wb,evicted,mf);
+    enum cache_request_status result = access(addr,time,idx,wb,wb_stream_id,evicted,mf);
     assert(!wb);
     return result;
 }
 
-enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, evicted_block_info &evicted, mem_fetch* mf )
+enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, int & wb_stream_id, evicted_block_info &evicted, mem_fetch* mf )
 {
     m_access++;
     is_used = true;
@@ -377,6 +378,8 @@ enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, 
         if ( m_config.m_alloc_policy == ON_MISS ) {
             if( m_lines[idx]->is_modified_line()) {
                 wb = true;
+                wb_stream_id = m_lines[idx]->get_stream_id();
+
                 evicted.set_info(m_lines[idx]->m_block_addr, m_lines[idx]->get_modified_size());
             }
             m_lines[idx]->allocate( m_config.tag(addr), m_config.block_addr(addr), time, mf->get_access_sector_mask());
@@ -404,10 +407,10 @@ enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, 
 
 void tag_array::fill( new_addr_type addr, unsigned time, mem_fetch* mf)
 {
-    fill(addr, time, mf->get_access_sector_mask());
+    fill(addr, time, mf->get_access_sector_mask(), mf->get_stream_id());
 }
 
-void tag_array::fill( new_addr_type addr, unsigned time, mem_access_sector_mask_t mask )
+void tag_array::fill( new_addr_type addr, unsigned time, mem_access_sector_mask_t mask, int stream_id )
 {
     //assert( m_config.m_alloc_policy == ON_FILL );
     unsigned idx;
@@ -420,13 +423,13 @@ void tag_array::fill( new_addr_type addr, unsigned time, mem_access_sector_mask_
     	((sector_cache_block*)m_lines[idx])->allocate_sector( time, mask );
     }
 
-    m_lines[idx]->fill(time, mask);
+    m_lines[idx]->fill(time, mask, stream_id);
 }
 
 void tag_array::fill( unsigned index, unsigned time, mem_fetch* mf)
 {
     assert( m_config.m_alloc_policy == ON_MISS );
-    m_lines[index]->fill(time, mf->get_access_sector_mask());
+    m_lines[index]->fill(time, mf->get_access_sector_mask(), mf->get_stream_id());
 }
 
 
@@ -1114,13 +1117,14 @@ void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_a
 		unsigned time, bool &do_miss, std::list<cache_event> &events, bool read_only, bool wa){
 
 	bool wb=false;
+	int wb_stream_id = -1;
 	evicted_block_info e;
-	send_read_request(addr, block_addr, cache_index, mf, time, do_miss, wb, e, events, read_only, wa);
+	send_read_request(addr, block_addr, cache_index, mf, time, do_miss, wb, wb_stream_id, e, events, read_only, wa);
 }
 
 /// Read miss handler. Check MSHR hit or MSHR available
 void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_addr, unsigned cache_index, mem_fetch *mf,
-		unsigned time, bool &do_miss, bool &wb, evicted_block_info &evicted, std::list<cache_event> &events, bool read_only, bool wa){
+		unsigned time, bool &do_miss, bool &wb, int& wb_stream_id, evicted_block_info &evicted, std::list<cache_event> &events, bool read_only, bool wa){
 
 	new_addr_type mshr_addr = m_config.mshr_addr(mf->get_addr());
     bool mshr_hit = m_mshrs.probe(mshr_addr);
@@ -1129,7 +1133,7 @@ void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_a
     	if(read_only)
     		m_tag_array->access(block_addr,time,cache_index,mf);
     	else
-    		m_tag_array->access(block_addr,time,cache_index,wb,evicted,mf);
+    		m_tag_array->access(block_addr,time,cache_index,wb,wb_stream_id,evicted,mf);
 
         m_mshrs.add(mshr_addr,mf);
         do_miss = true;
@@ -1138,7 +1142,7 @@ void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_a
     	if(read_only)
     		m_tag_array->access(block_addr,time,cache_index,mf);
     	else
-    		m_tag_array->access(block_addr,time,cache_index,wb,evicted,mf);
+    		m_tag_array->access(block_addr,time,cache_index,wb,wb_stream_id,evicted,mf);
 
         m_mshrs.add(mshr_addr,mf);
         if(m_config.is_streaming() && m_config.m_cache_type == SECTOR){
@@ -1280,14 +1284,16 @@ data_cache::wr_miss_wa_naive( new_addr_type addr,
                     mf->get_wid(),
                     mf->get_sid(),
                     mf->get_tpc(),
-                    mf->get_mem_config());
+                    mf->get_mem_config(),
+                    mf->get_stream_id());
 
     bool do_miss = false;
     bool wb = false;
+    int wb_stream_id = -1;
     evicted_block_info evicted;
 
     // Send read request resulting from write miss
-    send_read_request(addr, block_addr, cache_index, n_mf, time, do_miss, wb,
+    send_read_request(addr, block_addr, cache_index, n_mf, time, do_miss, wb, wb_stream_id,
         evicted, events, false, true);
 
     events.push_back(cache_event(WRITE_ALLOCATE_SENT));
@@ -1297,8 +1303,10 @@ data_cache::wr_miss_wa_naive( new_addr_type addr,
         // (already modified lower level)
         if( wb && (m_config.m_write_policy != WRITE_THROUGH) ) { 
         	assert(status == MISS);   //SECTOR_MISS and HIT_RESERVED should not send write back
+        	assert(wb_stream_id != -1);
+
             mem_fetch *wb = m_memfetch_creator->alloc(evicted.m_block_addr,
-                m_wrbk_type,evicted.m_modified_size,true);
+                m_wrbk_type,evicted.m_modified_size,true,wb_stream_id);
             send_write_request(wb, cache_event(WRITE_BACK_REQUEST_SENT, evicted), time, events);
         }
         return MISS;
@@ -1328,9 +1336,10 @@ data_cache::wr_miss_wa_fetch_on_write( new_addr_type addr,
 		}
 
 		bool wb = false;
+		int wb_stream_id = -1;
 		evicted_block_info evicted;
 
-		cache_request_status status =  m_tag_array->access(block_addr,time,cache_index,wb,evicted,mf);
+		cache_request_status status =  m_tag_array->access(block_addr,time,cache_index,wb,wb_stream_id,evicted,mf);
 		assert(status != HIT);
 		cache_block_t* block = m_tag_array->get_block(cache_index);
 		block->set_status(MODIFIED, mf->get_access_sector_mask());
@@ -1341,8 +1350,9 @@ data_cache::wr_miss_wa_fetch_on_write( new_addr_type addr,
 			   // If evicted block is modified and not a write-through
 			   // (already modified lower level)
 			   if( wb && (m_config.m_write_policy != WRITE_THROUGH) ) {
+			       assert(wb_stream_id != -1);
 				   mem_fetch *wb = m_memfetch_creator->alloc(evicted.m_block_addr,
-					   m_wrbk_type,evicted.m_modified_size,true);
+					   m_wrbk_type,evicted.m_modified_size,true,wb_stream_id);
 				   send_write_request(wb, cache_event(WRITE_BACK_REQUEST_SENT, evicted), time, events);
 			   }
 			   return MISS;
@@ -1401,11 +1411,12 @@ data_cache::wr_miss_wa_fetch_on_write( new_addr_type addr,
 			new_addr_type block_addr = m_config.block_addr(addr);
 			bool do_miss = false;
 			bool wb = false;
+			int wb_stream_id = -1;
 			evicted_block_info evicted;
 			send_read_request( addr,
 							   block_addr,
 							   cache_index,
-							   n_mf, time, do_miss, wb, evicted, events, false, true);
+							   n_mf, time, do_miss, wb, wb_stream_id, evicted, events, false, true);
 
 			cache_block_t* block = m_tag_array->get_block(cache_index);
 			block->set_modified_on_fill(true, mf->get_access_sector_mask());
@@ -1417,7 +1428,7 @@ data_cache::wr_miss_wa_fetch_on_write( new_addr_type addr,
 				// (already modified lower level)
 				if(wb && (m_config.m_write_policy != WRITE_THROUGH) ){
 					mem_fetch *wb = m_memfetch_creator->alloc(evicted.m_block_addr,
-						m_wrbk_type,evicted.m_modified_size,true);
+						m_wrbk_type,evicted.m_modified_size,true,wb_stream_id);
 					send_write_request(wb, cache_event(WRITE_BACK_REQUEST_SENT, evicted), time, events);
 			}
 				return MISS;
@@ -1446,9 +1457,10 @@ data_cache::wr_miss_wa_lazy_fetch_on_read( new_addr_type addr,
 		}
 
 		bool wb = false;
+		int wb_stream_id = -1;
 		evicted_block_info evicted;
 
-		cache_request_status m_status =  m_tag_array->access(block_addr,time,cache_index,wb,evicted,mf);
+		cache_request_status m_status =  m_tag_array->access(block_addr,time,cache_index,wb,wb_stream_id,evicted,mf);
 		assert(m_status != HIT);
 		cache_block_t* block = m_tag_array->get_block(cache_index);
 		block->set_status(MODIFIED, mf->get_access_sector_mask());
@@ -1469,8 +1481,9 @@ data_cache::wr_miss_wa_lazy_fetch_on_read( new_addr_type addr,
 			   // If evicted block is modified and not a write-through
 			   // (already modified lower level)
 			   if( wb && (m_config.m_write_policy != WRITE_THROUGH) ) {
+			       assert(wb_stream_id != -1);
 				   mem_fetch *wb = m_memfetch_creator->alloc(evicted.m_block_addr,
-					   m_wrbk_type,evicted.m_modified_size,true);
+					   m_wrbk_type,evicted.m_modified_size,true,wb_stream_id);
 				   send_write_request(wb, cache_event(WRITE_BACK_REQUEST_SENT, evicted), time, events);
 			   }
 			   return MISS;
@@ -1544,18 +1557,20 @@ data_cache::rd_miss_base( new_addr_type addr,
     new_addr_type block_addr = m_config.block_addr(addr);
     bool do_miss = false;
     bool wb = false;
+    int wb_stream_id = -1;
     evicted_block_info evicted;
     send_read_request( addr,
                        block_addr,
                        cache_index,
-                       mf, time, do_miss, wb, evicted, events, false, false);
+                       mf, time, do_miss, wb, wb_stream_id, evicted, events, false, false);
 
     if( do_miss ){
         // If evicted block is modified and not a write-through
         // (already modified lower level)
         if(wb && (m_config.m_write_policy != WRITE_THROUGH) ){ 
+            assert(wb_stream_id != -1);
             mem_fetch *wb = m_memfetch_creator->alloc(evicted.m_block_addr,
-                m_wrbk_type,evicted.m_modified_size,true);
+                m_wrbk_type,evicted.m_modified_size,true, wb_stream_id);
             send_write_request(wb, WRITE_BACK_REQUEST_SENT, time, events);
         }
         return MISS;

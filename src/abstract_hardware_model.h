@@ -925,7 +925,7 @@ public:
 
 class mem_fetch_allocator {
 public:
-    virtual mem_fetch *alloc( new_addr_type addr, mem_access_type type, unsigned size, bool wr ) const = 0;
+    virtual mem_fetch *alloc( new_addr_type addr, mem_access_type type, unsigned size, bool wr, unsigned stream_id ) const = 0;
     virtual mem_fetch *alloc( const class warp_inst_t &inst, const mem_access_t &access ) const = 0;
 };
 
@@ -1108,7 +1108,6 @@ public:
         m_empty=true; 
         m_config=NULL; 
         m_stream_id = -1;
-        m_should_record_stat = false;
     }
     warp_inst_t( const core_config *config ) 
     { 
@@ -1123,7 +1122,6 @@ public:
         m_is_printf=false;
         m_is_cdp = 0;
         m_stream_id = -1;
-        m_should_record_stat = false;
     }
     virtual ~warp_inst_t(){
     }
@@ -1136,7 +1134,7 @@ public:
     {
         m_empty=true; 
     }
-    void issue( const active_mask_t &mask, unsigned warp_id, unsigned long long cycle, int dynamic_warp_id, int sch_id, int stream_id, bool should_record_stat )
+    void issue( const active_mask_t &mask, unsigned warp_id, unsigned long long cycle, int dynamic_warp_id, int sch_id, int stream_id)
     {
         m_warp_active_mask = mask;
         m_warp_issued_mask = mask; 
@@ -1150,7 +1148,6 @@ public:
         m_scheduler_id=sch_id;
         m_stream_id = stream_id;
         assert(m_stream_id != -1);
-        m_should_record_stat = should_record_stat;
     }
     const active_mask_t & get_active_mask() const
     {
@@ -1286,7 +1283,6 @@ public:
     unsigned get_uid() const { return m_uid; }
     unsigned get_schd_id() const { return m_scheduler_id; }
     int get_stream_id() const { return m_stream_id; }
-    bool should_record_stat() const { return m_should_record_stat; }
 
 protected:
     unsigned m_uid;
@@ -1298,7 +1294,6 @@ protected:
     bool m_is_printf;
     unsigned m_warp_id;
     int m_stream_id;
-    bool m_should_record_stat;
     unsigned m_dynamic_warp_id; 
     const core_config *m_config; 
     active_mask_t m_warp_active_mask; // dynamic active mask for timing model (after predication)
