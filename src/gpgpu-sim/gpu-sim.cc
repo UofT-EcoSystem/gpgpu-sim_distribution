@@ -228,6 +228,14 @@ void memory_config::reg_options(class OptionParser * opp)
     option_parser_register(opp, "-icnt_flit_size", OPT_UINT32, &icnt_flit_size,
                                "icnt_flit_size",
                                "32");
+
+    option_parser_register(opp, "-l2_partition_enabled", OPT_BOOL, &l2_partition_enabled,
+            "Enable L2 partitioning among streams", "0");
+
+    option_parser_register(opp, "-l2_partition", OPT_CSTR, &l2_partition_str,
+            "<l2_allocation_in_stream_default>:<in_stream_1>:<in_stream_2>",
+            "0:0.5:0.5");
+
     option_parser_register(opp, "-l2d_enabled", OPT_CSTR, &l2d_enabled_str,
             "<l2d_enabled_in_stream_default>:<in_stream_1>:<in_stream_2>",
             "1:1:1");

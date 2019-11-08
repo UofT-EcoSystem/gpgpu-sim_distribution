@@ -788,14 +788,16 @@ public:
 class l2_cache_config : public cache_config {
 public:
 	l2_cache_config() : cache_config(){}
-	void init(linear_to_raw_address_translation *address_mapping, char* l2d_enabled_str);
+	void init(linear_to_raw_address_translation *address_mapping, char* l2d_enabled_str, bool partition_enabled, char* l2_partition);
 	unsigned set_index(new_addr_type addr) const;
 
 	bool is_l2d_enabled(unsigned stream_id) const;
 
 private:
 	linear_to_raw_address_translation *m_address_mapping;
-	std::vector<bool> l2d_enabled_per_stream;
+	std::vector<bool> l2d_enabled_per_stream; // whether L2 should cache data for L1D
+	bool l2_partition_enabled; // whether L2 should be partitioned
+	std::vector<float> l2_partition_per_stream;
 };
 
 class tag_array {

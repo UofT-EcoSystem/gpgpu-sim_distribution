@@ -148,13 +148,16 @@ unsigned l1d_cache_config::set_index(new_addr_type addr) const{
     return set_index;
 }
 
-void l2_cache_config::init(linear_to_raw_address_translation *address_mapping, char* l2d_enabled_str){
+void l2_cache_config::init(linear_to_raw_address_translation *address_mapping,
+        char* l2d_enabled_str, bool partition_enabled, char* l2_partition){
 	cache_config::init(m_config_string,FuncCachePreferNone);
 	m_address_mapping = address_mapping;
 
+    std::string token;
+
+	// Extract l2d enabled for each stream
     std::stringstream ss_l2d;
     ss_l2d << l2d_enabled_str;
-    std::string token;
     while (std::getline(ss_l2d, token, ':')) {
         // "1" is true while "0" is false
         // false in any other case
@@ -163,6 +166,29 @@ void l2_cache_config::init(linear_to_raw_address_translation *address_mapping, c
 
         l2d_enabled_per_stream.push_back(enabled);
     }
+
+    this->l2_partition_enabled = partition_enabled;
+
+    if (this->l2_partition_enabled) {
+        // Extract l2 partition for each stream
+        std::stringstream ss_l2_parition;
+        ss_l2_parition << l2_partition;
+        float sum = 0.0f;
+        while (std::getline(ss_l2_parition, token, ':')) {
+            // Each value must be between 0 and 1
+            // The sum of all streams must be below 1
+            float value;
+            std::istringstream(token) >> value;
+            printf("%s\n", token);
+            assert(value >= 0 && value <= 1);
+
+            sum += value;
+
+            l2_partition_per_stream.push_back(value);
+        }
+        assert(sum <= 1.0f);
+    }
+
 }
 
 unsigned l2_cache_config::set_index(new_addr_type addr) const{

@@ -221,7 +221,7 @@ struct memory_config {
       fprintf(stdout, "Total number of memory sub partition = %u\n", m_n_mem_sub_partition); 
 
       m_address_mapping.init(m_n_mem, m_n_sub_partition_per_memory_channel);
-      m_L2_config.init(&m_address_mapping, l2d_enabled_str);
+      m_L2_config.init(&m_address_mapping, l2d_enabled_str, l2_partition_enabled, l2_partition_str);
 
       m_valid = true;
 
@@ -297,6 +297,8 @@ struct memory_config {
    unsigned write_low_watermark;
    bool m_perf_sim_memcpy;
    char* l2d_enabled_str;
+   char* l2_partition_str;
+   bool l2_partition_enabled;
 };
 
 // global counters and flags (please try not to add to this list!!!)
