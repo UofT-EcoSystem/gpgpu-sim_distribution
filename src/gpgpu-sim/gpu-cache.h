@@ -30,6 +30,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <sstream>
 #include "gpu-misc.h"
 #include "mem_fetch.h"
 #include "../abstract_hardware_model.h"
@@ -132,6 +134,7 @@ struct cache_block_t {
     virtual ~cache_block_t() {}
 
     int get_stream_id() {return m_stream_id;}
+    void set_stream_id(int stream_id) {m_stream_id = stream_id;}
 
     new_addr_type    m_tag;
     new_addr_type    m_block_addr;
@@ -514,6 +517,8 @@ public:
         m_data_port_width = 0;
         m_set_index_function = LINEAR_SET_FUNCTION;
         m_is_streaming = false;
+
+        m_partition_enabled = false;
     }
     void init(char * config, FuncCache status)
     {
@@ -640,7 +645,40 @@ public:
         case 'L': m_set_index_function = LINEAR_SET_FUNCTION; break;
         default: exit_parse_error();
         }
+
+        if (m_partition_enabled) {
+            std::string token;
+            // Extract l2 partition for each stream
+            std::stringstream ss_l2_parition;
+            ss_l2_parition << cache_partition_str;
+            float sum = 0.0f;
+            while (std::getline(ss_l2_parition, token, ':')) {
+                // Each value must be between 0 and 1
+                // The sum of all streams must be below 1
+                float value;
+                std::istringstream(token) >> value;
+                assert(value >= 0 && value <= 1);
+
+                sum += value;
+
+                m_partition_per_stream.push_back(sum);
+            }
+
+            assert(sum == 1.0f);
+        }
     }
+
+    void get_assoc_stream(unsigned stream_id, unsigned & start, unsigned & end) {
+        assert(stream_id < m_partition_per_stream.size());
+        if (stream_id == 0) {
+            start = 0;
+            end = floor(m_partition_per_stream[0] * m_assoc);
+        } else {
+            start = floor(m_partition_per_stream[stream_id-1] * m_assoc);
+            end = floor(m_partition_per_stream[stream_id] * m_assoc);
+        }
+    }
+
     bool disabled() const { return m_disabled;}
     unsigned get_line_sz() const
     {
@@ -726,6 +764,9 @@ public:
     char *m_config_stringPrefShared;
     FuncCache cache_status;
 
+    bool m_partition_enabled; // whether the cache should be partitioned among streams
+    char* cache_partition_str;
+
 protected:
     void exit_parse_error()
     {
@@ -768,6 +809,8 @@ protected:
     unsigned m_data_port_width; //< number of byte the cache can access per cycle 
     enum set_index_function m_set_index_function; // Hash, linear, or custom set index function
 
+    std::vector<float> m_partition_per_stream;
+
     friend class tag_array;
     friend class baseline_cache;
     friend class read_only_cache;
@@ -788,16 +831,16 @@ public:
 class l2_cache_config : public cache_config {
 public:
 	l2_cache_config() : cache_config(){}
-	void init(linear_to_raw_address_translation *address_mapping, char* l2d_enabled_str, bool partition_enabled, char* l2_partition);
+	void init(linear_to_raw_address_translation *address_mapping);
 	unsigned set_index(new_addr_type addr) const;
 
 	bool is_l2d_enabled(unsigned stream_id) const;
 
+	char* l2d_enabled_str;
 private:
 	linear_to_raw_address_translation *m_address_mapping;
 	std::vector<bool> l2d_enabled_per_stream; // whether L2 should cache data for L1D
-	bool l2_partition_enabled; // whether L2 should be partitioned
-	std::vector<float> l2_partition_per_stream;
+
 };
 
 class tag_array {
@@ -807,7 +850,7 @@ public:
     ~tag_array();
 
     enum cache_request_status probe( new_addr_type addr, unsigned &idx, mem_fetch* mf, bool probe_mode=false ) const;
-    enum cache_request_status probe( new_addr_type addr, unsigned &idx, mem_access_sector_mask_t mask, bool probe_mode=false, mem_fetch* mf = NULL ) const;
+    enum cache_request_status probe( new_addr_type addr, unsigned &idx, mem_access_sector_mask_t mask, unsigned stream_id, bool probe_mode=false, mem_fetch* mf = NULL ) const;
     enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, mem_fetch* mf );
     enum cache_request_status access( new_addr_type addr, unsigned time, unsigned &idx, bool &wb, int & wb_stream_id, evicted_block_info &evicted, mem_fetch* mf );
 

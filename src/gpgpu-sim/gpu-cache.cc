@@ -148,8 +148,7 @@ unsigned l1d_cache_config::set_index(new_addr_type addr) const{
     return set_index;
 }
 
-void l2_cache_config::init(linear_to_raw_address_translation *address_mapping,
-        char* l2d_enabled_str, bool partition_enabled, char* l2_partition){
+void l2_cache_config::init(linear_to_raw_address_translation *address_mapping){
 	cache_config::init(m_config_string,FuncCachePreferNone);
 	m_address_mapping = address_mapping;
 
@@ -166,29 +165,6 @@ void l2_cache_config::init(linear_to_raw_address_translation *address_mapping,
 
         l2d_enabled_per_stream.push_back(enabled);
     }
-
-    this->l2_partition_enabled = partition_enabled;
-
-    if (this->l2_partition_enabled) {
-        // Extract l2 partition for each stream
-        std::stringstream ss_l2_parition;
-        ss_l2_parition << l2_partition;
-        float sum = 0.0f;
-        while (std::getline(ss_l2_parition, token, ':')) {
-            // Each value must be between 0 and 1
-            // The sum of all streams must be below 1
-            float value;
-            std::istringstream(token) >> value;
-            printf("%s\n", token);
-            assert(value >= 0 && value <= 1);
-
-            sum += value;
-
-            l2_partition_per_stream.push_back(value);
-        }
-        assert(sum <= 1.0f);
-    }
-
 }
 
 unsigned l2_cache_config::set_index(new_addr_type addr) const{
@@ -289,11 +265,12 @@ void tag_array::remove_pending_line(mem_fetch *mf){
 
 enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, mem_fetch* mf, bool probe_mode) const {
     mem_access_sector_mask_t mask = mf->get_access_sector_mask();
-    return probe(addr, idx, mask, probe_mode, mf);
+    return probe(addr, idx, mask, mf->get_stream_id(), probe_mode, mf);
 }
 
 
-enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, mem_access_sector_mask_t mask, bool probe_mode, mem_fetch* mf) const {
+enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, mem_access_sector_mask_t mask, unsigned stream_id,
+        bool probe_mode/*=false*/, mem_fetch* mf /*= NULL*/) const {
     //assert( m_config.m_write_policy == READ_ONLY );
     unsigned set_index = m_config.set_index(addr);
     new_addr_type tag = m_config.tag(addr);
@@ -304,19 +281,30 @@ enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, m
 
     bool all_reserved = true;
 
+    unsigned way_start = 0;
+    unsigned way_end = m_config.m_assoc;
+
+
+    if (m_config.m_partition_enabled) {
+        m_config.get_assoc_stream(stream_id, way_start, way_end);
+    }
+
     // check for hit or pending hit
-    for (unsigned way=0; way<m_config.m_assoc; way++) {
+    for (unsigned way=way_start; way<way_end; way++) {
         unsigned index = set_index*m_config.m_assoc+way;
         cache_block_t *line = m_lines[index];
         if (line->m_tag == tag) {
             if ( line->get_status(mask) == RESERVED ) {
+                assert(line->get_stream_id() == stream_id);
                 idx = index;
                 return HIT_RESERVED;
             } else if ( line->get_status(mask) == VALID ) {
+                assert(line->get_stream_id() == stream_id);
                 idx = index;
                 return HIT;
             } else if ( line->get_status(mask) == MODIFIED) {
-            	if(line->is_readable(mask)) {
+                assert(line->get_stream_id() == stream_id);
+                if(line->is_readable(mask)) {
 					idx = index;
 					return HIT;
             	}
@@ -326,6 +314,7 @@ enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, m
             	}
 
             } else if ( line->is_valid_line() && line->get_status(mask) == INVALID ) {
+                assert(line->get_stream_id() == stream_id);
                 idx = index;
                 return SECTOR_MISS;
             }else {
@@ -440,7 +429,7 @@ void tag_array::fill( new_addr_type addr, unsigned time, mem_access_sector_mask_
 {
     //assert( m_config.m_alloc_policy == ON_FILL );
     unsigned idx;
-    enum cache_request_status status = probe(addr,idx,mask);
+    enum cache_request_status status = probe(addr,idx,mask,stream_id);
     //assert(status==MISS||status==SECTOR_MISS); // MSHR should have prevented redundant memory request
     if(status==MISS)
     	m_lines[idx]->allocate( m_config.tag(addr), m_config.block_addr(addr), time, mask );
@@ -465,11 +454,12 @@ void tag_array::flush()
 	if(!is_used)
 		return;
 
-    for (unsigned i=0; i < m_config.get_num_lines(); i++)
-    	if(m_lines[i]->is_modified_line()) {
-    	for(unsigned j=0; j < SECTOR_CHUNCK_SIZE; j++)
-    		m_lines[i]->set_status(INVALID, mem_access_sector_mask_t().set(j)) ;
-    	}
+	for (unsigned i=0; i < m_config.get_num_lines(); i++)
+	    if(m_lines[i]->is_modified_line()) {
+	        for(unsigned j=0; j < SECTOR_CHUNCK_SIZE; j++)
+	            m_lines[i]->set_status(INVALID, mem_access_sector_mask_t().set(j)) ;
+	        m_lines[i]->set_stream_id(-1);
+	    }
 
     is_used = false;
 }
@@ -479,9 +469,12 @@ void tag_array::invalidate()
 	if(!is_used)
 		return;
 
-    for (unsigned i=0; i < m_config.get_num_lines(); i++)
-    	for(unsigned j=0; j < SECTOR_CHUNCK_SIZE; j++)
-    		m_lines[i]->set_status(INVALID, mem_access_sector_mask_t().set(j)) ;
+    for (unsigned i=0; i < m_config.get_num_lines(); i++) {
+        for(unsigned j=0; j < SECTOR_CHUNCK_SIZE; j++)
+            m_lines[i]->set_status(INVALID, mem_access_sector_mask_t().set(j)) ;
+
+        m_lines[i]->set_stream_id(-1);
+    }
 
     is_used = false;
 }
@@ -1116,6 +1109,7 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time){
         assert(m_config.m_alloc_policy == ON_MISS);
         cache_block_t* block = m_tag_array->get_block(e->second.m_cache_index);
         block->set_status(MODIFIED, mf->get_access_sector_mask()); // mark line as dirty for atomic operation
+        block->set_stream_id(mf->get_stream_id());
     }
     m_extra_mf_fields.erase(mf);
     m_bandwidth_management.use_fill_port(mf); 
@@ -1210,6 +1204,7 @@ cache_request_status data_cache::wr_hit_wb(new_addr_type addr, unsigned cache_in
 	m_tag_array->access(block_addr,time,cache_index,mf); // update LRU state
 	cache_block_t* block = m_tag_array->get_block(cache_index);
 	block->set_status(MODIFIED, mf->get_access_sector_mask());
+	block->set_stream_id(mf->get_stream_id());
 
 	return HIT;
 }
@@ -1225,6 +1220,7 @@ cache_request_status data_cache::wr_hit_wt(new_addr_type addr, unsigned cache_in
 	m_tag_array->access(block_addr,time,cache_index,mf); // update LRU state
 	cache_block_t* block = m_tag_array->get_block(cache_index);
 	block->set_status(MODIFIED, mf->get_access_sector_mask());
+	block->set_stream_id(mf->get_stream_id());
 
 	// generate a write-through
 	send_write_request(mf, cache_event(WRITE_REQUEST_SENT), time, events);
@@ -1245,6 +1241,7 @@ cache_request_status data_cache::wr_hit_we(new_addr_type addr, unsigned cache_in
 
 	// Invalidate block
 	block->set_status(INVALID, mf->get_access_sector_mask());
+	block->set_stream_id(-1);
 
 	return HIT;
 }
@@ -1369,6 +1366,8 @@ data_cache::wr_miss_wa_fetch_on_write( new_addr_type addr,
 		assert(status != HIT);
 		cache_block_t* block = m_tag_array->get_block(cache_index);
 		block->set_status(MODIFIED, mf->get_access_sector_mask());
+		block->set_stream_id(mf->get_stream_id());
+
 		if(status == HIT_RESERVED)
 			block->set_ignore_on_fill(true, mf->get_access_sector_mask());
 
@@ -1490,6 +1489,8 @@ data_cache::wr_miss_wa_lazy_fetch_on_read( new_addr_type addr,
 		assert(m_status != HIT);
 		cache_block_t* block = m_tag_array->get_block(cache_index);
 		block->set_status(MODIFIED, mf->get_access_sector_mask());
+		block->set_stream_id(mf->get_stream_id());
+
 		if(m_status == HIT_RESERVED) {
 			block->set_ignore_on_fill(true, mf->get_access_sector_mask());
 			block->set_modified_on_fill(true, mf->get_access_sector_mask());
@@ -1558,6 +1559,7 @@ data_cache::rd_hit_base( new_addr_type addr,
         assert(mf->get_access_type() == GLOBAL_ACC_R);
         cache_block_t* block = m_tag_array->get_block(cache_index);
         block->set_status(MODIFIED, mf->get_access_sector_mask()) ;  // mark line as dirty
+        block->set_stream_id(mf->get_stream_id());
     }
     return HIT;
 }
