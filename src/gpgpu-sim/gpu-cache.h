@@ -111,7 +111,8 @@ struct cache_block_t {
         m_stream_id=-1;
     }
 
-    virtual void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask) = 0;
+    virtual void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time,
+            mem_access_sector_mask_t sector_mask, unsigned stream_id) = 0;
     virtual void fill( unsigned time, mem_access_sector_mask_t sector_mask, int m_stream_id) = 0;
 
     virtual bool is_invalid_line() = 0;
@@ -153,7 +154,8 @@ struct line_cache_block: public cache_block_t  {
 	        m_set_modified_on_fill = false;
 	        m_readable = true;
 	    }
-	    void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask)
+	    void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time,
+	            mem_access_sector_mask_t sector_mask, unsigned stream_id)
 	    {
 	        m_tag=tag;
 	        m_block_addr=block_addr;
@@ -163,6 +165,7 @@ struct line_cache_block: public cache_block_t  {
 	        m_status=RESERVED;
 	        m_ignore_on_fill_status = false;
 	        m_set_modified_on_fill = false;
+	        m_stream_id = stream_id;
 	    }
 		void fill( unsigned time, mem_access_sector_mask_t sector_mask, int stream_id )
 	    {
@@ -267,12 +270,13 @@ struct sector_cache_block : public cache_block_t {
 			m_line_fill_time=0;
 	}
 
-	virtual void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask )
+	virtual void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time,
+	        mem_access_sector_mask_t sector_mask, unsigned stream_id )
     {
-    	allocate_line( tag,  block_addr,  time, sector_mask );
+    	allocate_line( tag,  block_addr,  time, sector_mask, stream_id );
     }
 
-    void allocate_line( new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask )
+    void allocate_line( new_addr_type tag, new_addr_type block_addr, unsigned time, mem_access_sector_mask_t sector_mask, unsigned stream_id )
 	{
 		//allocate a new line
 		//assert(m_block_addr != 0 && m_block_addr != block_addr);
@@ -294,9 +298,11 @@ struct sector_cache_block : public cache_block_t {
 		m_line_alloc_time=time;   //only set this for the first allocated sector
 		m_line_last_access_time=time;
 		m_line_fill_time=0;
+
+		m_stream_id = stream_id;
 	}
 
-    void allocate_sector(unsigned time, mem_access_sector_mask_t sector_mask )
+    void allocate_sector(unsigned time, mem_access_sector_mask_t sector_mask, unsigned stream_id )
 	{
     	//allocate invalid sector of this allocated valid line
     	assert(is_valid_line());
@@ -319,6 +325,8 @@ struct sector_cache_block : public cache_block_t {
 		//set line stats
 		m_line_last_access_time=time;
 		m_line_fill_time=0;
+
+		m_stream_id = stream_id;
 	}
 
     virtual void fill( unsigned time, mem_access_sector_mask_t sector_mask, int stream_id)

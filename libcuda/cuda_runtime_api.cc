@@ -809,6 +809,19 @@ __host__ cudaError_t CUDARTAPI cudaMemcpyToSymbol(const char *symbol, const void
 }
 
 
+__host__ cudaError_t CUDARTAPI cudaMemcpyToSymbolAsync(const char *symbol, const void *src, size_t count, size_t offset, enum cudaMemcpyKind kind, cudaStream_t stream)
+{
+    if(g_debug_execution >= 3){
+        announce_call(__my_func__);
+    }
+    struct CUstream_st *s = (struct CUstream_st *)stream;
+    printf("GPGPU-Sim PTX: cudaMemcpyToSymbolAsync: symbol = %p\n", symbol);
+    g_stream_manager->push( stream_operation(src,symbol,count,offset,s) );
+
+    return g_last_cudaError = cudaSuccess;
+}
+
+
 __host__ cudaError_t CUDARTAPI cudaMemcpyFromSymbol(void *dst, const char *symbol, size_t count, size_t offset __dv(0), enum cudaMemcpyKind kind __dv(cudaMemcpyDeviceToHost))
 {
 	if(g_debug_execution >= 3){

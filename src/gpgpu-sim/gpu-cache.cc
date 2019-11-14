@@ -342,7 +342,9 @@ enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, m
         }
     }
     if ( all_reserved ) {
-        assert( m_config.m_alloc_policy == ON_MISS ); 
+        // reservation is failed when 1) allocating cache line on miss
+        // or 2) cache is turned off for stream ID
+        assert( m_config.m_alloc_policy == ON_MISS || (way_start == way_end) );
         return RESERVATION_FAIL; // miss and not enough space in cache to allocate on miss
     }
 
@@ -397,7 +399,8 @@ enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, 
 
                 evicted.set_info(m_lines[idx]->m_block_addr, m_lines[idx]->get_modified_size());
             }
-            m_lines[idx]->allocate( m_config.tag(addr), m_config.block_addr(addr), time, mf->get_access_sector_mask());
+            m_lines[idx]->allocate( m_config.tag(addr), m_config.block_addr(addr),
+                    time, mf->get_access_sector_mask(), mf->get_stream_id());
         }
         break;
     case SECTOR_MISS:
@@ -405,7 +408,7 @@ enum cache_request_status tag_array::access( new_addr_type addr, unsigned time, 
     	m_sector_miss++;
 		shader_cache_access_log(m_core_id, m_type_id, 1); // log cache misses
 		if ( m_config.m_alloc_policy == ON_MISS ) {
-			((sector_cache_block*)m_lines[idx])->allocate_sector( time, mf->get_access_sector_mask() );
+			((sector_cache_block*)m_lines[idx])->allocate_sector( time, mf->get_access_sector_mask(), mf->get_stream_id() );
 		}
 		break;
     case RESERVATION_FAIL:
@@ -432,13 +435,16 @@ void tag_array::fill( new_addr_type addr, unsigned time, mem_access_sector_mask_
     enum cache_request_status status = probe(addr,idx,mask,stream_id);
     //assert(status==MISS||status==SECTOR_MISS); // MSHR should have prevented redundant memory request
     if(status==MISS)
-    	m_lines[idx]->allocate( m_config.tag(addr), m_config.block_addr(addr), time, mask );
+    	m_lines[idx]->allocate( m_config.tag(addr), m_config.block_addr(addr), time, mask, stream_id );
     else if (status==SECTOR_MISS) {
     	assert(m_config.m_cache_type == SECTOR);
-    	((sector_cache_block*)m_lines[idx])->allocate_sector( time, mask );
+    	((sector_cache_block*)m_lines[idx])->allocate_sector( time, mask, stream_id );
     }
 
-    m_lines[idx]->fill(time, mask, stream_id);
+    if (status != RESERVATION_FAIL) {
+        // idx is only valid when reservation succeeded
+        m_lines[idx]->fill(time, mask, stream_id);
+    }
 }
 
 void tag_array::fill( unsigned index, unsigned time, mem_fetch* mf)
@@ -1103,6 +1109,7 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time){
         	m_tag_array->remove_pending_line(mf);
     }
     else abort();
+
     bool has_atomic = false;
     m_mshrs.mark_ready(e->second.m_block_addr, has_atomic);
     if (has_atomic) {
