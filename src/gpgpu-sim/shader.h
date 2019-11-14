@@ -1417,28 +1417,19 @@ struct shader_core_config : public core_config
         gpgpu_cache_constl1_linesize = m_L1C_config.get_line_sz();
 
         std::stringstream ss_cta;
-        ss_cta << inter_sm_resource_ratio;
+        ss_cta << max_sm_in_stream;
         std::string token;
 
-        std::vector<float> vec_rsrc_ratio;
-        float sum = 0.0f;
+        int sum = 0;
 
         while (std::getline(ss_cta, token, ':')) {
-            float ratio = std::stof(token);
-            vec_rsrc_ratio.push_back(ratio);
-            sum += ratio;
-        }
-        assert(sum <= 1.0f);
+            int sm_count = stoi(token);
 
-        unsigned min = 0;
-        for (auto ratio : vec_rsrc_ratio) {
-            unsigned max = min + unsigned(floor(num_shader() * ratio));
-            // range is left inclusive and right exclusive
-            inter_sm_id_range.push_back(std::make_tuple(min, max));
-
-            min = max;
+            inter_sm_id_range.push_back(std::make_tuple(sum, sum + sm_count));
+            sum += sm_count;
         }
 
+        assert(sum <= this->num_shader());
 
         m_valid = true;
     }
@@ -1554,7 +1545,7 @@ struct shader_core_config : public core_config
     bool gpgpu_concurrent_kernel_sm;
 
     bool gpgpu_sharing_intra_sm;
-    char* inter_sm_resource_ratio;
+    char* max_sm_in_stream;
     std::vector<std::tuple<unsigned, unsigned>> inter_sm_id_range;
 
     bool adpative_volta_cache_config;
