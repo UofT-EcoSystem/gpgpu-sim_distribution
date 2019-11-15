@@ -760,7 +760,7 @@ void gpgpu_sim::resource_partition_smk() {
 	    unsigned config_max_cta = m_config.get_max_cta_by_stream(stream_id);
 	    // check if the config file has overridden the cta
 	    // only effective when we have multiple kernels
-	    if (rK.size() > 1 && config_max_cta > 0) {
+	    if (config_max_cta > 0) {
             m_running_kernels[k_usage.first]->set_cta_quota(config_max_cta);
 	    }
 	    else {
