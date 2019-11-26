@@ -295,15 +295,22 @@ enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, m
         cache_block_t *line = m_lines[index];
         if (line->m_tag == tag) {
             if ( line->get_status(mask) == RESERVED ) {
-                assert(line->get_stream_id() == stream_id);
+                if (m_type_id == NORMAL) {
+                    assert(line->get_stream_id() == stream_id);
+                }
                 idx = index;
                 return HIT_RESERVED;
             } else if ( line->get_status(mask) == VALID ) {
-                assert(line->get_stream_id() == stream_id);
+                if (m_type_id == NORMAL) {
+                    assert(line->get_stream_id() == stream_id);
+                }
                 idx = index;
                 return HIT;
             } else if ( line->get_status(mask) == MODIFIED) {
-                assert(line->get_stream_id() == stream_id);
+                if (m_type_id == NORMAL) {
+                    assert(line->get_stream_id() == stream_id);
+                }
+
                 if(line->is_readable(mask)) {
 					idx = index;
 					return HIT;
@@ -314,7 +321,10 @@ enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, m
             	}
 
             } else if ( line->is_valid_line() && line->get_status(mask) == INVALID ) {
-                assert(line->get_stream_id() == stream_id);
+                if (m_type_id == NORMAL) {
+                    assert(line->get_stream_id() == stream_id);
+                }
+
                 idx = index;
                 return SECTOR_MISS;
             }else {
