@@ -51,7 +51,7 @@ public:
   InterconnectInterface();
   virtual ~InterconnectInterface();
   static InterconnectInterface* New(const char* const config_file);
-  virtual void CreateInterconnect(unsigned n_shader,  unsigned n_mem);
+  virtual void CreateInterconnect(unsigned n_shader,  unsigned n_mem, std::vector<unsigned> priority_per_stream);
   
   //node side functions
   virtual void Init();
@@ -141,6 +141,7 @@ protected:
 
   int _fixed_lat_per_hop;
 
+  vector<unsigned> _priority_per_stream;
 };
 
 #endif

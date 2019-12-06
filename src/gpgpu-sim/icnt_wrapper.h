@@ -29,10 +29,11 @@
 #define ICNT_WRAPPER_H
 
 #include <stdio.h>
+#include <vector>
 
 // functional interface to the interconnect
 
-typedef void (*icnt_create_p)(unsigned n_shader,  unsigned n_mem);
+typedef void (*icnt_create_p)(unsigned n_shader,  unsigned n_mem, std::vector<unsigned> priority_per_stream);
 typedef void (*icnt_init_p)( );
 typedef bool (*icnt_has_buffer_p)(unsigned input, unsigned int size);
 typedef void (*icnt_push_p)(unsigned input, unsigned output, void* data, unsigned int size);

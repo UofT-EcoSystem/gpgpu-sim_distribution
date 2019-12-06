@@ -600,8 +600,12 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
 
     // customize number of ctas for each stream
     // FIXME: move to shader config
-    option_parser_register(opp, "-max_cta_in_stream", OPT_CSTR, &max_cta_in_stream,
+    option_parser_register(opp, "-max_cta_in_stream", OPT_CSTR, &max_cta_str,
             "<max_cta_in_stream_default>:<in_stream_1>:<in_stream_2>", "0:0:0");
+
+    option_parser_register(opp, "-icnt_priority", OPT_CSTR, &icnt_priority_str,
+            "<priority in stream 0>:<in_stream_1>:<in_stream_2>, higher number indicates higher priority",
+            "1:1:1");
 
 }
 
@@ -986,7 +990,7 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
     }
 
     icnt_wrapper_init();
-    icnt_create(m_shader_config->n_simt_clusters,m_memory_config->m_n_mem_sub_partition);
+    icnt_create(m_shader_config->n_simt_clusters,m_memory_config->m_n_mem_sub_partition,config.icnt_priority_per_stream);
 
     time_vector_create(NUM_MEM_REQ_STAT);
     fprintf(stdout, "GPGPU-Sim uArch: performance model initialization complete.\n");

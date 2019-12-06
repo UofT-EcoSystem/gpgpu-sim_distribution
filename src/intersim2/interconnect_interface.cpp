@@ -80,10 +80,11 @@ InterconnectInterface::~InterconnectInterface()
   delete _icnt_config;
 }
 
-void InterconnectInterface::CreateInterconnect(unsigned n_shader, unsigned n_mem)
+void InterconnectInterface::CreateInterconnect(unsigned n_shader, unsigned n_mem, std::vector<unsigned > priority_per_stream)
 {
   _n_shader = n_shader;
   _n_mem = n_mem;
+  _priority_per_stream = priority_per_stream;
 
   _fixed_lat_per_hop = _icnt_config->GetInt("fixed_lat_per_hop");
 
@@ -91,6 +92,9 @@ void InterconnectInterface::CreateInterconnect(unsigned n_shader, unsigned n_mem
   // so that GPUTrafficManager is aware of them for stat display
   _icnt_config->Assign("n_shader", (int)n_shader);
   _icnt_config->Assign("n_mem", (int)n_mem);
+
+  // turn on class-based priority
+  _icnt_config->Assign("priority", "class");
 
   InitializeRoutingMap(*_icnt_config);
 
@@ -184,10 +188,9 @@ void InterconnectInterface::Push(unsigned input_deviceID, unsigned output_device
   mem_fetch* mf = static_cast<mem_fetch*>(data);
 
   // class of mem fetch based on stream id
-  int class_id = mf->get_stream_id();
-  if (class_id == -1) {
-      class_id = 0;
-  }
+  const int stream_id = mf->get_stream_id();
+  assert(stream_id < _priority_per_stream.size());
+  const int class_id = _priority_per_stream[stream_id];
 
   if (_fixed_lat_per_hop == 0) {
       switch (mf->get_type()) {

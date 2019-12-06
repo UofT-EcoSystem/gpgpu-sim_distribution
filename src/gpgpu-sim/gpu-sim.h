@@ -334,11 +334,20 @@ public:
         snprintf(buf,1024,"gpgpusim_visualizer__%s.log.gz",date);
         g_visualizer_filename = strdup(buf);
 
-        std::stringstream ss_cta;
-        ss_cta << max_cta_in_stream;
+        // extra per stream info
         std::string token;
-        while (std::getline(ss_cta, token, ':')) {
+        std::stringstream ss;
+
+        ss << max_cta_str;
+        while (std::getline(ss, token, ':')) {
             max_cta_per_stream.push_back(std::stoul(token));
+        }
+
+        ss.clear();
+
+        ss << icnt_priority_str;
+        while (std::getline(ss, token, ':')) {
+            icnt_priority_per_stream.push_back(std::stoul(token));
         }
 
         m_valid=true;
@@ -388,7 +397,7 @@ private:
     int   gpgpu_cflog_interval;
     char * gpgpu_clock_domains;
     unsigned max_concurrent_kernel;
-    char *max_cta_in_stream;
+    char *max_cta_str;
     std::vector<unsigned> max_cta_per_stream;
 
     unsigned delayed_cycle_btw_kernels;
@@ -413,6 +422,9 @@ private:
     unsigned int gpgpu_compute_capability_major;
     unsigned int gpgpu_compute_capability_minor;
     unsigned long long liveness_message_freq; 
+
+    char* icnt_priority_str;
+    std::vector<unsigned> icnt_priority_per_stream;
 
     friend class gpgpu_sim;
 };

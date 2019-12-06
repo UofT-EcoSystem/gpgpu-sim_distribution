@@ -56,9 +56,9 @@ LocalInterconnect *g_localicnt_interface;
 // Wrapper to intersim2 to accompany old icnt_wrapper
 // TODO: use delegate/boost/c++11<funtion> instead
 
-static void intersim2_create(unsigned int n_shader, unsigned int n_mem)
+static void intersim2_create(unsigned int n_shader, unsigned int n_mem, std::vector<unsigned> priority_per_stream)
 {
-   g_icnt_interface->CreateInterconnect(n_shader, n_mem);
+   g_icnt_interface->CreateInterconnect(n_shader, n_mem, priority_per_stream);
 }
 
 static void intersim2_init()
@@ -114,7 +114,7 @@ static unsigned intersim2_get_flit_size()
 
 //////////////////////////////////////////////////////
 
-static void LocalInterconnect_create(unsigned int n_shader, unsigned int n_mem)
+static void LocalInterconnect_create(unsigned int n_shader, unsigned int n_mem, std::vector<unsigned> priority_per_stream)
 {
    g_localicnt_interface->CreateInterconnect(n_shader, n_mem);
 }
