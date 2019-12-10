@@ -350,6 +350,8 @@ void GPUTrafficManager::_Step()
   
   for ( int subnet = 0; subnet < _subnets; ++subnet ) {
     for ( int n = 0; n < _nodes; ++n ) {
+
+      /************* Handle network ejection ************/
       Flit * const f = _net[subnet]->ReadFlit( n );
       if ( f ) {
         if(f->watch) {
@@ -385,6 +387,7 @@ void GPUTrafficManager::_Step()
         }
       }
     
+      /************* Credit return ************/
       // Processing the credit From the network
       Credit * const c = _net[subnet]->ReadCredit( n );
       if ( c ) {
@@ -402,6 +405,8 @@ void GPUTrafficManager::_Step()
         c->Free();
       }
     }
+
+    /************* Handle inputs to network  ************/
     _net[subnet]->ReadInputs( );
   }
 

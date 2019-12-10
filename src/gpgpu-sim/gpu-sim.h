@@ -424,7 +424,7 @@ private:
     unsigned long long liveness_message_freq; 
 
     char* icnt_priority_str;
-    std::vector<unsigned> icnt_priority_per_stream;
+    std::vector<int> icnt_priority_per_stream;
 
     friend class gpgpu_sim;
 };

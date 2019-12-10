@@ -80,11 +80,10 @@ InterconnectInterface::~InterconnectInterface()
   delete _icnt_config;
 }
 
-void InterconnectInterface::CreateInterconnect(unsigned n_shader, unsigned n_mem, std::vector<unsigned > priority_per_stream)
+void InterconnectInterface::CreateInterconnect(unsigned n_shader, unsigned n_mem, std::vector<int> priority_per_stream)
 {
   _n_shader = n_shader;
   _n_mem = n_mem;
-  _priority_per_stream = priority_per_stream;
 
   _fixed_lat_per_hop = _icnt_config->GetInt("fixed_lat_per_hop");
 
@@ -125,6 +124,10 @@ void InterconnectInterface::CreateInterconnect(unsigned n_shader, unsigned n_mem
 
   assert(_icnt_config->GetStr("sim_type") == "gpgpusim");
   _traffic_manager = static_cast<GPUTrafficManager*>(TrafficManager::New( *_icnt_config, _net )) ;
+
+  // overwrite class priority from intersim configs
+  _traffic_manager->_class_priority = priority_per_stream;
+  _classes = _icnt_config->GetInt("classes");
 
   _flit_size = _icnt_config->GetInt( "flit_size" );
 
