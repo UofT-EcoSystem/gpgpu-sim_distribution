@@ -215,7 +215,6 @@ private:
    fifo_pipeline<mem_fetch> *m_dram_L2_queue;
    fifo_pipeline<mem_fetch> *m_L2_icnt_queue; // L2 cache hit response queue
 
-   class mem_fetch *L2dramout; 
    unsigned long long int wb_addr;
 
    class memory_stats_t *m_stats;
