@@ -56,7 +56,7 @@ public:
   //node side functions
   virtual void Init();
   virtual void Push(unsigned input_deviceID, unsigned output_deviceID, void* data, unsigned int size);
-  virtual void* Pop(unsigned ouput_deviceID);
+  virtual void* Pop(unsigned ouput_deviceID, unsigned stream_id);
   virtual void Advance();
   virtual bool Busy() const;
   virtual bool HasBuffer(unsigned deviceID, unsigned int size) const;
@@ -98,8 +98,8 @@ protected:
   void _CreateNodeMap(unsigned n_shader, unsigned n_mem, unsigned n_node, int use_map);
   void _DisplayMap(int dim,int count);
   
-  // size: [subnets][nodes][vcs]
-  vector<vector<vector<_BoundaryBufferItem> > > _boundary_buffer;
+  // size: [subnets][nodes][vcs][classes]
+  vector<vector<vector<vector<_BoundaryBufferItem> > > > _boundary_buffer;
   unsigned int _boundary_buffer_capacity;
   // size: [subnets][nodes][vcs]
   vector<vector<vector<_EjectionBufferItem> > > _ejection_buffer;
@@ -121,7 +121,8 @@ protected:
   unsigned int _ejection_buffer_capacity;
   unsigned int _input_buffer_capacity;
   
-  vector<vector<int> > _round_robin_turn; //keep track of _boundary_buffer last used in icnt_pop
+  //keep track of _boundary_buffer last used in icnt_pop
+  vector<vector<int> > _round_robin_vc;
   
   GPUTrafficManager* _traffic_manager;
   unsigned _flit_size;
@@ -130,6 +131,7 @@ protected:
   vector<Network *> _net;
   int _vcs;
   int _subnets;
+  int _classes;
   
   //deviceID to icntID map
   //deviceID : Starts from 0 for shaders and then continues until mem nodes
@@ -141,7 +143,6 @@ protected:
 
   int _fixed_lat_per_hop;
 
-  vector<unsigned> _priority_per_stream;
 };
 
 #endif

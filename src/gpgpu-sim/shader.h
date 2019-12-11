@@ -2178,6 +2178,8 @@ private:
     unsigned m_cta_issue_next_core;
     std::list<unsigned> m_core_sim_order;
     std::list<mem_fetch*> m_response_fifo;
+
+    unsigned m_icnt_sh_turn_stream;
 };
 
 class shader_memory_interface : public mem_fetch_interface {

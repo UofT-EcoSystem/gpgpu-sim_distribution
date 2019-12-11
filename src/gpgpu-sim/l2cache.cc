@@ -341,6 +341,8 @@ memory_sub_partition::memory_sub_partition( unsigned sub_partition_id,
     m_dram_L2_queue = new fifo_pipeline<mem_fetch>("dram-to-L2",0,dram_L2);
     m_L2_icnt_queue = new fifo_pipeline<mem_fetch>("L2-to-icnt",0,L2_icnt);
     wb_addr=-1;
+
+    m_icnt_L2_turn_stream = 0;
 }
 
 memory_sub_partition::~memory_sub_partition()
@@ -678,7 +680,7 @@ std::vector<mem_fetch*> memory_sub_partition::breakdown_request_to_sector_reques
 void memory_sub_partition::push( mem_fetch* m_req, unsigned long long cycle )
 {
     if (m_req) {
-    	m_stats->memlatstat_icnt2mem_pop(m_req);
+    	m_stats->memlatstat_icnt2mem_pop(m_req, m_id);
     	std::vector<mem_fetch*> reqs;
     	if(m_config->m_L2_config.m_cache_type == SECTOR)
     		reqs = breakdown_request_to_sector_requests(m_req);

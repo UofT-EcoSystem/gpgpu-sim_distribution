@@ -98,6 +98,17 @@ memory_stats_t::memory_stats_t( unsigned n_shader,
    num_streams = n_streams;
    num_mfs_streams = (unsigned*)calloc(num_streams, sizeof(unsigned));
    tot_icnt2mem_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
+
+   tot_icnt2mem_subpart_streams.resize(num_streams);
+   for (auto & v : tot_icnt2mem_subpart_streams) {
+       v.resize(m_memory_config->m_n_mem_sub_partition, 0);
+   }
+
+   num_mem_subpart_streams.resize(num_streams);
+   for (auto & v : num_mem_subpart_streams) {
+       v.resize(m_memory_config->m_n_mem_sub_partition, 0);
+   }
+
    tot_offchip2mem_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
    tot_icnt2sh_latency_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int));
    mf_total_lat_streams = (unsigned long long int*)calloc(num_streams, sizeof(unsigned long long int ));
@@ -228,7 +239,7 @@ void memory_stats_t::memlatstat_dram_access(mem_fetch *mf)
       ptx_file_line_stats_add_dram_traffic(mf->get_pc(), mf->get_data_size());
 }
 
-void memory_stats_t::memlatstat_icnt2mem_pop(mem_fetch *mf)
+void memory_stats_t::memlatstat_icnt2mem_pop(mem_fetch *mf, int mem_id)
 {
    if (m_memory_config->gpgpu_memlatency_stat) {
       unsigned icnt2mem_latency;
@@ -245,6 +256,9 @@ void memory_stats_t::memlatstat_icnt2mem_pop(mem_fetch *mf)
     	  assert(stream_id < num_streams);
           tot_icnt2mem_latency_streams[stream_id] += icnt2mem_latency;
           tot_offchip2mem_latency_streams[stream_id] += offchip2mem_latency;
+
+          tot_icnt2mem_subpart_streams[stream_id][mem_id] += icnt2mem_latency;
+          num_mem_subpart_streams[stream_id][mem_id] += 1;
       }
 
       if (icnt2mem_latency > max_icnt2mem_latency)
@@ -293,6 +307,13 @@ void memory_stats_t::memlatstat_print( unsigned n_mem, unsigned gpu_mem_n_bk )
                  printf("averagemflatency[%d] = %lld \n", i, mf_total_lat_streams[i]/num_mfs_streams[i]);
                  printf("avg_icnt2mem_latency[%d] = %lld \n", i, tot_icnt2mem_latency_streams[i]/num_mfs_streams[i]);
                  printf("avg_offchip2mem_latency[%d] = %lld \n", i, tot_offchip2mem_latency_streams[i]/num_mfs_streams[i]);
+
+                 printf("avg_icnt2mem_per_submem[%d] = [", i);
+                 for (int mem_id = 0; mem_id < m_memory_config->m_n_mem_sub_partition; mem_id++) {
+                     printf("%lld, ", tot_icnt2mem_subpart_streams[i][mem_id]/num_mem_subpart_streams[i][mem_id]);
+                 }
+                 printf("]\n");
+
                  if(tot_mrq_num_streams[i])
                      printf("avg_mrq_latency[%d] = %lld \n", i, tot_mrq_latency_streams[i]/tot_mrq_num_streams[i]);
 

@@ -191,9 +191,7 @@ void InterconnectInterface::Push(unsigned input_deviceID, unsigned output_device
   mem_fetch* mf = static_cast<mem_fetch*>(data);
 
   // class of mem fetch based on stream id
-  const int stream_id = mf->get_stream_id();
-  assert(stream_id < _priority_per_stream.size());
-  const int class_id = _priority_per_stream[stream_id];
+  const int class_id = mf->get_stream_id();
 
   if (_fixed_lat_per_hop == 0) {
       switch (mf->get_type()) {
@@ -236,7 +234,7 @@ void InterconnectInterface::Push(unsigned input_deviceID, unsigned output_device
 
 }
 
-void* InterconnectInterface::Pop(unsigned deviceID)
+void* InterconnectInterface::Pop(unsigned deviceID, unsigned stream_id)
 {
   int icntID = _node_map[deviceID];
 #if DEBUG
@@ -251,20 +249,27 @@ void* InterconnectInterface::Pop(unsigned deviceID)
     subnet = 1;
 
   if (_fixed_lat_per_hop == 0) {
-      int turn = _round_robin_turn[subnet][icntID];
+      int vc_turn = _round_robin_vc[subnet][icntID];
+
       for (int vc=0;(vc<_vcs) && (data==NULL);vc++) {
-          if (_boundary_buffer[subnet][icntID][turn].HasPacket()) {
-              data = _boundary_buffer[subnet][icntID][turn].PopPacket();
+          assert(stream_id >= 0 && stream_id < _classes);
+
+          if (_boundary_buffer[subnet][icntID][vc_turn][stream_id].HasPacket()) {
+              data = _boundary_buffer[subnet][icntID][vc_turn][stream_id].PopPacket();
           }
-          turn++;
-          if (turn == _vcs) turn = 0;
+
+          vc_turn++;
+          if (vc_turn == _vcs) vc_turn = 0;
       }
       if (data) {
-          _round_robin_turn[subnet][icntID] = turn;
+          _round_robin_vc[subnet][icntID] = vc_turn;
       }
   } else {
       if (!_out_buf_fixedlat[subnet][icntID].empty()) {
-          if (((mem_fetch*)_out_buf_fixedlat[subnet][icntID].top())->get_icnt_receive_time() <= gpu_sim_cycle + gpu_tot_sim_cycle) {
+          mem_fetch* top_data = (mem_fetch*)_out_buf_fixedlat[subnet][icntID].top();
+          if (top_data->get_icnt_receive_time() <= gpu_sim_cycle + gpu_tot_sim_cycle
+                  && top_data->get_stream_id() == stream_id)
+          {
               data = _out_buf_fixedlat[subnet][icntID].top();
               _out_buf_fixedlat[subnet][icntID].pop();
               assert (((mem_fetch *)data)->get_icnt_receive_time());
@@ -299,9 +304,11 @@ bool InterconnectInterface::Busy() const
   for (int s = 0; s < _subnets; ++s) {
     for (unsigned n=0; n < (_n_shader+_n_mem); ++n) {
       for (int vc=0; vc<_vcs; ++vc) {
-        if (_boundary_buffer[s][n][vc].HasPacket() ) {
-          return true;
-        }
+          for (int cl=0; cl < _classes; cl++) {
+              if (_boundary_buffer[s][n][vc][cl].HasPacket() ) {
+                  return true;
+              }
+          }
       }
     }
   }
@@ -393,17 +400,19 @@ void InterconnectInterface::Transfer2BoundaryBuffer(int subnet, int output)
   int vc;
   for (vc=0; vc<_vcs;vc++) {
 
-    if ( !_ejection_buffer[subnet][output][vc].empty() && _boundary_buffer[subnet][output][vc].Size() < _boundary_buffer_capacity ) {
+    if ( !_ejection_buffer[subnet][output][vc].empty() ) {
       flit = _ejection_buffer[subnet][output][vc].front();
       assert(flit);
 
-      _ejection_buffer[subnet][output][vc].pop();
-      _boundary_buffer[subnet][output][vc].PushFlitData( flit->data, flit->tail);
+      if ( _boundary_buffer[subnet][output][vc][flit->cl].Size() < _boundary_buffer_capacity ) {
+          _ejection_buffer[subnet][output][vc].pop();
+          _boundary_buffer[subnet][output][vc][flit->cl].PushFlitData( flit->data, flit->tail);
 
-      _ejected_flit_queue[subnet][output].push(flit); //indicate this flit is already popped from ejection buffer and ready for credit return
+          _ejected_flit_queue[subnet][output].push(flit); //indicate this flit is already popped from ejection buffer and ready for credit return
 
-      if ( flit->head ) {
-        assert (flit->dest == output);
+          if ( flit->head ) {
+              assert (flit->dest == output);
+          }
       }
     }
   }
@@ -442,7 +451,7 @@ void InterconnectInterface::_CreateBuffer()
 
   _boundary_buffer.resize(_subnets);
   _ejection_buffer.resize(_subnets);
-  _round_robin_turn.resize(_subnets);
+  _round_robin_vc.resize(_subnets);
   _ejected_flit_queue.resize(_subnets);
 
   if (_fixed_lat_per_hop != 0) {
@@ -453,12 +462,16 @@ void InterconnectInterface::_CreateBuffer()
   for (int subnet = 0; subnet < _subnets; ++subnet) {
     _ejection_buffer[subnet].resize(nodes);
     _boundary_buffer[subnet].resize(nodes);
-    _round_robin_turn[subnet].resize(nodes);
+    _round_robin_vc[subnet].resize(nodes);
     _ejected_flit_queue[subnet].resize(nodes);
 
     for (unsigned node=0;node < nodes;++node){
       _ejection_buffer[subnet][node].resize(_vcs);
       _boundary_buffer[subnet][node].resize(_vcs);
+
+      for (unsigned vc=0; vc < _vcs; ++vc) {
+          _boundary_buffer[subnet][node][vc].resize(_traffic_manager->_classes);
+      }
     }
 
     if (_fixed_lat_per_hop != 0) {

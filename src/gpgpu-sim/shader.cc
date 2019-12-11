@@ -4077,6 +4077,7 @@ simt_core_cluster::simt_core_cluster( class gpgpu_sim *gpu,
         m_core[i] = new shader_core_ctx(gpu,this,sid,m_cluster_id,config,mem_config,stats);
         m_core_sim_order.push_back(i); 
     }
+    m_icnt_sh_turn_stream = 0;
 }
 
 void simt_core_cluster::core_cycle()
@@ -4322,21 +4323,30 @@ void simt_core_cluster::icnt_cycle()
         }
     }
     if( m_response_fifo.size() < m_config->n_simt_ejection_buffer_size ) {
-        mem_fetch *mf = (mem_fetch*) ::icnt_pop(m_cluster_id);
-        if (!mf) 
-            return;
-        assert(mf->get_tpc() == m_cluster_id);
-        assert(mf->get_type() == READ_REPLY || mf->get_type() == WRITE_ACK );
+        // LSRR for popping from icnt
+        for (unsigned stream_id = 1; stream_id <= m_memory_stats->num_streams; stream_id++) {
+            unsigned turn = (m_icnt_sh_turn_stream + stream_id) % m_memory_stats->num_streams;
 
-        // The packet size varies depending on the type of request: 
-        // - For read request and atomic request, the packet contains the data 
-        // - For write-ack, the packet only has control metadata
-        unsigned int packet_size = (mf->get_is_write())? mf->get_ctrl_size() : mf->size(); 
-        m_stats->m_incoming_traffic_stats->record_traffic(mf, packet_size); 
-        mf->set_status(IN_CLUSTER_TO_SHADER_QUEUE,gpu_sim_cycle+gpu_tot_sim_cycle);
-        //m_memory_stats->memlatstat_read_done(mf,m_shader_config->max_warps_per_shader);
-        m_response_fifo.push_back(mf);
-        m_stats->n_mem_to_simt[m_cluster_id] += mf->get_num_flits(false);
+            mem_fetch *mf = (mem_fetch*) ::icnt_pop(m_cluster_id, turn);
+            if (mf) {
+                assert(mf->get_tpc() == m_cluster_id);
+                assert(mf->get_type() == READ_REPLY || mf->get_type() == WRITE_ACK );
+
+                // The packet size varies depending on the type of request:
+                // - For read request and atomic request, the packet contains the data
+                // - For write-ack, the packet only has control metadata
+                unsigned int packet_size = (mf->get_is_write())? mf->get_ctrl_size() : mf->size();
+                m_stats->m_incoming_traffic_stats->record_traffic(mf, packet_size);
+                mf->set_status(IN_CLUSTER_TO_SHADER_QUEUE,gpu_sim_cycle+gpu_tot_sim_cycle);
+                //m_memory_stats->memlatstat_read_done(mf,m_shader_config->max_warps_per_shader);
+                m_response_fifo.push_back(mf);
+                m_stats->n_mem_to_simt[m_cluster_id] += mf->get_num_flits(false);
+
+                m_icnt_sh_turn_stream = turn;
+                break; // break out of the LSRR loop
+            }
+
+        }
     }
 }
 

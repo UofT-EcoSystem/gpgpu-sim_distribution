@@ -1988,11 +1988,21 @@ void gpgpu_sim::cycle()
           if ( m_memory_sub_partition[i]->full(SECTOR_CHUNCK_SIZE) ) {
              gpu_stall_dramfull++;
           } else {
-              mem_fetch* mf = (mem_fetch*) icnt_pop( m_shader_config->mem2device(i) );
-              m_memory_sub_partition[i]->push( mf, gpu_sim_cycle + gpu_tot_sim_cycle );
-              if(mf)
-            	  partiton_reqs_in_parallel_per_cycle++;
-          }
+               // LSRR scheduling
+               for (unsigned stream_id = 1; stream_id <= m_config.get_config_num_streams(); stream_id++) {
+                   unsigned turn = (m_memory_sub_partition[i]->get_icnt_L2_turn_stream() + stream_id) % m_config.get_config_num_streams();
+
+                   mem_fetch* mf = (mem_fetch*) icnt_pop( m_shader_config->mem2device(i), turn );
+                   m_memory_sub_partition[i]->push( mf, gpu_sim_cycle + gpu_tot_sim_cycle );
+                   if(mf) {
+                       partiton_reqs_in_parallel_per_cycle++;
+                       m_memory_sub_partition[i]->set_icnt_L2_turn_stream(turn);
+
+                       break; // break out of the loose round robin loop
+                   }
+               }
+           }
+
           m_memory_sub_partition[i]->cache_cycle(gpu_sim_cycle+gpu_tot_sim_cycle);
           m_memory_sub_partition[i]->accumulate_L2cache_stats(m_power_stats->pwr_mem_stat->l2_cache_stats[CURRENT_STAT_IDX]);
        }

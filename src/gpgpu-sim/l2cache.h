@@ -190,6 +190,9 @@ public:
         m_memcpy_cycle_offset += 1;
    }
 
+   unsigned get_icnt_L2_turn_stream() const {return m_icnt_L2_turn_stream;}
+   void set_icnt_L2_turn_stream(unsigned turn) {m_icnt_L2_turn_stream = turn;}
+
 private:
 // data
    unsigned m_id;  //< the global sub partition ID
@@ -229,6 +232,8 @@ private:
    // this counter is incremented, and when the l2 is accessed (in both cudamemcpyies and otherwise)
    // this value is added to the gpgpu-sim cycle counters.
    unsigned m_memcpy_cycle_offset;
+
+   unsigned m_icnt_L2_turn_stream;
 };
 
 class L2interface : public mem_fetch_interface {

@@ -42,7 +42,7 @@ public:
    unsigned memlatstat_done( class mem_fetch *mf );
    void memlatstat_read_done( class mem_fetch *mf );
    void memlatstat_dram_access( class mem_fetch *mf );
-   void memlatstat_icnt2mem_pop( class mem_fetch *mf);
+   void memlatstat_icnt2mem_pop( class mem_fetch *mf, int mem_id);
    void memlatstat_lat_pw();
    void memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk);
 
@@ -92,6 +92,8 @@ public:
    unsigned num_streams;
    unsigned * num_mfs_streams;
    unsigned long long int * tot_icnt2mem_latency_streams;
+   std::vector<std::vector<long long int>> tot_icnt2mem_subpart_streams;
+   std::vector<std::vector<long long int>> num_mem_subpart_streams;
    unsigned long long int * tot_offchip2mem_latency_streams;
    unsigned long long int * tot_icnt2sh_latency_streams;
    unsigned long long int * mf_total_lat_streams;
