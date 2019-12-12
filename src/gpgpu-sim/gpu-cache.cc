@@ -284,10 +284,7 @@ enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, m
     unsigned way_start = 0;
     unsigned way_end = m_config.m_assoc;
 
-
-    if (m_config.m_partition_enabled) {
-        m_config.get_assoc_stream(stream_id, way_start, way_end);
-    }
+    m_config.get_assoc_stream(stream_id, way_start, way_end);
 
     // check for hit or pending hit
     for (unsigned way=way_start; way<way_end; way++) {
@@ -579,19 +576,35 @@ bool mshr_table::probe( new_addr_type block_addr ) const{
 }
 
 /// Checks if there is space for tracking a new memory access
-bool mshr_table::full( new_addr_type block_addr ) const{
+bool mshr_table::full( new_addr_type block_addr, unsigned stream_id ) const{
     table::const_iterator i=m_data.find(block_addr);
     if ( i != m_data.end() )
         return i->second.m_list.size() >= m_max_merged;
-    else
-        return m_data.size() >= m_num_entries;
+    else {
+        if (m_partition_enabled) {
+            assert(stream_id < m_num_entries_stream.size());
+            return m_used_entries_stream[stream_id] >= m_num_entries_stream[stream_id];
+        } else {
+            return m_data.size() >= m_num_entries;
+        }
+    }
 }
 
 /// Add or merge this access
 void mshr_table::add( new_addr_type block_addr, mem_fetch *mf ){
+    const bool insert_new = (m_data.find(block_addr) == m_data.end());
+    if ( insert_new && m_partition_enabled ) {
+        unsigned stream_id = mf->get_stream_id();
+        assert(stream_id < m_used_entries_stream.size());
+
+        m_used_entries_stream[stream_id] += 1;
+        assert(m_used_entries_stream[stream_id] <= m_num_entries_stream[stream_id]);
+    }
+
 	m_data[block_addr].m_list.push_back(mf);
 	assert( m_data.size() <= m_num_entries );
 	assert( m_data[block_addr].m_list.size() <= m_max_merged );
+
 	// indicate that this MSHR entry contains an atomic operation
 	if ( mf->isatomic() ) {
 		m_data[block_addr].m_has_atomic = true;
@@ -635,6 +648,13 @@ mem_fetch *mshr_table::next_access(){
         // release entry
         m_data.erase(block_addr);
         m_current_response.pop_front();
+
+        if (m_partition_enabled) {
+            unsigned stream_id = result->get_stream_id();
+            assert(stream_id < m_used_entries_stream.size());
+            assert(m_used_entries_stream[stream_id] > 0);
+            m_used_entries_stream[stream_id] -= 1;
+        }
     }
     return result;
 }
@@ -1165,7 +1185,7 @@ void baseline_cache::send_read_request(new_addr_type addr, new_addr_type block_a
 
 	new_addr_type mshr_addr = m_config.mshr_addr(mf->get_addr());
     bool mshr_hit = m_mshrs.probe(mshr_addr);
-    bool mshr_avail = !m_mshrs.full(mshr_addr);
+    bool mshr_avail = !m_mshrs.full(mshr_addr, mf->get_stream_id());
     if ( mshr_hit && mshr_avail ) {
     	if(read_only)
     		m_tag_array->access(block_addr,time,cache_index,mf);
@@ -1288,7 +1308,7 @@ data_cache::wr_miss_wa_naive( new_addr_type addr,
     // Write allocate, maximum 3 requests (write miss, read request, write back request)
     // Conservatively ensure the worst-case request can be handled this cycle
     bool mshr_hit = m_mshrs.probe(mshr_addr);
-    bool mshr_avail = !m_mshrs.full(mshr_addr);
+    bool mshr_avail = !m_mshrs.full(mshr_addr, mf->get_stream_id());
     if(miss_queue_full(2) 
         || (!(mshr_hit && mshr_avail) 
         && !(!mshr_hit && mshr_avail && (m_miss_queue.size() < m_config.m_miss_queue_size)))) {
@@ -1404,7 +1424,7 @@ data_cache::wr_miss_wa_fetch_on_write( new_addr_type addr,
 	else
 	{
 		bool mshr_hit = m_mshrs.probe(mshr_addr);
-		bool mshr_avail = !m_mshrs.full(mshr_addr);
+		bool mshr_avail = !m_mshrs.full(mshr_addr, mf->get_stream_id());
 		if(miss_queue_full(1)
 			|| (!(mshr_hit && mshr_avail)
 			&& !(!mshr_hit && mshr_avail && (m_miss_queue.size() < m_config.m_miss_queue_size)))) {

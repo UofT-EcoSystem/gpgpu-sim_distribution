@@ -677,13 +677,19 @@ public:
     }
 
     void get_assoc_stream(unsigned stream_id, unsigned & start, unsigned & end) {
-        assert(stream_id < m_partition_per_stream.size());
-        if (stream_id == 0) {
-            start = 0;
-            end = floor(m_partition_per_stream[0] * m_assoc);
+
+        if (m_partition_enabled) {
+            assert(stream_id < m_partition_per_stream.size());
+            if (stream_id == 0) {
+                start = 0;
+                end = floor(m_partition_per_stream[0] * m_assoc);
+            } else {
+                start = floor(m_partition_per_stream[stream_id-1] * m_assoc);
+                end = floor(m_partition_per_stream[stream_id] * m_assoc);
+            }
         } else {
-            start = floor(m_partition_per_stream[stream_id-1] * m_assoc);
-            end = floor(m_partition_per_stream[stream_id] * m_assoc);
+            start = 0;
+            end = m_assoc;
         }
     }
 
@@ -918,19 +924,32 @@ protected:
 
 class mshr_table {
 public:
-    mshr_table( unsigned num_entries, unsigned max_merged)
+    mshr_table( unsigned num_entries, unsigned max_merged, bool partition_enabled, std::vector<float> partition_stream)
     : m_num_entries(num_entries),
     m_max_merged(max_merged)
 #if (tr1_hash_map_ismap == 0)
     ,m_data(2*num_entries)
 #endif
     {
+        m_partition_enabled = partition_enabled;
+
+        if (partition_enabled) {
+            float sum = 0;
+            for (auto & p : partition_stream) {
+                int entries = floor(m_num_entries * (p - sum));
+                m_num_entries_stream.push_back(entries);
+
+                sum += p;
+            }
+
+            m_used_entries_stream.resize(partition_stream.size(), 0);
+        }
     }
 
     /// Checks if there is a pending request to the lower memory level already
     bool probe( new_addr_type block_addr ) const;
     /// Checks if there is space for tracking a new memory access
-    bool full( new_addr_type block_addr ) const;
+    bool full( new_addr_type block_addr, unsigned stream_id ) const;
     /// Add or merge this access
     void add( new_addr_type block_addr, mem_fetch *mf );
     /// Returns true if cannot accept new fill responses
@@ -968,8 +987,12 @@ private:
     line_table pending_lines;
 
     // it may take several cycles to process the merged requests
-    bool m_current_response_ready;
+//    bool m_current_response_ready;
     std::list<new_addr_type> m_current_response;
+
+    bool m_partition_enabled;
+    std::vector<unsigned> m_num_entries_stream;
+    std::vector<unsigned> m_used_entries_stream;
 };
 
 
@@ -1159,7 +1182,7 @@ public:
     baseline_cache( const char *name, cache_config &config, int core_id, int type_id, mem_fetch_interface *memport,
                      enum mem_fetch_status status )
     : m_config(config), m_tag_array(new tag_array(config,core_id,type_id)), 
-      m_mshrs(config.m_mshr_entries,config.m_mshr_max_merge),
+      m_mshrs(config.m_mshr_entries,config.m_mshr_max_merge,config.m_partition_enabled,config.m_partition_per_stream),
       m_bandwidth_management(config) 
     {
         init( name, config, memport, status );
@@ -1248,7 +1271,7 @@ protected:
                     tag_array* new_tag_array )
     : m_config(config),
       m_tag_array( new_tag_array ),
-      m_mshrs(config.m_mshr_entries,config.m_mshr_max_merge), 
+      m_mshrs(config.m_mshr_entries,config.m_mshr_max_merge,config.m_partition_enabled,config.m_partition_per_stream),
       m_bandwidth_management(config) 
     {
         init( name, config, memport, status );
