@@ -430,7 +430,7 @@ public:
 
    std::queue<preempted_cta_context> m_preempted_queue;
    void set_cta_quota(unsigned quota) {m_cta_quota_per_shader = quota;}
-   unsigned get_cta_quota() {return m_cta_quota_per_shader;}
+   unsigned get_cta_quota() const {return m_cta_quota_per_shader;}
 };
 
 struct core_config {

@@ -1418,6 +1418,16 @@ address_type coalesced_segment(address_type addr, unsigned segment_size_lg2bytes
 // Returns numbers of addresses in translated_addrs, each addr points to a 4B (32-bit) word
 unsigned shader_core_ctx::translate_local_memaddr( address_type localaddr, unsigned tid, unsigned num_shader, unsigned datasize, new_addr_type* translated_addrs )
 {
+    kernel_info_t* kernel = &(m_thread[tid]->get_kernel());
+    int padded_cta_size = kernel->threads_per_cta();
+    if (kernel->threads_per_cta() % m_config->warp_size) {
+        padded_cta_size = ((kernel->threads_per_cta() / m_config->warp_size)+1) * (m_config->warp_size);
+    }
+
+    int max_cta_per_shader = kernel->get_cta_quota();
+
+    bool from_top = kernel->allocate_from_top();
+
    // During functional execution, each thread sees its own memory space for local memory, but these
    // need to be mapped to a shared address space for timing simulation.  We do that mapping here.
 
@@ -1436,9 +1446,9 @@ unsigned shader_core_ctx::translate_local_memaddr( address_type localaddr, unsig
       // for a given local memory address threads in a CTA map to contiguous addresses,
       // then distribute across memory space by CTAs from successive shader cores first, 
       // then by successive CTA in same shader core
-      thread_base = 4*(kernel_padded_threads_per_cta * (m_sid + num_shader * (tid / kernel_padded_threads_per_cta))
-                       + tid % kernel_padded_threads_per_cta); 
-      max_concurrent_threads = kernel_padded_threads_per_cta * kernel_max_cta_per_shader * num_shader;
+      thread_base = 4*(padded_cta_size * (m_sid + num_shader * (tid / padded_cta_size))
+                       + tid % padded_cta_size);
+      max_concurrent_threads = padded_cta_size * max_cta_per_shader * num_shader;
    } else {
       // legacy mapping that maps the same address in the local memory space of all threads 
       // to a single contiguous address region 
@@ -1459,7 +1469,12 @@ unsigned shader_core_ctx::translate_local_memaddr( address_type localaddr, unsig
       assert(localaddr%4 == 0); // Address must be 4B aligned - required if accessing 4B per request, otherwise access will overflow into next thread's space
       for(unsigned i=0; i<num_accesses; i++) {
           address_type local_word = localaddr/4 + i;
-          address_type linear_address = local_word*max_concurrent_threads*4 + thread_base + LOCAL_GENERIC_START;
+          address_type linear_address;
+          if (from_top) {
+              linear_address = local_word*max_concurrent_threads*4 + thread_base + LOCAL_GENERIC_START;
+          } else {
+              linear_address = LOCAL_GENERIC_START + LOCAL_MEM_SIZE_MAX - (local_word*max_concurrent_threads*4 + thread_base);
+          }
           translated_addrs[i] = linear_address;
       }
    } else {
@@ -1469,7 +1484,14 @@ unsigned shader_core_ctx::translate_local_memaddr( address_type localaddr, unsig
       address_type local_word = localaddr/4;
       address_type local_word_offset = localaddr%4;
       assert( (localaddr+datasize-1)/4  == local_word ); // Make sure access doesn't overflow into next 4B chunk
-      address_type linear_address = local_word*max_concurrent_threads*4 + local_word_offset + thread_base + LOCAL_GENERIC_START;
+
+      address_type linear_address;
+      if (from_top) {
+          linear_address = local_word*max_concurrent_threads*4 + local_word_offset + thread_base + LOCAL_GENERIC_START;
+      } else {
+          linear_address = LOCAL_GENERIC_START + LOCAL_MEM_SIZE_MAX - (local_word*max_concurrent_threads*4 + local_word_offset + thread_base);
+      }
+
       translated_addrs[0] = linear_address;
    }
    return num_accesses;
