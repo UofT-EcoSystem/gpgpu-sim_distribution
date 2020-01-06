@@ -525,7 +525,7 @@ TrafficManager::TrafficManager( const Configuration &config, const vector<Networ
     _overall_crossbar_conflict_stalls.resize(_classes, 0);
 #endif
 
-    for (int subnet; subnet < _subnets; subnet++) {
+    for (int subnet = 0; subnet < _subnets; subnet++) {
         for ( int c = 0; c < _classes; ++c ) {
             ostringstream tmp_name;
 
