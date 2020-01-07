@@ -469,9 +469,10 @@ void tag_array::flush()
 
 	for (unsigned i=0; i < m_config.get_num_lines(); i++)
 	    if(m_lines[i]->is_modified_line()) {
-	        for(unsigned j=0; j < SECTOR_CHUNCK_SIZE; j++)
+	        for(unsigned j=0; j < SECTOR_CHUNCK_SIZE; j++) {
 	            m_lines[i]->set_status(INVALID, mem_access_sector_mask_t().set(j)) ;
-	        m_lines[i]->set_stream_id(-1);
+	            m_lines[i]->set_stream_id(-1, mem_access_sector_mask_t().set(j));
+	        }
 	    }
 
     is_used = false;
@@ -483,10 +484,10 @@ void tag_array::invalidate()
 		return;
 
     for (unsigned i=0; i < m_config.get_num_lines(); i++) {
-        for(unsigned j=0; j < SECTOR_CHUNCK_SIZE; j++)
+        for(unsigned j=0; j < SECTOR_CHUNCK_SIZE; j++) {
             m_lines[i]->set_status(INVALID, mem_access_sector_mask_t().set(j)) ;
-
-        m_lines[i]->set_stream_id(-1);
+            m_lines[i]->set_stream_id(-1, mem_access_sector_mask_t().set(j));
+        }
     }
 
     is_used = false;
@@ -1146,7 +1147,7 @@ void baseline_cache::fill(mem_fetch *mf, unsigned time){
         assert(m_config.m_alloc_policy == ON_MISS);
         cache_block_t* block = m_tag_array->get_block(e->second.m_cache_index);
         block->set_status(MODIFIED, mf->get_access_sector_mask()); // mark line as dirty for atomic operation
-        block->set_stream_id(mf->get_stream_id());
+        block->set_stream_id(mf->get_stream_id(), mf->get_access_sector_mask());
     }
     m_extra_mf_fields.erase(mf);
     m_bandwidth_management.use_fill_port(mf); 
@@ -1241,7 +1242,7 @@ cache_request_status data_cache::wr_hit_wb(new_addr_type addr, unsigned cache_in
 	m_tag_array->access(block_addr,time,cache_index,mf); // update LRU state
 	cache_block_t* block = m_tag_array->get_block(cache_index);
 	block->set_status(MODIFIED, mf->get_access_sector_mask());
-	block->set_stream_id(mf->get_stream_id());
+	block->set_stream_id(mf->get_stream_id(), mf->get_access_sector_mask());
 
 	return HIT;
 }
@@ -1257,7 +1258,7 @@ cache_request_status data_cache::wr_hit_wt(new_addr_type addr, unsigned cache_in
 	m_tag_array->access(block_addr,time,cache_index,mf); // update LRU state
 	cache_block_t* block = m_tag_array->get_block(cache_index);
 	block->set_status(MODIFIED, mf->get_access_sector_mask());
-	block->set_stream_id(mf->get_stream_id());
+	block->set_stream_id(mf->get_stream_id(), mf->get_access_sector_mask());
 
 	// generate a write-through
 	send_write_request(mf, cache_event(WRITE_REQUEST_SENT), time, events);
@@ -1278,7 +1279,7 @@ cache_request_status data_cache::wr_hit_we(new_addr_type addr, unsigned cache_in
 
 	// Invalidate block
 	block->set_status(INVALID, mf->get_access_sector_mask());
-	block->set_stream_id(-1);
+	block->set_stream_id(-1, mf->get_access_sector_mask());
 
 	return HIT;
 }
@@ -1403,7 +1404,7 @@ data_cache::wr_miss_wa_fetch_on_write( new_addr_type addr,
 		assert(status != HIT);
 		cache_block_t* block = m_tag_array->get_block(cache_index);
 		block->set_status(MODIFIED, mf->get_access_sector_mask());
-		block->set_stream_id(mf->get_stream_id());
+		block->set_stream_id(mf->get_stream_id(), mf->get_access_sector_mask());
 
 		if(status == HIT_RESERVED)
 			block->set_ignore_on_fill(true, mf->get_access_sector_mask());
@@ -1526,7 +1527,7 @@ data_cache::wr_miss_wa_lazy_fetch_on_read( new_addr_type addr,
 		assert(m_status != HIT);
 		cache_block_t* block = m_tag_array->get_block(cache_index);
 		block->set_status(MODIFIED, mf->get_access_sector_mask());
-		block->set_stream_id(mf->get_stream_id());
+		block->set_stream_id(mf->get_stream_id(), mf->get_access_sector_mask());
 
 		if(m_status == HIT_RESERVED) {
 			block->set_ignore_on_fill(true, mf->get_access_sector_mask());
@@ -1596,7 +1597,7 @@ data_cache::rd_hit_base( new_addr_type addr,
         assert(mf->get_access_type() == GLOBAL_ACC_R);
         cache_block_t* block = m_tag_array->get_block(cache_index);
         block->set_status(MODIFIED, mf->get_access_sector_mask()) ;  // mark line as dirty
-        block->set_stream_id(mf->get_stream_id());
+        block->set_stream_id(mf->get_stream_id(), mf->get_access_sector_mask());
     }
     return HIT;
 }

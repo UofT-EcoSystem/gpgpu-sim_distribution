@@ -108,7 +108,6 @@ struct cache_block_t {
     {
         m_tag=0;
         m_block_addr=0;
-        m_stream_id=-1;
     }
 
     virtual void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time,
@@ -134,12 +133,12 @@ struct cache_block_t {
     virtual void print_status()=0;
     virtual ~cache_block_t() {}
 
-    int get_stream_id() {return m_stream_id;}
-    void set_stream_id(int stream_id) {m_stream_id = stream_id;}
+    virtual int get_stream_id() = 0;
+    virtual void set_stream_id(int stream_id, mem_access_sector_mask_t sector_mask) = 0;
 
     new_addr_type    m_tag;
     new_addr_type    m_block_addr;
-    int m_stream_id;
+
 
 };
 
@@ -153,6 +152,7 @@ struct line_cache_block: public cache_block_t  {
 	        m_ignore_on_fill_status = false;
 	        m_set_modified_on_fill = false;
 	        m_readable = true;
+	        m_stream_id = -1;
 	    }
 	    void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time,
 	            mem_access_sector_mask_t sector_mask, unsigned stream_id)
@@ -238,6 +238,15 @@ struct line_cache_block: public cache_block_t  {
 			 printf("m_block_addr is %llu, status = %u\n", m_block_addr, m_status);
 		}
 
+		virtual int get_stream_id() {
+		    return m_stream_id;
+		}
+
+	    virtual void set_stream_id(int stream_id, mem_access_sector_mask_t sector_mask) {
+	        m_stream_id = stream_id;
+	    }
+
+
 
 private:
 	    unsigned long long     m_alloc_time;
@@ -247,6 +256,7 @@ private:
 	    bool m_ignore_on_fill_status;
 	    bool m_set_modified_on_fill;
 	    bool m_readable;
+	    int m_stream_id;
 };
 
 struct sector_cache_block : public cache_block_t {
@@ -256,18 +266,19 @@ struct sector_cache_block : public cache_block_t {
     }
 
 	void init() {
-		for(unsigned i =0; i< SECTOR_CHUNCK_SIZE; ++i) {
-			m_sector_alloc_time[i]= 0;
-			m_sector_fill_time[i]= 0;
-			m_last_sector_access_time[i]= 0;
-			m_status[i]= INVALID;
-			m_ignore_on_fill_status[i] = false;
-			m_set_modified_on_fill[i] = false;
-			m_readable[i] = true;
-			}
-			m_line_alloc_time=0;
-			m_line_last_access_time=0;
-			m_line_fill_time=0;
+	    for(unsigned i =0; i< SECTOR_CHUNCK_SIZE; ++i) {
+	        m_sector_alloc_time[i]= 0;
+	        m_sector_fill_time[i]= 0;
+	        m_last_sector_access_time[i]= 0;
+	        m_status[i]= INVALID;
+	        m_ignore_on_fill_status[i] = false;
+	        m_set_modified_on_fill[i] = false;
+	        m_readable[i] = true;
+	        m_stream_id[i] = -1;
+	    }
+	    m_line_alloc_time=0;
+	    m_line_last_access_time=0;
+	    m_line_fill_time=0;
 	}
 
 	virtual void allocate( new_addr_type tag, new_addr_type block_addr, unsigned time,
@@ -299,7 +310,7 @@ struct sector_cache_block : public cache_block_t {
 		m_line_last_access_time=time;
 		m_line_fill_time=0;
 
-		m_stream_id = stream_id;
+		m_stream_id[sidx] = stream_id;
 	}
 
     void allocate_sector(unsigned time, mem_access_sector_mask_t sector_mask, unsigned stream_id )
@@ -326,7 +337,7 @@ struct sector_cache_block : public cache_block_t {
 		m_line_last_access_time=time;
 		m_line_fill_time=0;
 
-		m_stream_id = stream_id;
+		m_stream_id[sidx] = stream_id;
 	}
 
     virtual void fill( unsigned time, mem_access_sector_mask_t sector_mask, int stream_id)
@@ -341,7 +352,7 @@ struct sector_cache_block : public cache_block_t {
         m_sector_fill_time[sidx]=time;
         m_line_fill_time=time;
 
-        m_stream_id = stream_id;
+        m_stream_id[sidx] = stream_id;
     }
     virtual bool is_invalid_line() {
     	//all the sectors should be invalid
@@ -437,6 +448,31 @@ struct sector_cache_block : public cache_block_t {
     	 printf("m_block_addr is %llu, status = %u %u %u %u\n", m_block_addr, m_status[0], m_status[1], m_status[2], m_status[3]);
     }
 
+    virtual int get_stream_id() {
+        // assume if stream ids for any of the sectors are set,
+        // they will be consistent with each other
+        int id = -1;
+        for (int i = 0; i < SECTOR_CHUNCK_SIZE; i++) {
+            if (m_stream_id[i] != -1) {
+                if (id != -1) {
+                    if (id != m_stream_id[i]) {
+                        printf("id = %d, stream id = %d\n", id, m_stream_id[i]);
+                    }
+                    assert(id == m_stream_id[i]);
+                } else {
+                    id = m_stream_id[i];
+                }
+            }
+        }
+
+        return id;
+    }
+
+    virtual void set_stream_id(int stream_id, mem_access_sector_mask_t sector_mask) {
+        unsigned sidx = get_sector_index(sector_mask);
+
+        m_stream_id[sidx] = stream_id;
+    }
 
 private:
     unsigned m_sector_alloc_time[SECTOR_CHUNCK_SIZE];
@@ -458,6 +494,7 @@ private:
     			return i;
     	}
     }
+    int m_stream_id[SECTOR_CHUNCK_SIZE];
 };
 
 enum replacement_policy_t {
