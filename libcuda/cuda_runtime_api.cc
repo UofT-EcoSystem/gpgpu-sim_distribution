@@ -679,17 +679,23 @@ __host__ cudaError_t CUDARTAPI cudaMemcpyToArray(struct cudaArray *dst, size_t w
 	CUctx_st *context = GPGPUSim_Context();
 	gpgpu_t *gpu = context->get_device()->get_gpgpu();
 	size_t size = count;
+
+	// cudaArray is column major
+	// start is at left corner of (wOffset, hOffset)
+	size_t dst_start = (size_t)(dst->devPtr) + wOffset * dst->height + hOffset;
 	printf("GPGPU-Sim PTX: cudaMemcpyToArray\n");
+
 	if( kind == cudaMemcpyHostToDevice )
-		gpu->memcpy_to_gpu( (size_t)(dst->devPtr), src, size);
+		gpu->memcpy_to_gpu( dst_start, src, size);
 	else if( kind == cudaMemcpyDeviceToHost )
-		gpu->memcpy_from_gpu( dst->devPtr, (size_t)src, size);
+		gpu->memcpy_from_gpu( (void*)dst_start, (size_t)src, size);
 	else if( kind == cudaMemcpyDeviceToDevice )
-		gpu->memcpy_gpu_to_gpu( (size_t)(dst->devPtr), (size_t)src, size);
+		gpu->memcpy_gpu_to_gpu( (size_t)dst_start, (size_t)src, size);
 	else {
 		printf("GPGPU-Sim PTX: cudaMemcpyToArray - ERROR : unsupported cudaMemcpyKind\n");
 		abort();
 	}
+
 	dst->devPtr32 = (unsigned) (size_t)(dst->devPtr);
 	return g_last_cudaError = cudaSuccess;
 }
@@ -871,11 +877,50 @@ __host__ cudaError_t CUDARTAPI cudaMemcpyAsync(void *dst, const void *src, size_
 
 __host__ cudaError_t CUDARTAPI cudaMemcpyToArrayAsync(struct cudaArray *dst, size_t wOffset, size_t hOffset, const void *src, size_t count, enum cudaMemcpyKind kind, cudaStream_t stream)
 {
-	if(g_debug_execution >= 3){
-	    announce_call(__my_func__);
+//	if(g_debug_execution >= 3){
+//	    announce_call(__my_func__);
+//    }
+    std::lock_guard<std::mutex> guard(lock_context);
+
+    if(g_debug_execution >= 3){
+        announce_call(__my_func__);
     }
-	cuda_not_implemented(__my_func__,__LINE__);
-	return g_last_cudaError = cudaErrorUnknown;
+
+    printf("GPGPU-Sim PTX: cudaMemcpyToArrayAsync\n");
+
+    struct CUstream_st *s = (struct CUstream_st *)stream;
+    // cudaArray is column major
+    // start is at left corner of (wOffset, hOffset)
+    size_t dst_start = (size_t)(dst->devPtr) + wOffset * dst->height + hOffset;
+
+    switch (kind) {
+
+    case cudaMemcpyHostToDevice:
+        g_stream_manager->push( stream_operation(src, (size_t)dst_start, count, s) );
+        // gpu->memcpy_to_gpu( (size_t)(dst->devPtr), src, size);
+        break;
+    case cudaMemcpyDeviceToHost:
+        g_stream_manager->push( stream_operation((size_t)src, (void*)dst_start, count, s) );
+//        gpu->memcpy_from_gpu( dst->devPtr, (size_t)src, size);
+        break;
+    case cudaMemcpyDeviceToDevice:
+        g_stream_manager->push( stream_operation((size_t)src, (size_t)dst_start, count, s) );
+//        gpu->memcpy_gpu_to_gpu( (size_t)(dst->devPtr), (size_t)src, size);
+        break;
+    default:
+        printf("GPGPU-Sim PTX: cudaMemcpyToArray - ERROR : unsupported cudaMemcpyKind\n");
+        abort();
+    }
+
+    dst->devPtr32 = (unsigned) (size_t)(dst->devPtr);
+
+    return g_last_cudaError = cudaSuccess;
+
+
+
+//
+//	cuda_not_implemented(__my_func__,__LINE__);
+//	return g_last_cudaError = cudaErrorUnknown;
 }
 
 
