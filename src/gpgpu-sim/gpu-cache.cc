@@ -600,6 +600,8 @@ void mshr_table::add( new_addr_type block_addr, mem_fetch *mf ){
 
         m_used_entries_stream[stream_id] += 1;
         assert(m_used_entries_stream[stream_id] <= m_num_entries_stream[stream_id]);
+
+        m_data[block_addr].m_stream_id = stream_id;
     }
 
 	m_data[block_addr].m_list.push_back(mf);
@@ -646,16 +648,16 @@ mem_fetch *mshr_table::next_access(){
     mem_fetch *result = m_data[block_addr].m_list.front();
     m_data[block_addr].m_list.pop_front();
     if ( m_data[block_addr].m_list.empty() ) {
-        // release entry
-        m_data.erase(block_addr);
-        m_current_response.pop_front();
-
         if (m_partition_enabled) {
-            unsigned stream_id = result->get_stream_id();
+            unsigned stream_id = m_data[block_addr].m_stream_id;
             assert(stream_id < m_used_entries_stream.size());
             assert(m_used_entries_stream[stream_id] > 0);
             m_used_entries_stream[stream_id] -= 1;
         }
+
+        // release entry
+        m_data.erase(block_addr);
+        m_current_response.pop_front();
     }
     return result;
 }

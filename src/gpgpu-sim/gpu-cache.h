@@ -1016,7 +1016,8 @@ private:
     struct mshr_entry {
         std::list<mem_fetch*> m_list;
         bool m_has_atomic; 
-        mshr_entry() : m_has_atomic(false) { }
+        int m_stream_id;
+        mshr_entry() : m_has_atomic(false), m_stream_id(-1) { }
     }; 
     typedef tr1_hash_map<new_addr_type,mshr_entry> table;
     typedef tr1_hash_map<new_addr_type,mshr_entry> line_table;
