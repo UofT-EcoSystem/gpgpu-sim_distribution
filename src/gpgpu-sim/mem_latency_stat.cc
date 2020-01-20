@@ -310,7 +310,9 @@ void memory_stats_t::memlatstat_print( unsigned n_mem, unsigned gpu_mem_n_bk )
 
                  printf("avg_icnt2mem_per_submem[%d] = [", i);
                  for (int mem_id = 0; mem_id < m_memory_config->m_n_mem_sub_partition; mem_id++) {
-                     printf("%lld, ", tot_icnt2mem_subpart_streams[i][mem_id]/num_mem_subpart_streams[i][mem_id]);
+                     if (num_mem_subpart_streams[i][mem_id]) {
+                         printf("%lld, ", tot_icnt2mem_subpart_streams[i][mem_id]/num_mem_subpart_streams[i][mem_id]);
+                     }
                  }
                  printf("]\n");
 
