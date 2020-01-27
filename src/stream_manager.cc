@@ -224,6 +224,12 @@ bool stream_operation::do_operation( gpgpu_sim *gpu )
             m_stream->record_next_done();
         }
         break;
+    case stream_memset: {
+        printf("stream memset...\n");
+        gpu->gpu_memset(m_device_address_dst, m_value, m_cnt);
+        m_stream->record_next_done();
+        break;
+    }
     default:
         abort();
     }

@@ -992,10 +992,12 @@ __host__ cudaError_t CUDARTAPI cudaMemsetAsync(void *mem, int c, size_t count, 	
 	if(g_debug_execution >= 3){
 	    announce_call(__my_func__);
     }
-	printf("GPGPU-Sim PTX: WARNING: Asynchronous memset not supported (%s)\n", __my_func__);
+
 	CUctx_st *context = GPGPUSim_Context();
-	gpgpu_t *gpu = context->get_device()->get_gpgpu();
-	gpu->gpu_memset((size_t)mem, c, count);
+    struct CUstream_st *s = (struct CUstream_st *)stream;
+
+    g_stream_manager->push( stream_operation((size_t)mem, c, count, s) );
+
 	return g_last_cudaError = cudaSuccess;
 }
 
