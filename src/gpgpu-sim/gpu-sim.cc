@@ -98,6 +98,7 @@ unsigned long long  gpu_sim_cycle_parition_util = 0;
 unsigned long long  gpu_tot_sim_cycle_parition_util = 0;
 unsigned long long partiton_replys_in_parallel = 0;
 unsigned long long partiton_replys_in_parallel_total = 0;
+unsigned long long * partition_replys_total_per_stream;
 
 tr1_hash_map<new_addr_type,unsigned> address_random_interleaving;
 
@@ -1010,6 +1011,11 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
    m_blocked_launch_cycle = 0;
 }
 
+gpgpu_sim::~gpgpu_sim()
+{
+    delete partition_replys_total_per_stream;
+}
+
 int gpgpu_sim::shared_mem_size() const
 {
    return m_shader_config->gpgpu_shmem_size;
@@ -1127,6 +1133,10 @@ void gpgpu_sim::init()
     partiton_replys_in_parallel = 0;
     partiton_reqs_in_parallel_util = 0;
     gpu_sim_cycle_parition_util = 0;
+
+    partition_replys_total_per_stream = new unsigned long long[m_config.get_config_num_streams()];
+    memset(partition_replys_total_per_stream, 0,
+            sizeof(unsigned long long)*m_config.get_config_num_streams());
 
     reinit_clock_domains();
     set_param_gpgpu_num_shaders(m_config.num_shader());
@@ -1386,7 +1396,15 @@ void gpgpu_sim::gpu_print_stat()
    //printf("partiton_replys_in_parallel = %lld\n", partiton_replys_in_parallel);
    //printf("partiton_replys_in_parallel_total    = %lld\n", partiton_replys_in_parallel_total );
    printf("L2_BW  = %12.4f GB/Sec\n", ((float)(partiton_replys_in_parallel * 32) / (gpu_sim_cycle * m_config.icnt_period)) / 1000000000);
-   printf("L2_BW_total  = %12.4f GB/Sec\n", ((float)((partiton_replys_in_parallel+partiton_replys_in_parallel_total) * 32) / ((gpu_tot_sim_cycle+gpu_sim_cycle) * m_config.icnt_period)) / 1000000000 );
+
+   int seconds = (gpu_tot_sim_cycle+gpu_sim_cycle) * m_config.icnt_period;
+   printf("L2_BW_total  = %12.4f GB/Sec\n", ((float)((partiton_replys_in_parallel+partiton_replys_in_parallel_total) * 32) / seconds) / 1000000000 );
+
+   // L2_BW per stream
+   for (unsigned stream_id = 0; stream_id < m_config.get_config_num_streams(); stream_id++) {
+       printf("L2_BW_total[%u] = %12.4f GB/Sec\n", stream_id,
+               ((float)(partition_replys_total_per_stream[stream_id] * 32) / seconds) / 1000000000 );
+   }
 
    time_t curr_time;
    time(&curr_time);
@@ -1940,32 +1958,45 @@ void gpgpu_sim::cycle()
 
    if (clock_mask & CORE ) {
        // shader core loading (pop from ICNT into core) follows CORE clock
-      for (unsigned i=0;i<m_shader_config->n_simt_clusters;i++) 
-         m_cluster[i]->icnt_cycle(); 
+       for (unsigned i=0;i<m_shader_config->n_simt_clusters;i++)
+           m_cluster[i]->icnt_cycle();
    }
-    unsigned partiton_replys_in_parallel_per_cycle = 0;
-    if (clock_mask & ICNT) {
-        // pop from memory controller to interconnect
-        for (unsigned i=0;i<m_memory_config->m_n_mem_sub_partition;i++) {
-            mem_fetch* mf = m_memory_sub_partition[i]->top();
-            if (mf) {
-                unsigned response_size = mf->get_is_write()?mf->get_ctrl_size():mf->size();
-                if ( ::icnt_has_buffer( m_shader_config->mem2device(i), response_size ) ) {
-                    //if (!mf->get_is_write())
-                       mf->set_return_timestamp(gpu_sim_cycle+gpu_tot_sim_cycle);
-                    mf->set_status(IN_ICNT_TO_SHADER,gpu_sim_cycle+gpu_tot_sim_cycle);
-                    ::icnt_push( m_shader_config->mem2device(i), mf->get_tpc(), mf, response_size );
-                    m_memory_sub_partition[i]->pop();
-                    partiton_replys_in_parallel_per_cycle++;
-                } else {
-                    gpu_stall_icnt2sh++;
-                }
-            } else {
+   unsigned partiton_replys_in_parallel_per_cycle = 0;
+
+   unsigned partiton_replys_in_parallel_per_cycle_stream[m_config.get_config_num_streams()];
+   memset(partiton_replys_in_parallel_per_cycle_stream, 0, sizeof(partiton_replys_in_parallel_per_cycle_stream));
+
+   if (clock_mask & ICNT) {
+       // pop from memory controller to interconnect
+       for (unsigned i=0;i<m_memory_config->m_n_mem_sub_partition;i++) {
+           mem_fetch* mf = m_memory_sub_partition[i]->top();
+           if (mf) {
+               unsigned response_size = mf->get_is_write()?mf->get_ctrl_size():mf->size();
+               if ( ::icnt_has_buffer( m_shader_config->mem2device(i), response_size ) ) {
+                   mf->set_return_timestamp(gpu_sim_cycle+gpu_tot_sim_cycle);
+                   mf->set_status(IN_ICNT_TO_SHADER,gpu_sim_cycle+gpu_tot_sim_cycle);
+                   ::icnt_push( m_shader_config->mem2device(i), mf->get_tpc(), mf, response_size );
+                   m_memory_sub_partition[i]->pop();
+                   partiton_replys_in_parallel_per_cycle++;
+
+                   unsigned stream_id = mf->get_stream_id();
+                   assert(stream_id < m_config.get_config_num_streams());
+                   partiton_replys_in_parallel_per_cycle_stream[stream_id]++;
+               } else {
+                   gpu_stall_icnt2sh++;
+               }
+           } else {
                m_memory_sub_partition[i]->pop();
-            }
-        }
-    }
-    partiton_replys_in_parallel += partiton_replys_in_parallel_per_cycle;
+           }
+       }
+   }
+
+   partiton_replys_in_parallel += partiton_replys_in_parallel_per_cycle;
+
+   for (unsigned stream_id = 0; stream_id < m_config.get_config_num_streams(); stream_id++) {
+       partition_replys_total_per_stream[stream_id] +=
+               partiton_replys_in_parallel_per_cycle_stream[stream_id];
+   }
 
    if (clock_mask & DRAM) {
       for (unsigned i=0;i<m_memory_config->m_n_mem;i++){

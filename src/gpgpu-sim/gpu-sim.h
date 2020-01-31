@@ -458,6 +458,7 @@ struct occupancy_stats {
 class gpgpu_sim : public gpgpu_t {
 public:
    gpgpu_sim( const gpgpu_sim_config &config );
+   ~gpgpu_sim();
 
    void set_prop( struct cudaDeviceProp *prop );
 
