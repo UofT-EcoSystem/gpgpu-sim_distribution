@@ -63,3 +63,8 @@ debug_tools/WatchYourStep/ptxjitplus/ptxjitplus
 debug_tools/WatchYourStep/ptxjitplus/*.ptx
 
 env/
+
+# CLion stuff
+.idea/
+cmake-build-debug/
+CMakeLists.txt
