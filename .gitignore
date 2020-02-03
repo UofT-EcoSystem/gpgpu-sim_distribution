@@ -68,3 +68,4 @@ env/
 .idea/
 cmake-build-debug/
 CMakeLists.txt
+.clion.source.upload.marker
