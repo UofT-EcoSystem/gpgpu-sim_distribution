@@ -65,6 +65,7 @@ public:
 
    // accessors
    void addrdec_tlx(new_addr_type addr, addrdec_t *tlx) const;
+   void packbits(new_addr_type addr, addrdec_t *tlx) const;
    new_addr_type partition_address( new_addr_type addr ) const;
 
 private:
