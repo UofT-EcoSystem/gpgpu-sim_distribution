@@ -1033,7 +1033,10 @@ void add_impl( const ptx_instruction *pI, ptx_thread_info *thread )
    switch ( rounding_mode ) {
    case RN_OPTION: break;
    case RZ_OPTION: fesetround( FE_TOWARDZERO ); break;
-   default: assert(0); break;
+   case RP_OPTION: fesetround( FE_UPWARD ); break;
+   case RM_OPTION: fesetround( FE_DOWNWARD ); break;
+   default:
+       assert(0); break;
    }
 
    //performs addition. Sets carry and overflow if needed.
@@ -3972,6 +3975,8 @@ void mul_impl( const ptx_instruction *pI, ptx_thread_info *thread )
          switch ( rounding_mode ) {
          case RN_OPTION: break;
          case RZ_OPTION: fesetround( FE_TOWARDZERO ); break;
+         case RP_OPTION: fesetround( FE_UPWARD ); break;
+         case RM_OPTION: fesetround( FE_DOWNWARD ); break;
          default: assert(0); break;
          }
          d.f64 = a.f64 * b.f64;
