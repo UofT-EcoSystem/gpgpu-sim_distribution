@@ -1433,6 +1433,8 @@ unsigned shader_core_ctx::translate_local_memaddr( address_type localaddr, unsig
 
    address_type thread_base = 0;
    unsigned max_concurrent_threads=0;
+
+   unsigned adjusted_tid = from_top ? tid : m_config->n_thread_per_shader - 1 - tid;
    if (m_config->gpgpu_local_mem_map) {
       // Dnew = D*N + T%nTpC + nTpC*C
       // N = nTpC*nCpS*nS (max concurent threads)
@@ -1446,13 +1448,13 @@ unsigned shader_core_ctx::translate_local_memaddr( address_type localaddr, unsig
       // for a given local memory address threads in a CTA map to contiguous addresses,
       // then distribute across memory space by CTAs from successive shader cores first, 
       // then by successive CTA in same shader core
-      thread_base = 4*(padded_cta_size * (m_sid + num_shader * (tid / padded_cta_size))
-                       + tid % padded_cta_size);
+      thread_base = 4*(padded_cta_size * (m_sid + num_shader * (adjusted_tid / padded_cta_size))
+                       + adjusted_tid % padded_cta_size);
       max_concurrent_threads = padded_cta_size * max_cta_per_shader * num_shader;
    } else {
       // legacy mapping that maps the same address in the local memory space of all threads 
       // to a single contiguous address region 
-      thread_base = 4*(m_config->n_thread_per_shader * m_sid + tid);
+      thread_base = 4*(m_config->n_thread_per_shader * m_sid + adjusted_tid);
       max_concurrent_threads = num_shader * m_config->n_thread_per_shader;
    }
    assert( thread_base < 4/*word size*/*max_concurrent_threads );
