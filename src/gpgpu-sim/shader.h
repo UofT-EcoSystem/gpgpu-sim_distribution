@@ -1579,6 +1579,8 @@ struct shader_core_stats_pod {
     unsigned *m_num_trans_acesses;
     unsigned *m_num_mem_acesses;
     unsigned *m_num_sp_committed;
+    unsigned *m_num_dp_committed;
+    unsigned *m_num_int_committed;
     unsigned *m_num_tlb_hits;
     unsigned *m_num_tlb_accesses;
     unsigned *m_num_sfu_committed;
@@ -1670,6 +1672,8 @@ public:
         m_num_trans_acesses= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_num_mem_acesses= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_num_sp_committed= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        m_num_dp_committed= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        m_num_int_committed= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_num_tlb_hits=(unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_num_tlb_accesses=(unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_active_sp_lanes= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));

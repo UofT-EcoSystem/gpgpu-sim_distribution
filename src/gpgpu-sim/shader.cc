@@ -571,6 +571,22 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpgpu_n_const_mem_insn = %d\n", gpgpu_n_const_insn);
    fprintf(fout, "gpgpu_n_param_mem_insn = %d\n", gpgpu_n_param_insn);
 
+   /* Print warp instruction count for each math pipe */
+   auto sum_count = [&](unsigned *stat_array) {
+       unsigned long long result = 0;
+       for (int i = 0; i < m_config->num_shader(); i++) {
+           result += stat_array[i];
+       }
+       return result;
+   };
+
+   fprintf(fout, "gpgpu_n_sp_winsn  = %llu\n", sum_count(m_num_sp_committed));
+   fprintf(fout, "gpgpu_n_dp_winsn  = %llu\n", sum_count(m_num_dp_committed));
+   fprintf(fout, "gpgpu_n_int_winsn  = %llu\n", sum_count(m_num_int_committed));
+   fprintf(fout, "gpgpu_n_tensor_winsn  = %llu\n", sum_count(m_num_tensor_core_committed));
+   fprintf(fout, "gpgpu_n_sfu_winsn  = %llu\n", sum_count(m_num_sfu_committed));
+   fprintf(fout, "gpgpu_n_mem_winsn  = %llu\n", sum_count(m_num_mem_committed));
+
 //   fprintf(fout, "gpgpu_n_shmem_bkconflict = %d\n", gpgpu_n_shmem_bkconflict);
 //   fprintf(fout, "gpgpu_n_cache_bkconflict = %d\n", gpgpu_n_cache_bkconflict);
 
@@ -926,8 +942,8 @@ void shader_core_ctx::issue(){
      //Ensure fair round robin issu between schedulers 
      unsigned j;
      for (unsigned i = 0; i < schedulers.size(); i++) {
-	j = (Issue_Prio + i) % schedulers.size();
-	  schedulers[j]->cycle();
+         j = (Issue_Prio + i) % schedulers.size();
+         schedulers[j]->cycle();
      }
      Issue_Prio = (Issue_Prio+1)% schedulers.size();
 
@@ -1576,8 +1592,14 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
 
   if(inst.op_pipe==SP__OP)
 	  m_stats->m_num_sp_committed[m_sid]++;
+  else if (inst.op_pipe==DP__OP)
+      m_stats->m_num_dp_committed[m_sid]++;
+  else if (inst.op_pipe==INTP__OP)
+      m_stats->m_num_int_committed[m_sid]++;
   else if(inst.op_pipe==SFU__OP)
 	  m_stats->m_num_sfu_committed[m_sid]++;
+  else if (inst.op_pipe==TENSOR_CORE__OP)
+      m_stats->m_num_tensor_core_committed[m_sid]++;
   else if(inst.op_pipe==MEM__OP)
 	  m_stats->m_num_mem_committed[m_sid]++;
 
