@@ -587,6 +587,20 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpgpu_n_sfu_winsn  = %llu\n", sum_count(m_num_sfu_committed));
    fprintf(fout, "gpgpu_n_mem_winsn  = %llu\n", sum_count(m_num_mem_committed));
 
+   auto avg_busy = [&](unsigned *stat_array) {
+       float sum = 0;
+       for (int i = 0; i < m_config->num_shader(); i++) {
+           sum += ((float)(stat_array[i])) / (gpu_tot_sim_cycle+gpu_sim_cycle);
+       }
+       return sum / m_config->num_shader();
+   };
+
+   fprintf(fout, "gpgpu_sp_busy  = %f\n", avg_busy(sp_busy_cycles));
+   fprintf(fout, "gpgpu_dp_busy  = %f\n", avg_busy(dp_busy_cycles));
+   fprintf(fout, "gpgpu_int_busy  = %f\n", avg_busy(int_busy_cycles));
+   fprintf(fout, "gpgpu_tensor_busy  = %f\n", avg_busy(tensor_busy_cycles));
+   fprintf(fout, "gpgpu_sfu_busy  = %f\n", avg_busy(sfu_busy_cycles));
+
 //   fprintf(fout, "gpgpu_n_shmem_bkconflict = %d\n", gpgpu_n_shmem_bkconflict);
 //   fprintf(fout, "gpgpu_n_cache_bkconflict = %d\n", gpgpu_n_cache_bkconflict);
 
@@ -1530,9 +1544,12 @@ void shader_core_ctx::execute()
 	}
     for( unsigned n=0; n < m_num_function_units; n++ ) {
         unsigned multiplier = m_fu[n]->clock_multiplier();
-        for( unsigned c=0; c < multiplier; c++ ) 
+        for( unsigned c=0; c < multiplier; c++ ) {
             m_fu[n]->cycle();
+        }
+        m_fu[n]->inc_pipe_busy_stats(m_stats);
         m_fu[n]->active_lanes_in_pipeline();
+
         enum pipeline_stage_name_t issue_port = m_issue_port[n];
         register_set& issue_inst = m_pipeline_reg[ issue_port ];
         warp_inst_t** ready_reg = issue_inst.get_ready();
@@ -2029,12 +2046,25 @@ void sp_unit::active_lanes_in_pipeline(){
 	m_core->incfuactivelanes_stat(active_count);
 	m_core->incfumemactivelanes_stat(active_count);
 }
+
+void sp_unit::inc_pipe_busy_stats(shader_core_stats* stats) {
+    if (active_insts_in_pipeline > 0) {
+        stats->sp_busy_cycles[m_core->get_sid()]++;
+    }
+}
+
 void dp_unit::active_lanes_in_pipeline(){
 	unsigned active_count=pipelined_simd_unit::get_active_lanes_in_pipeline();
 	assert(active_count<=m_core->get_config()->warp_size);
 	m_core->incspactivelanes_stat(active_count);
 	m_core->incfuactivelanes_stat(active_count);
 	m_core->incfumemactivelanes_stat(active_count);
+}
+
+void dp_unit::inc_pipe_busy_stats(shader_core_stats* stats) {
+    if (active_insts_in_pipeline > 0) {
+        stats->dp_busy_cycles[m_core->get_sid()]++;
+    }
 }
 
 void int_unit::active_lanes_in_pipeline(){
@@ -2044,12 +2074,25 @@ void int_unit::active_lanes_in_pipeline(){
 	m_core->incfuactivelanes_stat(active_count);
 	m_core->incfumemactivelanes_stat(active_count);
 }
+
+void int_unit::inc_pipe_busy_stats(shader_core_stats* stats) {
+    if (active_insts_in_pipeline > 0) {
+        stats->int_busy_cycles[m_core->get_sid()]++;
+    }
+}
+
 void sfu::active_lanes_in_pipeline(){
 	unsigned active_count=pipelined_simd_unit::get_active_lanes_in_pipeline();
 	assert(active_count<=m_core->get_config()->warp_size);
 	m_core->incsfuactivelanes_stat(active_count);
 	m_core->incfuactivelanes_stat(active_count);
 	m_core->incfumemactivelanes_stat(active_count);
+}
+
+void sfu::inc_pipe_busy_stats(shader_core_stats* stats) {
+    if (active_insts_in_pipeline > 0) {
+        stats->sfu_busy_cycles[m_core->get_sid()]++;
+    }
 }
 
 void tensor_core::active_lanes_in_pipeline(){
@@ -2060,6 +2103,11 @@ void tensor_core::active_lanes_in_pipeline(){
 	m_core->incfumemactivelanes_stat(active_count);
 }
 
+void tensor_core::inc_pipe_busy_stats(shader_core_stats* stats) {
+    if (active_insts_in_pipeline > 0) {
+        stats->tensor_busy_cycles[m_core->get_sid()]++;
+    }
+}
 
 sp_unit::sp_unit( register_set* result_port, const shader_core_config *config,shader_core_ctx *core)
     : pipelined_simd_unit(result_port,config,config->max_sp_latency,core)

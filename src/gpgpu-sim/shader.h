@@ -1043,6 +1043,7 @@ public:
     virtual void issue( register_set& source_reg ) { source_reg.move_out_to(m_dispatch_reg); occupied.set(m_dispatch_reg->latency);}
     virtual void cycle() = 0;
     virtual void active_lanes_in_pipeline() = 0;
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats) = 0;
 
     // accessors
     virtual unsigned clock_multiplier() const { return 1; }
@@ -1074,6 +1075,7 @@ public:
     virtual unsigned get_active_lanes_in_pipeline();
 
     virtual void active_lanes_in_pipeline() = 0;
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats) = 0;
 /*
     virtual void issue( register_set& source_reg )
     {
@@ -1124,6 +1126,7 @@ public:
     }
     virtual void active_lanes_in_pipeline();
     virtual void issue(  register_set& source_reg );
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats);
 };
 
 class dp_unit : public pipelined_simd_unit
@@ -1140,6 +1143,7 @@ public:
     }
     virtual void active_lanes_in_pipeline();
     virtual void issue(  register_set& source_reg );
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats);
 };
 
 class tensor_core : public pipelined_simd_unit
@@ -1156,6 +1160,7 @@ public:
     }
     virtual void active_lanes_in_pipeline();
     virtual void issue(  register_set& source_reg );
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats);
 };
 
 
@@ -1180,6 +1185,7 @@ public:
     }
     virtual void active_lanes_in_pipeline();
     virtual void issue(  register_set& source_reg );
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats);
 };
 
 class sp_unit : public pipelined_simd_unit
@@ -1202,6 +1208,7 @@ public:
     }
     virtual void active_lanes_in_pipeline();
     virtual void issue( register_set& source_reg );
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats);
 };
 
 class simt_core_cluster;
@@ -1247,6 +1254,7 @@ public:
     }
 
     virtual void active_lanes_in_pipeline();
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats) {};
     virtual bool stallable() const { return true; }
     bool response_buffer_full() const;
     void print(FILE *fout) const;
@@ -1637,6 +1645,13 @@ struct shader_core_stats_pod {
     unsigned *gpgpu_n_shmem_bank_access;
     long *n_simt_to_mem; // Interconnect power stats
     long *n_mem_to_simt;
+
+    // math pipeline busy
+    unsigned* sp_busy_cycles;
+    unsigned* dp_busy_cycles;
+    unsigned* int_busy_cycles;
+    unsigned* tensor_busy_cycles;
+    unsigned* sfu_busy_cycles;
 };
 
 class shader_core_stats : public shader_core_stats_pod {
@@ -1704,6 +1719,12 @@ public:
 
         m_shader_dynamic_warp_issue_distro.resize( config->num_shader() );
         m_shader_warp_slot_issue_distro.resize( config->num_shader() );
+
+        sp_busy_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        dp_busy_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        int_busy_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        tensor_busy_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        sfu_busy_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
     }
 
     ~shader_core_stats()
