@@ -596,19 +596,19 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpgpu_n_mem_winsn  = %llu\n", sum_count(m_num_mem_committed));
 
    // hardware unit busy stats
-   auto avg_busy = [&](unsigned *stat_array) {
+   auto avg_busy = [&](unsigned *stat_array, unsigned num_unit) {
        float sum = 0;
        for (int i = 0; i < m_config->num_shader(); i++) {
            sum += ((float)(stat_array[i])) / (gpu_tot_sim_cycle+gpu_sim_cycle);
        }
-       return sum / m_config->num_shader();
+       return sum / (num_unit * m_config->num_shader());
    };
 
-   fprintf(fout, "gpgpu_sp_busy  = %f\n", avg_busy(sp_busy_cycles));
-   fprintf(fout, "gpgpu_dp_busy  = %f\n", avg_busy(dp_busy_cycles));
-   fprintf(fout, "gpgpu_int_busy  = %f\n", avg_busy(int_busy_cycles));
-   fprintf(fout, "gpgpu_tensor_busy  = %f\n", avg_busy(tensor_busy_cycles));
-   fprintf(fout, "gpgpu_sfu_busy  = %f\n", avg_busy(sfu_busy_cycles));
+   fprintf(fout, "gpgpu_sp_busy  = %f\n", avg_busy(sp_busy_cycles, m_config->gpgpu_num_sp_units));
+   fprintf(fout, "gpgpu_dp_busy  = %f\n", avg_busy(dp_busy_cycles, m_config->gpgpu_num_dp_units));
+   fprintf(fout, "gpgpu_int_busy  = %f\n", avg_busy(int_busy_cycles, m_config->gpgpu_num_int_units));
+   fprintf(fout, "gpgpu_tensor_busy  = %f\n", avg_busy(tensor_busy_cycles, m_config->gpgpu_num_tensor_core_units));
+   fprintf(fout, "gpgpu_sfu_busy  = %f\n", avg_busy(sfu_busy_cycles, m_config->gpgpu_num_sfu_units));
 
     auto print_warp_stats = [&](unsigned stream_id) {
         double sum_barrier = 0;
