@@ -102,6 +102,7 @@ public:
         m_stores_outstanding=0;
         m_inst_in_pipeline=0;
         m_logical_cta_id = 0;  // this is a valid value, but oh wells
+        m_stream_id = -1;
         reset(); 
     }
     void reset();
@@ -110,12 +111,20 @@ public:
 			   unsigned logical_cta_id,
                unsigned wid,
                const std::bitset<MAX_WARP_SIZE> &active,
-               unsigned dynamic_warp_id )
+               unsigned dynamic_warp_id,
+               int stream_id,
+               bool should_track,
+               unsigned stat_idx)
     {
         m_cta_id=cta_id;
         m_logical_cta_id = logical_cta_id;
         m_warp_id=wid;
         m_dynamic_warp_id=dynamic_warp_id;
+
+        m_stream_id = stream_id;
+        m_should_track_state = should_track;
+        m_stat_idx = stat_idx;
+
         m_next_pc=start_pc;
         assert( n_completed >= active.count() );
         assert( n_completed <= m_warp_size);
@@ -231,6 +240,9 @@ public:
 
     unsigned get_dynamic_warp_id() const { return m_dynamic_warp_id; }
     unsigned get_warp_id() const { return m_warp_id; }
+    int get_stream_id() const { return m_stream_id; }
+    bool should_track_stats() const { return m_should_track_state; }
+    unsigned get_stat_idx() const { return m_stat_idx; }
 
 private:
     static const unsigned IBUFFER_SIZE=2;
@@ -268,6 +280,10 @@ private:
     unsigned m_inst_in_pipeline;
 
     unsigned long m_done_inst;
+
+    int m_stream_id;
+    bool m_should_track_state;
+    unsigned m_stat_idx;
 
 public:
     //Jin: cdp support
@@ -341,6 +357,10 @@ public:
     // all the derived schedulers.  The scheduler's behaviour can be
     // modified by changing the contents of the m_next_cycle_prioritized_warps list.
     void cycle();
+
+    // mimic cycle() to collect warp stats for tracked warps
+    // potential code redundancy, but cycle() is a can of worms and I don't want to break it
+    void update_warp_state_stats();
 
     // These are some common ordering fucntions that the
     // higher order schedulers can take advantage of
@@ -1558,6 +1578,7 @@ struct shader_core_config : public core_config
 
     bool adpative_volta_cache_config;
 
+    unsigned warp_state_sample_cta;
 };
 
 struct shader_core_stats_pod {
@@ -1652,11 +1673,18 @@ struct shader_core_stats_pod {
     unsigned* int_busy_cycles;
     unsigned* tensor_busy_cycles;
     unsigned* sfu_busy_cycles;
+
+    // math pipeline blocked
+    unsigned* sp_blocked_cycles;
+    unsigned* dp_blocked_cycles;
+    unsigned* int_blocked_cycles;
+    unsigned* tensor_blocked_cycles;
+    unsigned* sfu_blocked_cycles;
 };
 
 class shader_core_stats : public shader_core_stats_pod {
 public:
-    shader_core_stats( const shader_core_config *config )
+    shader_core_stats( const shader_core_config *config, int num_streams )
     {
         m_config = config;
         shader_core_stats_pod *pod = reinterpret_cast< shader_core_stats_pod * > ( this->shader_core_stats_pod_start );
@@ -1725,6 +1753,15 @@ public:
         int_busy_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         tensor_busy_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         sfu_busy_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+
+        sp_blocked_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        dp_blocked_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        int_blocked_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        tensor_blocked_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        sfu_blocked_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+
+        warp_state_stats.resize(num_streams);
+
     }
 
     ~shader_core_stats()
@@ -1758,6 +1795,12 @@ public:
         return m_shader_warp_slot_issue_distro;
     }
 
+    void resize_warp_stats(unsigned stream_id, unsigned samples) {
+        assert(stream_id < warp_state_stats.size());
+        warp_state_stats[stream_id].clear();
+        warp_state_stats[stream_id].resize(samples);
+    }
+
 private:
     const shader_core_config *m_config;
 
@@ -1769,6 +1812,41 @@ private:
     std::vector<unsigned> m_last_shader_dynamic_warp_issue_distro;
     std::vector< std::vector<unsigned> > m_shader_warp_slot_issue_distro;
     std::vector<unsigned> m_last_shader_warp_slot_issue_distro;
+
+    struct warp_state_t {
+        // default constructor sets all field to zero
+        warp_state_t() {
+            barrier = 0;
+            inst_empty = 0;
+            branch = 0;
+            stall_scoreboard = 0;
+            wait_math_sp = 0;
+            wait_math_dp = 0;
+            wait_math_int = 0;
+            wait_math_tensor = 0;
+            wait_math_sfu = 0;
+            wait_mem = 0;
+            issued = 0;
+            total_cycles = 0;
+        }
+
+        unsigned barrier;
+        unsigned inst_empty;
+        unsigned branch;
+        unsigned stall_scoreboard;
+
+        unsigned wait_math_sp;
+        unsigned wait_math_dp;
+        unsigned wait_math_int;
+        unsigned wait_math_tensor;
+        unsigned wait_math_sfu;
+
+        unsigned wait_mem;
+        unsigned issued;
+        unsigned total_cycles;
+    };
+
+    std::vector<std::vector<warp_state_t> > warp_state_stats;
 
     friend class power_stat_t;
     friend class shader_core_ctx;

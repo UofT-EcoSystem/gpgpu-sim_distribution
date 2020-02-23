@@ -499,6 +499,10 @@ void shader_core_config::reg_options(class OptionParser * opp)
             "<max_sm_in_stream_default>:<in_stream_1>:<in_stream_2>",
             "0:40:40");
 
+    option_parser_register(opp, "-gpgpu_warp_sample_cta", OPT_UINT32, &warp_state_sample_cta,
+                           "The first warp of any CTA ID that is a multiple of this value will be tracked for warp states.",
+                           "10");
+
 }
 
 void gpgpu_sim_config::reg_options(option_parser_t opp)
@@ -808,6 +812,13 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
                resource_partition_smk();
            }
 
+           // resize the warp state stats if we still need to record performance
+           if (g_stream_manager->should_record_stat(kinfo->get_stream_id())) {
+               unsigned samples = kinfo->num_blocks() / m_shader_config->warp_state_sample_cta + 1;
+
+               m_shader_stats->resize_warp_stats(kinfo->get_stream_id(), samples);
+           }
+
            break;
        }
    }
@@ -960,7 +971,7 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
         m_gpgpusim_wrapper = new gpgpu_sim_wrapper(config.g_power_simulation_enabled,config.g_power_config_name);
 #endif
 
-    m_shader_stats = new shader_core_stats(m_shader_config);
+    m_shader_stats = new shader_core_stats(m_shader_config, m_config.get_config_num_streams());
     m_memory_stats = new memory_stats_t(m_config.num_shader(),m_shader_config,m_memory_config,m_config.get_config_num_streams());
     average_pipeline_duty_cycle = (float *)malloc(sizeof(float));
     active_sms=(float *)malloc(sizeof(float));

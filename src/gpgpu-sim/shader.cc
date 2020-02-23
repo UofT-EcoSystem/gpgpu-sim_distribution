@@ -466,33 +466,41 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
             }
             m_simt_stack[i]->launch(start_pc,active_threads);
 
-              if(m_gpu->resume_option==1 && kernel->get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA && ctaid<m_gpu->checkpoint_CTA_t )
-               { 
+            if(m_gpu->resume_option==1 && kernel->get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA && ctaid<m_gpu->checkpoint_CTA_t )
+            {
                 char fname[2048];
                 snprintf(fname,2048,"checkpoint_files/warp_%d_%d_simt.txt",i%warp_per_cta,ctaid );
                 unsigned pc,rpc;
                 m_simt_stack[i]->resume(fname);
                 m_simt_stack[i]->get_pdom_stack_top_info(&pc,&rpc);
                 for (unsigned t = 0; t < m_config->warp_size; t++) {
-                  m_thread[i * m_config->warp_size + t]->set_npc(pc);
-                  m_thread[i * m_config->warp_size + t]->update_pc();
-                }   
+                    m_thread[i * m_config->warp_size + t]->set_npc(pc);
+                    m_thread[i * m_config->warp_size + t]->update_pc();
+                }
                 start_pc=pc;
-              }
+            }
 
-              if (kernel->has_preempted_cta()) {
-            	  preempted_cta_context context = kernel->m_preempted_queue.front();
+            if (kernel->has_preempted_cta()) {
+                preempted_cta_context context = kernel->m_preempted_queue.front();
 
-            	  // restore simt stack
-            	  unsigned pc,rpc;
-            	  assert((i-start_warp) >= 0 && (i-start_warp) < context.simt_stack.size());
-            	  m_simt_stack[i]->resume_strbuf(context.simt_stack[i-start_warp]);
-            	  m_simt_stack[i]->get_pdom_stack_top_info(&pc,&rpc);
+                // restore simt stack
+                unsigned pc,rpc;
+                assert((i-start_warp) >= 0 && (i-start_warp) < context.simt_stack.size());
+                m_simt_stack[i]->resume_strbuf(context.simt_stack[i-start_warp]);
+                m_simt_stack[i]->get_pdom_stack_top_info(&pc,&rpc);
 
-            	  start_pc=pc;
-              }
-               
-            m_warp[i].init(start_pc,cta_id,ctaid, i,active_threads, m_dynamic_warp_id);
+                start_pc=pc;
+            }
+
+            unsigned stream_id = kernel->get_stream_id();
+            bool should_track = g_stream_manager->should_record_stat(stream_id) &&
+                    (ctaid % m_config->warp_state_sample_cta == 0) &&
+                    (i == start_warp);
+            unsigned stat_idx = ctaid / m_config->warp_state_sample_cta;
+            assert(stat_idx < m_stats->warp_state_stats[stream_id].size());
+
+            m_warp[i].init(start_pc,cta_id,ctaid, i,active_threads, m_dynamic_warp_id,
+                    kernel->get_stream_id(), should_track, stat_idx);
 
 
             // might need to restore barrier related info
@@ -571,7 +579,7 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpgpu_n_const_mem_insn = %d\n", gpgpu_n_const_insn);
    fprintf(fout, "gpgpu_n_param_mem_insn = %d\n", gpgpu_n_param_insn);
 
-   /* Print warp instruction count for each math pipe */
+   // Print warp instruction count for each math pipe
    auto sum_count = [&](unsigned *stat_array) {
        unsigned long long result = 0;
        for (int i = 0; i < m_config->num_shader(); i++) {
@@ -587,6 +595,7 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpgpu_n_sfu_winsn  = %llu\n", sum_count(m_num_sfu_committed));
    fprintf(fout, "gpgpu_n_mem_winsn  = %llu\n", sum_count(m_num_mem_committed));
 
+   // hardware unit busy stats
    auto avg_busy = [&](unsigned *stat_array) {
        float sum = 0;
        for (int i = 0; i < m_config->num_shader(); i++) {
@@ -600,6 +609,65 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpgpu_int_busy  = %f\n", avg_busy(int_busy_cycles));
    fprintf(fout, "gpgpu_tensor_busy  = %f\n", avg_busy(tensor_busy_cycles));
    fprintf(fout, "gpgpu_sfu_busy  = %f\n", avg_busy(sfu_busy_cycles));
+
+    auto print_warp_stats = [&](unsigned stream_id) {
+        double sum_barrier = 0;
+        double sum_inst_empty = 0;
+        double sum_branch = 0;
+        double sum_scoreboard = 0;
+
+        double sum_math_sp = 0;
+        double sum_math_dp = 0;
+        double sum_math_int = 0;
+        double sum_math_tensor = 0;
+        double sum_math_sfu = 0;
+
+        double sum_mem = 0;
+        double sum_not_selected = 0;
+
+        for (auto & state : warp_state_stats[stream_id]) {
+            assert(state.issued > 0);
+            sum_barrier += ((double) state.barrier) / state.issued;
+            sum_inst_empty += ((double) state.inst_empty) / state.issued;
+            sum_branch += ((double) state.branch) / state.issued;
+            sum_scoreboard += ((double) state.stall_scoreboard) / state.issued;
+
+            sum_math_sp += ((double) state.wait_math_sp) / state.issued;
+            sum_math_dp += ((double) state.wait_math_dp) / state.issued;
+            sum_math_int += ((double) state.wait_math_int) / state.issued;
+            sum_math_tensor += ((double) state.wait_math_tensor) / state.issued;
+            sum_math_sfu += ((double) state.wait_math_sfu) / state.issued;
+
+            sum_mem += ((double) state.wait_mem) / state.issued;
+
+            unsigned not_selected_cycles = state.total_cycles - state.barrier - state.inst_empty - state.branch
+                    - state.stall_scoreboard - state.wait_math_sp  - state.wait_math_dp - state.wait_math_int
+                    - state.wait_math_tensor - state.wait_math_sfu - state.wait_mem - state.issued;
+            sum_not_selected += ((double) not_selected_cycles) / state.issued;
+        }
+
+        unsigned samples = warp_state_stats[stream_id].size();
+
+        printf("barrier_cycles[%u] = %.2f\n", sum_barrier / samples, stream_id);
+        printf("inst_empty_cycles[%u] = %.2f\n", sum_inst_empty / samples, stream_id);
+        printf("branch_cycles[%u] = %.2f\n", sum_branch / samples, stream_id);
+        printf("stall_scoreboard_cycles[%u] = %.2f\n", sum_scoreboard / samples, stream_id);
+
+        printf("stall_sp_cycles[%u] = %.2f\n", sum_math_sp / samples, stream_id);
+        printf("stall_dp_cycles[%u] = %.2f\n", sum_math_dp / samples, stream_id);
+        printf("stall_int_cycles[%u] = %.2f\n", sum_math_int / samples, stream_id);
+        printf("stall_tensor_cycles[%u] = %.2f\n", sum_math_tensor / samples, stream_id);
+        printf("stall_sfu_cycles[%u] = %.2f\n", sum_math_sfu / samples, stream_id);
+
+        printf("stall_mem_cycles[%u] = %.2f\n", sum_mem / samples, stream_id);
+        printf("not_selected_cycles[%u] = %.2f\n", sum_not_selected / samples, stream_id);
+    };
+
+    for (unsigned stream_id = 0; stream_id < warp_state_stats.size(); stream_id++) {
+        if (warp_state_stats[stream_id].size() > 0) {
+            print_warp_stats(stream_id);
+        }
+    }
 
 //   fprintf(fout, "gpgpu_n_shmem_bkconflict = %d\n", gpgpu_n_shmem_bkconflict);
 //   fprintf(fout, "gpgpu_n_cache_bkconflict = %d\n", gpgpu_n_cache_bkconflict);
@@ -957,6 +1025,8 @@ void shader_core_ctx::issue(){
      unsigned j;
      for (unsigned i = 0; i < schedulers.size(); i++) {
          j = (Issue_Prio + i) % schedulers.size();
+
+         schedulers[j]->update_warp_state_stats();
          schedulers[j]->cycle();
      }
      Issue_Prio = (Issue_Prio+1)% schedulers.size();
@@ -1056,6 +1126,84 @@ void scheduler_unit::order_by_priority( std::vector< T >& result_list,
     } else {
         fprintf( stderr, "Unknown ordering - %d\n", ordering );
         abort();
+    }
+}
+
+void scheduler_unit::update_warp_state_stats() {
+    for (std::vector<shd_warp_t *>::const_iterator iter = m_next_cycle_prioritized_warps.begin();
+         iter != m_next_cycle_prioritized_warps.end();
+         iter++) {
+
+        // Don't consider warps that are not yet valid or not tracked
+        if ((*iter) == NULL || (*iter)->done_exit() || !((*iter)->should_track_stats())) {
+            continue;
+        }
+
+        // ignore dual issue
+        unsigned warp_id = (*iter)->get_warp_id();
+        shd_warp_t shd_warp = warp(warp_id);
+        int stream_id = shd_warp.get_stream_id();
+        unsigned stat_idx = shd_warp.get_stat_idx();
+
+        // increment active cycle count
+        m_stats->warp_state_stats[stream_id][stat_idx].total_cycles += 1;
+
+        // determine if the warp is waiting for a barrier
+        if (shd_warp.waiting()) {
+            m_stats->warp_state_stats[stream_id][stat_idx].barrier += 1;
+            continue;
+        }
+
+        // check if instruction buffer is empty
+        const warp_inst_t *pI = warp(warp_id).ibuffer_next_inst();
+
+        if (!(shd_warp.ibuffer_next_valid()) || (pI == nullptr)) {
+            m_stats->warp_state_stats[stream_id][stat_idx].inst_empty += 1;
+            continue;
+        }
+
+        // check if there's control hazard
+        unsigned pc, rpc;
+        m_simt_stack[warp_id]->get_pdom_stack_top_info(&pc, &rpc);
+        if (pc != pI->pc) {
+            m_stats->warp_state_stats[stream_id][stat_idx].branch += 1;
+            continue;
+        }
+
+        // check scoreboard stalls
+        if (m_scoreboard->checkCollision(warp_id, pI)) {
+            m_stats->warp_state_stats[stream_id][stat_idx].stall_scoreboard += 1;
+            continue;
+        }
+
+        // check if exec unit is available
+        if ((pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP)
+            || (pI->op == TENSOR_CORE_LOAD_OP) || (pI->op == TENSOR_CORE_STORE_OP)) {
+            if (!m_mem_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
+                m_stats->warp_state_stats[stream_id][stat_idx].wait_mem += 1;
+            }
+        } else if ((m_shader->m_config->gpgpu_num_dp_units > 0) && (pI->op == DP_OP)) {
+            if (!m_dp_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
+                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_dp += 1;
+            }
+        } else if ((m_shader->m_config->gpgpu_num_dp_units == 0 && pI->op == DP_OP) || (pI->op == SFU_OP) ||
+                   (pI->op == ALU_SFU_OP)) {
+            if (!m_sfu_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
+                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_sfu += 1;
+            }
+        } else if (pI->op == TENSOR_CORE_OP) {
+            if (!m_tensor_core_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
+                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_tensor += 1;
+            }
+        } else if (m_shader->m_config->gpgpu_num_int_units > 0 && pI->op != SP_OP) {
+            if (!m_int_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
+                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_int += 1;
+            }
+        } else {
+            if (!m_sp_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
+                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_sp += 1;
+            }
+        }
     }
 }
 
@@ -1213,7 +1361,7 @@ void scheduler_unit::cycle()
                                     warp_inst_issued = true;
                                     previous_issued_inst_exec_type = exec_unit_type_t::TENSOR;
                                 }
-			    }
+                            }
                          }//end of else
                    } else {
 
@@ -1238,6 +1386,14 @@ void scheduler_unit::cycle()
             checked++;
         }
         if ( issued ) {
+            // track warp state
+            if ((*iter)->should_track_stats()) {
+                int stream_id = (*iter)->get_stream_id();
+                unsigned stat_idx = (*iter)->get_stat_idx();
+
+                m_stats->warp_state_stats[stream_id][stat_idx].issued += 1;
+            }
+
             // This might be a bit inefficient, but we need to maintain
             // two ordered list for proper scheduler execution.
             // We could remove the need for this loop by associating a
