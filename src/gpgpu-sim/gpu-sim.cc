@@ -814,7 +814,10 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
 
            // resize the warp state stats if we still need to record performance
            if (g_stream_manager->should_record_stat(kinfo->get_stream_id())) {
-               unsigned samples = kinfo->num_blocks() / m_shader_config->warp_state_sample_cta + 1;
+               unsigned samples = kinfo->num_blocks() / m_shader_config->warp_state_sample_cta;
+               if (kinfo->num_blocks() % m_shader_config->warp_state_sample_cta != 0) {
+                   samples += 1;
+               }
 
                m_shader_stats->resize_warp_stats(kinfo->get_stream_id(), samples);
            }
