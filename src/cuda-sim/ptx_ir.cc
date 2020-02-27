@@ -1349,7 +1349,65 @@ void ptx_instruction::print_insn() const
 
 void ptx_instruction::print_insn( FILE *fp ) const
 {
-    fprintf( fp, "%s\n", to_string().c_str() );
+    fprintf( fp, "%s ->", to_string().c_str() );
+    switch(op){
+        case NO_OP:
+            printf("NO_OP");
+            break;
+        case ALU_OP:
+            printf("ALU");
+            break;
+        case SFU_OP:
+            printf("SFU");
+            break;
+        case TENSOR_CORE_OP:
+            printf("TENSOR");
+            break;
+        case DP_OP:
+            printf("DP");
+            break;
+        case SP_OP:
+            printf("SP");
+            break;
+        case INTP_OP:
+            printf("INTP");
+            break;
+        case ALU_SFU_OP:
+            printf("ALU_SFU");
+            break;
+        case LOAD_OP:
+            printf("LOAD");
+            break;
+        case TENSOR_CORE_LOAD_OP:
+            printf("TENSOR LOAD");
+            break;
+        case TENSOR_CORE_STORE_OP:
+            printf("TENSOR STORE");
+            break;
+        case STORE_OP:
+            printf("STORE");
+            break;
+        case BRANCH_OP:
+            printf("BRANCH");
+            break;
+        case BARRIER_OP:
+            printf("BARRIER");
+            break;
+        case MEMORY_BARRIER_OP:
+            printf("Memory Barrier");
+            break;
+        case CALL_OPS:
+            printf("Call");
+            break;
+        case RET_OPS:
+            printf("Ret");
+            break;
+        default:
+            printf("error");
+    }
+
+    fprintf(fp, "\n");
+
 }
 
 std::string ptx_instruction::to_string() const
