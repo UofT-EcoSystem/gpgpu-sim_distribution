@@ -746,9 +746,19 @@ void ptx_instruction::set_opcode_and_latency()
             break;
         }
 
-        case BAR_OP: op = BARRIER_OP; break;
+        case BAR_OP: case SST_OP:{
+            latency = 1;
+            initiation_interval = 1;
+            op = BARRIER_OP;
+            break;
+        }
 
-        case BRA_OP: case BRX_OP: case BREAK_OP: op = BRANCH_OP; break;
+        case BRA_OP: case BRX_OP: case BREAK_OP: {
+            latency = 1;
+            initiation_interval = 1;
+            op = BRANCH_OP;
+            break;
+        }
 
         case MMA_OP: {
             latency = tensor_latency;
@@ -760,11 +770,14 @@ void ptx_instruction::set_opcode_and_latency()
         case MMA_ST_OP: op = TENSOR_CORE_STORE_OP; break;
 
         case CALL_OP: case CALLP_OP:{
+            latency = 1;
+            initiation_interval = 1;
             if(m_is_printf || m_is_cdp) {
                 op = ALU_OP;
             }
-            else
+            else {
                 op = CALL_OPS;
+            }
             break;
         }
 
@@ -920,11 +933,14 @@ void ptx_instruction::set_opcode_and_latency()
             break;
         }
 
-        case RET_OP: case RETP_OP: case EXIT_OP: op = RET_OPS; break;
+        case RET_OP: case RETP_OP: case EXIT_OP: {
+            latency = 1;
+            initiation_interval = 1;
+            op = RET_OPS;
+            break;
+        }
 
         case TEX_OP: op = LOAD_OP; mem_op=TEX; break;
-
-        case SST_OP: op = BARRIER_OP; break;
 
         case SHFL_OP: {
             latency = 32;

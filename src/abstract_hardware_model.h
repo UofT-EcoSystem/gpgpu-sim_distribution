@@ -149,7 +149,8 @@ enum operation_pipeline_t {
 	INTP__OP,
     SFU__OP,
     TENSOR_CORE__OP,
-    MEM__OP
+    MEM__OP,
+    CONTROL__OP
 };
 typedef enum operation_pipeline_t operation_pipeline;
 enum mem_operation_t {

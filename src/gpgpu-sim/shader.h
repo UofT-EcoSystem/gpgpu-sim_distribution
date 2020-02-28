@@ -77,7 +77,8 @@ enum exec_unit_type_t
   MEM = 3,
   DP = 4,
   INT = 5,
-  TENSOR = 6
+  TENSOR = 6,
+  CONTROL = 7
 };
 
 class thread_ctx_t {
@@ -340,10 +341,12 @@ public:
 				   register_set* int_out,
                    register_set* tensor_core_out,
                    register_set* mem_out,
-                   int id) 
+                   register_set* control_out,
+                   int id)
         : m_supervised_warps(), m_stats(stats), m_shader(shader),
         m_scoreboard(scoreboard), m_simt_stack(simt), /*m_pipeline_reg(pipe_regs),*/ m_warp(warp),
-        m_sp_out(sp_out),m_dp_out(dp_out),m_sfu_out(sfu_out),m_int_out(int_out),m_tensor_core_out(tensor_core_out),m_mem_out(mem_out), m_id(id){}
+        m_sp_out(sp_out),m_dp_out(dp_out),m_sfu_out(sfu_out),m_int_out(int_out),
+        m_tensor_core_out(tensor_core_out),m_mem_out(mem_out),m_control_out(control_out),m_id(id) {}
     virtual ~scheduler_unit(){}
     virtual void add_supervised_warp_id(int i) {
         m_supervised_warps.push_back(&warp(i));
@@ -426,6 +429,7 @@ protected:
     register_set* m_int_out;
     register_set* m_tensor_core_out;
     register_set* m_mem_out;
+    register_set* m_control_out;
 
     int m_id;
 };
@@ -441,8 +445,10 @@ public:
 					register_set* int_out,
                     register_set* tensor_core_out,
                     register_set* mem_out,
+                    register_set* control_out,
                     int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, dp_out, sfu_out, int_out, tensor_core_out, mem_out, id ){}
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp,
+	        sp_out, dp_out, sfu_out, int_out, tensor_core_out, mem_out, control_out, id ){}
 	virtual ~lrr_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {
@@ -461,8 +467,10 @@ public:
 					register_set* int_out,
                     register_set* tensor_core_out,
                     register_set* mem_out,
+                    register_set* control_out,
                     int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, dp_out, sfu_out, int_out, tensor_core_out, mem_out, id ){}
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp,
+	        sp_out, dp_out, sfu_out, int_out, tensor_core_out, mem_out, control_out, id ){}
 	virtual ~gto_scheduler () {}
 	virtual void order_warps ();
     virtual void done_adding_supervised_warps() {
@@ -482,8 +490,10 @@ public:
 					register_set* int_out,
                     register_set* tensor_core_out,
                     register_set* mem_out,
+                    register_set* control_out,
                     int id )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, dp_out, sfu_out, int_out, tensor_core_out, mem_out, id ){}
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp,
+	        sp_out, dp_out, sfu_out, int_out, tensor_core_out, mem_out, control_out, id ){}
 	virtual ~oldest_scheduler () {}
 	virtual void order_warps ();
         virtual void done_adding_supervised_warps() {
@@ -503,9 +513,11 @@ public:
 						  register_set* int_out,
                           register_set* tensor_core_out,
                           register_set* mem_out,
+                          register_set* control_out,
                           int id,
                           char* config_str )
-	: scheduler_unit ( stats, shader, scoreboard, simt, warp, sp_out, dp_out, sfu_out, int_out, tensor_core_out, mem_out, id ),
+	: scheduler_unit ( stats, shader, scoreboard, simt, warp,
+	        sp_out, dp_out, sfu_out, int_out, tensor_core_out, mem_out, control_out, id ),
 	  m_pending_warps() 
     {
         unsigned inner_level_readin;
@@ -556,6 +568,7 @@ public:
 					register_set* int_out,
                     register_set* tensor_core_out,
                     register_set* mem_out,
+                    register_set* control_out,
                     int id,
                     char* config_string );
 	virtual ~swl_scheduler () {}
@@ -1356,17 +1369,39 @@ protected:
    void L1_latency_queue_cycle();
 };
 
+class control_unit : public pipelined_simd_unit
+{
+public:
+    control_unit( register_set* result_port, const shader_core_config *config, shader_core_ctx *core );
+    virtual bool can_issue( const warp_inst_t &inst ) const
+    {
+        if (inst.op == BRANCH_OP || inst.op == CALL_OPS || inst.op == RET_OPS || inst.op == BARRIER_OP) {
+            return pipelined_simd_unit::can_issue(inst);
+        } else {
+            return false;
+        }
+    }
+
+    virtual void active_lanes_in_pipeline();
+    virtual void issue( register_set& source_reg );
+    virtual void inc_pipe_busy_stats(shader_core_stats* stats);
+
+};
+
+
 enum pipeline_stage_name_t {
     ID_OC_SP=0,
 	ID_OC_DP,
 	ID_OC_INT,
     ID_OC_SFU,  
-    ID_OC_MEM,  
+    ID_OC_MEM,
+    ID_OC_CONTROL,
     OC_EX_SP,
 	OC_EX_DP,
 	OC_EX_INT,
     OC_EX_SFU,
     OC_EX_MEM,
+    OC_EX_CONTROL,
     EX_WB,
     ID_OC_TENSOR_CORE,  
     OC_EX_TENSOR_CORE,
@@ -1378,12 +1413,14 @@ const char* const pipeline_stage_name_decode[] = {
 	"ID_OC_DP",
 	"ID_OC_INT",
     "ID_OC_SFU",  
-    "ID_OC_MEM",  
+    "ID_OC_MEM",
+    "ID_OC_CONTROL",
     "OC_EX_SP",
 	"OC_EX_DP",
 	"OC_EX_INT",
     "OC_EX_SFU",
     "OC_EX_MEM",
+    "OC_EX_CONTROL",
     "EX_WB",
     "ID_OC_TENSOR_CORE",  
     "OC_EX_TENSOR_CORE",
@@ -1541,6 +1578,7 @@ struct shader_core_config : public core_config
     int gpgpu_num_tensor_core_units;
     int gpgpu_num_mem_units;
     int gpgpu_num_int_units;
+    int gpgpu_num_control_units;
 
     //Shader core resources
     unsigned gpgpu_shader_registers;
@@ -1621,6 +1659,7 @@ struct shader_core_stats_pod {
     unsigned *m_num_sfu_committed;
     unsigned *m_num_tensor_core_committed;
     unsigned *m_num_mem_committed;
+    unsigned *m_num_control_committed;
     unsigned *m_read_regfile_acesses;
     unsigned *m_write_regfile_acesses;
     unsigned *m_non_rf_operands;
@@ -1733,6 +1772,7 @@ public:
         m_num_sfu_committed= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_num_tensor_core_committed= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_num_mem_committed= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
+        m_num_control_committed= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_read_regfile_acesses= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_write_regfile_acesses= (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         m_non_rf_operands=(unsigned*) calloc(config->num_shader(),sizeof(unsigned));
