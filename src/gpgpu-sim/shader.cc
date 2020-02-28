@@ -2241,7 +2241,7 @@ void sp_unit::active_lanes_in_pipeline(){
 }
 
 void sp_unit::inc_pipe_busy_stats(shader_core_stats* stats) {
-    if (active_insts_in_pipeline > 0) {
+    if (!m_dispatch_reg->empty()) {
         stats->sp_busy_cycles[m_core->get_sid()]++;
     }
 }
@@ -2255,7 +2255,7 @@ void dp_unit::active_lanes_in_pipeline(){
 }
 
 void dp_unit::inc_pipe_busy_stats(shader_core_stats* stats) {
-    if (active_insts_in_pipeline > 0) {
+    if (!m_dispatch_reg->empty()) {
         stats->dp_busy_cycles[m_core->get_sid()]++;
     }
 }
@@ -2269,7 +2269,7 @@ void int_unit::active_lanes_in_pipeline(){
 }
 
 void int_unit::inc_pipe_busy_stats(shader_core_stats* stats) {
-    if (active_insts_in_pipeline > 0) {
+    if (!m_dispatch_reg->empty()) {
         stats->int_busy_cycles[m_core->get_sid()]++;
     }
 }
@@ -2283,7 +2283,7 @@ void sfu::active_lanes_in_pipeline(){
 }
 
 void sfu::inc_pipe_busy_stats(shader_core_stats* stats) {
-    if (active_insts_in_pipeline > 0) {
+    if (!m_dispatch_reg->empty()) {
         stats->sfu_busy_cycles[m_core->get_sid()]++;
     }
 }
@@ -2297,7 +2297,7 @@ void tensor_core::active_lanes_in_pipeline(){
 }
 
 void tensor_core::inc_pipe_busy_stats(shader_core_stats* stats) {
-    if (active_insts_in_pipeline > 0) {
+    if (!m_dispatch_reg->empty()) {
         stats->tensor_busy_cycles[m_core->get_sid()]++;
     }
 }
