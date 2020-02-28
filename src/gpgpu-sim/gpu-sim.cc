@@ -506,21 +506,6 @@ void shader_core_config::reg_options(class OptionParser * opp)
                            "The first warp of any CTA ID that is a multiple of this value will be tracked for warp states.",
                            "10");
 
-    option_parser_register(opp, "-int_unit_thruput", OPT_UINT32, &int_thruput,
-            "Number of cycles elapsed to produce one int result.", "2");
-
-    option_parser_register(opp, "-sp_unit_thruput", OPT_UINT32, &sp_thruput,
-                           "Number of cycles elapsed to produce one sp result.", "2");
-
-    option_parser_register(opp, "-dp_unit_thruput", OPT_UINT32, &dp_thruput,
-                           "Number of cycles elapsed to produce one dp result.", "4");
-
-    option_parser_register(opp, "-sfu_unit_thruput", OPT_UINT32, &sfu_thruput,
-                           "Number of cycles elapsed to produce one sfu result.", "8");
-
-    option_parser_register(opp, "-tensor_unit_thruput", OPT_UINT32, &tensor_thruput,
-                           "Number of cycles elapsed to produce one tensor core result.", "64");
-
 }
 
 void gpgpu_sim_config::reg_options(option_parser_t opp)

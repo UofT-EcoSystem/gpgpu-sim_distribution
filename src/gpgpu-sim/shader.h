@@ -1619,12 +1619,6 @@ struct shader_core_config : public core_config
     bool adpative_volta_cache_config;
 
     unsigned warp_state_sample_cta;
-
-    unsigned int_thruput;
-    unsigned sp_thruput;
-    unsigned dp_thruput;
-    unsigned sfu_thruput;
-    unsigned tensor_thruput;
 };
 
 struct shader_core_stats_pod {
