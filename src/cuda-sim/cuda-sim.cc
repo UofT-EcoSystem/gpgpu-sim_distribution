@@ -814,7 +814,7 @@ void ptx_instruction::set_opcode_and_latency()
         case REM_OP: {
             latency = int_latency[DIV_IDX];
             initiation_interval = int_init[DIV_IDX];
-            op = ALU_OP;
+            op = SFU_OP;
             break;
         }
 
