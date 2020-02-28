@@ -789,17 +789,16 @@ void ptx_instruction::set_opcode_and_latency()
         }
 
         case DIV_OP: {
+            op = SFU_OP;
             switch(get_type()){
                 case F32_TYPE:
                     latency = fp_latency[DIV_IDX];
                     initiation_interval = fp_init[DIV_IDX];
-                    op = SP_OP;
                     break;
                 case F64_TYPE:
                 case FF64_TYPE:
                     latency = dp_latency[DIV_IDX];
                     initiation_interval = dp_init[DIV_IDX];
-                    op = DP_OP;
                     break;
                 case B32_TYPE:
                 case U32_TYPE:
@@ -807,7 +806,6 @@ void ptx_instruction::set_opcode_and_latency()
                 default: //Use int settings for default
                     latency = int_latency[DIV_IDX];
                     initiation_interval = int_init[DIV_IDX];
-                    op = ALU_OP;
                     break;
             }
             break;
