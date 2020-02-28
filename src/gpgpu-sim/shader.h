@@ -1481,20 +1481,22 @@ struct shader_core_config : public core_config
         gpgpu_cache_texl1_linesize = m_L1T_config.get_line_sz();
         gpgpu_cache_constl1_linesize = m_L1C_config.get_line_sz();
 
-        std::stringstream ss_cta;
-        ss_cta << max_sm_in_stream;
-        std::string token;
+        if (!gpgpu_sharing_intra_sm) {
+            std::stringstream ss_cta;
+            ss_cta << max_sm_in_stream;
+            std::string token;
 
-        int sum = 0;
+            int sum = 0;
 
-        while (std::getline(ss_cta, token, ':')) {
-            int sm_count = stoi(token);
+            while (std::getline(ss_cta, token, ':')) {
+                int sm_count = stoi(token);
 
-            inter_sm_id_range.push_back(std::make_tuple(sum, sum + sm_count));
-            sum += sm_count;
+                inter_sm_id_range.push_back(std::make_tuple(sum, sum + sm_count));
+                sum += sm_count;
+            }
+
+            assert(sum <= this->num_shader());
         }
-
-        assert(sum <= this->num_shader());
 
         m_valid = true;
     }
