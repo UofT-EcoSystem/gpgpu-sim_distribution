@@ -946,11 +946,45 @@ __host__ cudaError_t CUDARTAPI cudaMemcpy2DAsync(void *dst, size_t dpitch, const
 
 __host__ cudaError_t CUDARTAPI cudaMemcpy2DToArrayAsync(struct cudaArray *dst, size_t wOffset, size_t hOffset, const void *src, size_t spitch, size_t width, size_t height, enum cudaMemcpyKind kind, cudaStream_t stream)
 {
-	if(g_debug_execution >= 3){
-	    announce_call(__my_func__);
+    std::lock_guard<std::mutex> guard(lock_context);
+
+    if(g_debug_execution >= 3){
+        announce_call(__my_func__);
     }
-	cuda_not_implemented(__my_func__,__LINE__);
-	return g_last_cudaError = cudaErrorUnknown;
+
+    printf("GPGPU-Sim PTX: cudaMemcpyToArrayAsync\n");
+
+    size_t size = spitch*height;
+    size_t channel_size = dst->desc.w+dst->desc.x+dst->desc.y+dst->desc.z;
+    gpgpusim_ptx_assert( ((channel_size%8) == 0), "none byte multiple destination channel size not supported (sz=%u)", channel_size );
+    unsigned elem_size = channel_size/8;
+    gpgpusim_ptx_assert( (dst->dimensions==2), "copy to none 2D array not supported" );
+    gpgpusim_ptx_assert( (wOffset==0), "non-zero wOffset not yet supported" );
+    gpgpusim_ptx_assert( (hOffset==0), "non-zero hOffset not yet supported" );
+    gpgpusim_ptx_assert( (dst->height == (int)height), "partial copy not supported" );
+    gpgpusim_ptx_assert( (elem_size*dst->width == width), "partial copy not supported" );
+    gpgpusim_ptx_assert( (spitch == width), "spitch != width not supported" );
+
+    struct CUstream_st *s = (struct CUstream_st *)stream;
+
+    switch (kind) {
+        case cudaMemcpyHostToDevice:
+            g_stream_manager->push( stream_operation(src, (size_t)(dst->devPtr), size, s) );
+            break;
+        case cudaMemcpyDeviceToHost:
+            g_stream_manager->push( stream_operation((size_t)src, dst->devPtr, size, s) );
+            break;
+        case cudaMemcpyDeviceToDevice:
+            g_stream_manager->push( stream_operation((size_t)src, (size_t)(dst->devPtr), size, s) );
+            break;
+        default:
+            printf("GPGPU-Sim PTX: cudaMemcpy2DToArrayAsync - ERROR : unsupported cudaMemcpyKind\n");
+            abort();
+    }
+
+    dst->devPtr32 = (unsigned) (size_t)(dst->devPtr);
+    return g_last_cudaError = cudaSuccess;
+
 }
 
 
