@@ -1591,11 +1591,18 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 			return g_last_cudaError = cudaErrorInvalidConfiguration;
 		}
 	}
+
 	struct CUstream_st *stream = config.get_stream();
-	printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n", hostFun,
-			g_ptx_sim_mode?"functional simulation":"performance simulation", stream?stream->get_uid():0 );
 	kernel_info_t *grid = gpgpu_cuda_ptx_sim_init_grid(hostFun,config.get_args(),config.grid_dim(),config.block_dim(),context,stream?stream->get_uid():0);
-        //do dynamic PDOM analysis for performance simulation scenario
+
+    bool should_func_sim = g_ptx_sim_mode;
+    if (g_mix_sim_mode) {
+        should_func_sim = (grid->get_uid() != g_perf_sim_kernel_idx);
+    }
+    printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n", hostFun,
+           should_func_sim?"functional simulation":"performance simulation", stream?stream->get_uid():0 );
+
+    //do dynamic PDOM analysis for performance simulation scenario
 	std::string kname = grid->name();
 	function_info *kernel_func_info = grid->entry();
 	if (kernel_func_info->is_pdom_set()) {
@@ -1644,7 +1651,7 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 	}
 	printf("GPGPU-Sim PTX: pushing kernel \'%s\' to stream %u, gridDim= (%u,%u,%u) blockDim = (%u,%u,%u) \n",
 			kname.c_str(), stream?stream->get_uid():0, gridDim.x,gridDim.y,gridDim.z,blockDim.x,blockDim.y,blockDim.z );
-	stream_operation op(grid,g_ptx_sim_mode,stream);
+	stream_operation op(grid,should_func_sim,stream);
 	g_stream_manager->push(op);
 	g_cuda_launch_stack.pop_back();
 

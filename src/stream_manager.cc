@@ -82,7 +82,7 @@ void CUstream_st::record_next_done()
     pthread_mutex_lock(&m_lock);
     assert(m_pending);
 
-    if (m_operations.front().is_kernel() && !m_done_first) {
+    if (m_operations.front().is_kernel() && !(m_operations.front().is_func_sim())) {
     	m_done_first = true;
     }
 
@@ -175,7 +175,7 @@ bool stream_operation::do_operation( gpgpu_sim *gpu )
         m_stream->record_next_done();
         break;
     case stream_kernel_launch:
-        if( m_sim_mode ) { //Functional Sim
+        if( m_func_mode ) { //Functional Sim
             if(g_debug_execution >= 3) {
                 printf("kernel %d: \'%s\' transfer to GPU hardware scheduler\n", m_kernel->get_uid(), m_kernel->name().c_str() );
                 m_kernel->print_parent_info();

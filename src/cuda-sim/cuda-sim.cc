@@ -2134,6 +2134,8 @@ void gpgpu_ptx_sim_memcpy_symbol(const char *hostVar, const void *src, size_t co
 }
 
 int g_ptx_sim_mode; // if non-zero run functional simulation only (i.e., no notion of a clock cycle)
+int g_mix_sim_mode;
+int g_perf_sim_kernel_idx;
 
 extern int ptx_debug;
 

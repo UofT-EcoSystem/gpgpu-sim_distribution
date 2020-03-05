@@ -91,7 +91,7 @@ public:
     {
         m_type=stream_kernel_launch;
         m_kernel=kernel;
-        m_sim_mode=sim_mode;
+        m_func_mode=sim_mode;
         m_stream=stream;
         m_done=false;
     }
@@ -121,7 +121,7 @@ public:
         m_device_address_src=0;
         m_cnt=cnt;
         m_stream=stream;
-        m_sim_mode=false;
+        m_func_mode=false;
         m_done=false;
     }
     stream_operation( size_t device_address_src, void *host_address_dst, size_t cnt, struct CUstream_st *stream  )
@@ -134,7 +134,7 @@ public:
         m_host_address_src=NULL;
         m_cnt=cnt;
         m_stream=stream;
-        m_sim_mode=false;
+        m_func_mode=false;
         m_done=false;
     }
     stream_operation( size_t device_address_src, size_t device_address_dst, size_t cnt, struct CUstream_st *stream  )
@@ -147,7 +147,7 @@ public:
         m_host_address_dst=NULL;
         m_cnt=cnt;
         m_stream=stream;
-        m_sim_mode=false;
+        m_func_mode=false;
         m_done=false;
     }
     stream_operation( size_t device_address_dst, int c, size_t cnt, struct CUstream_st *stream  )
@@ -158,7 +158,7 @@ public:
         m_value = c;
         m_cnt=cnt;
         m_stream=stream;
-        m_sim_mode=false;
+        m_func_mode=false;
         m_done=false;
     }
 
@@ -176,6 +176,8 @@ public:
     struct CUstream_st *get_stream() { return m_stream; }
     void set_stream( CUstream_st *stream ) { m_stream = stream; }
 
+    bool is_func_sim() const { return m_func_mode; }
+
 private:
     struct CUstream_st *m_stream;
 
@@ -192,7 +194,7 @@ private:
     const char *m_symbol;
     size_t m_offset;
 
-    bool m_sim_mode;
+    bool m_func_mode;
     kernel_info_t *m_kernel;
     struct CUevent_st *m_event;
 };

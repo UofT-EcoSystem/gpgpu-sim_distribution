@@ -151,6 +151,15 @@ void gpgpu_functional_sim_config::reg_options(class OptionParser * opp)
                " resume from which CTA ",
                "0");
 
+    option_parser_register(opp, "-gpgpu_ptx_mix_sim_mode", OPT_BOOL, &g_mix_sim_mode,
+            "Whether we are mixing functional and performance simulation mode.",
+            "0");
+    option_parser_register(opp, "-gpgpu_ptx_perf_kernel_idx", OPT_INT32, &g_perf_sim_kernel_idx,
+                           "Kernel index to run full performance simulation for. 1 will indicate the first kernel",
+                           "1");
+
+
+
     option_parser_register(opp, "-gpgpu_ptx_convert_to_ptxplus", OPT_BOOL,
                  &m_ptx_convert_to_ptxplus,
                  "Convert SASS (native ISA) to ptxplus and run ptxplus",
