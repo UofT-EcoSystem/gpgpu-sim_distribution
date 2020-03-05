@@ -2433,17 +2433,19 @@ bool shader_core_ctx::preempt_ctas(kernel_info_t* victim) {
 void gpgpu_sim::perf_memcpy_to_gpu( size_t dst_start_addr, size_t count, unsigned stream_id )
 {
     if (m_memory_config->m_perf_sim_memcpy) {
-       assert (dst_start_addr % 32 == 0);
-
-       for ( unsigned counter = 0; counter < count; counter += 32 ) {
-           const unsigned wr_addr = dst_start_addr + counter;
-           addrdec_t raw_addr;
-           mem_access_sector_mask_t mask;
-           mask.set(wr_addr % 128 / 32);
-           m_memory_config->m_address_mapping.addrdec_tlx( wr_addr, &raw_addr );
-           const unsigned partition_id = raw_addr.sub_partition / m_memory_config->m_n_sub_partition_per_memory_channel;
-           m_memory_partition_unit[ partition_id ]->handle_memcpy_to_gpu( wr_addr, raw_addr.sub_partition, mask, stream_id );
-       }
+//       assert (dst_start_addr % 32 == 0);
+        if (dst_start_addr % 32 == 0) {
+            // Only update performance model if the destination address is aligned
+            for ( unsigned counter = 0; counter < count; counter += 32 ) {
+                const unsigned wr_addr = dst_start_addr + counter;
+                addrdec_t raw_addr;
+                mem_access_sector_mask_t mask;
+                mask.set(wr_addr % 128 / 32);
+                m_memory_config->m_address_mapping.addrdec_tlx( wr_addr, &raw_addr );
+                const unsigned partition_id = raw_addr.sub_partition / m_memory_config->m_n_sub_partition_per_memory_channel;
+                m_memory_partition_unit[ partition_id ]->handle_memcpy_to_gpu( wr_addr, raw_addr.sub_partition, mask, stream_id );
+            }
+        }
     }
 }
 
