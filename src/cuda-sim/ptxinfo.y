@@ -87,7 +87,7 @@ input:	/* empty */
 
 line: 	HEADER INFO COLON line_info
 	| HEADER IDENTIFIER COMMA LINE INT_OPERAND SEMICOLON WARNING
-	| HEADER WARNING { printf("GPGPU-Sim: ptxas %s\n", $2); }
+	| HEADER WARNING { printf("GPGPU-Sim: ptxas %p\n", $2); }
 	| HEADER IDENTIFIER COMMA LINE INT_OPERAND SEMICOLON DUPLICATE duplicate { ptxinfo_linenum($5); }
 	| HEADER FATAL
 	;
