@@ -572,6 +572,7 @@ float shader_core_ctx::get_current_occupancy( unsigned long long & active, unsig
     }
 }
 
+extern bool break_limit;
 void shader_core_stats::print( FILE* fout ) const
 {
 	unsigned long long  thread_icount_uarch=0;
@@ -648,7 +649,9 @@ void shader_core_stats::print( FILE* fout ) const
         double sum_not_selected = 0;
 
         for (auto & state : warp_state_stats[stream_id]) {
-            assert(state.issued > 0);
+            if (!break_limit) {
+                assert(state.issued > 0);
+            }
             sum_barrier += ((double) state.barrier) / state.issued;
             sum_inst_empty += ((double) state.inst_empty) / state.issued;
             sum_branch += ((double) state.branch) / state.issued;
