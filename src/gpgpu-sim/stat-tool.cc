@@ -368,13 +368,14 @@ static int s_cache_access_logger_n_types = 0;
 static std::vector<linear_histogram_logger> s_cache_access_logger;
 
 enum cache_access_logger_types {
-   NORMAL, TEXTURE, CONSTANT, INSTRUCTION
+   NORMAL, TEXTURE, CONSTANT, INSTRUCTION, INSTRUCTION_L0
 };
 
 int get_shader_normal_cache_id() { return NORMAL; }
 int get_shader_texture_cache_id() { return TEXTURE; }
 int get_shader_constant_cache_id() { return CONSTANT; }
 int get_shader_instruction_cache_id() { return INSTRUCTION; }
+int get_shader_instruction_cache_l0_id() { return INSTRUCTION_L0; }
 
 void shader_cache_access_create( int n_loggers, int n_types, unsigned long long  logging_interval)
 {

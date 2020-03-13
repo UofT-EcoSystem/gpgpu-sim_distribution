@@ -1475,6 +1475,7 @@ struct shader_core_config : public core_config
         set_pipeline_latency();
 
         m_L1I_config.init(m_L1I_config.m_config_string,FuncCachePreferNone);
+        m_L0I_config.init(m_L0I_config.m_config_string,FuncCachePreferNone);
         m_L1T_config.init(m_L1T_config.m_config_string,FuncCachePreferNone);
         m_L1C_config.init(m_L1C_config.m_config_string,FuncCachePreferNone);
         m_L1D_config.init(m_L1D_config.m_config_string,FuncCachePreferNone);
@@ -1537,6 +1538,7 @@ struct shader_core_config : public core_config
     int pipe_widths[N_PIPELINE_STAGES];
 
     mutable cache_config m_L1I_config;
+    mutable cache_config m_L0I_config;
     mutable cache_config m_L1T_config;
     mutable cache_config m_L1C_config;
     mutable l1d_cache_config m_L1D_config;
@@ -2136,6 +2138,7 @@ private:
     virtual void checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned t, unsigned tid);
     address_type next_pc( int tid ) const;
     void fetch();
+    void fetch_subcore();
     void register_cta_thread_exit(unsigned cta_num, kernel_info_t * kernel );
 
     void decode();
@@ -2187,12 +2190,16 @@ private:
     
     // fetch
     read_only_cache *m_L1I; // instruction cache
-    int  m_last_warp_fetched;
+    read_only_cache **m_L0I; // instruction cache
+    // L1I and L0I interface
+    fifo_pipeline<mem_fetch> *m_l0_l1I_queue;
+    mem_fetch_interface *m_l0_l1I;
+    std::vector<int>  m_last_warp_fetched;
 
     // decode/dispatch
     std::vector<shd_warp_t>   m_warp;   // per warp information array
     barrier_set_t             m_barriers;
-    ifetch_buffer_t           m_inst_fetch_buffer;
+    std::vector<ifetch_buffer_t>           m_inst_fetch_buffer;
     std::vector<register_set> m_pipeline_reg;
     Scoreboard               *m_scoreboard;
     opndcoll_rfu_t            m_operand_collector;
@@ -2361,6 +2368,27 @@ public:
 private:
     shader_core_ctx *m_core;
     simt_core_cluster *m_cluster;
+};
+
+class l0_l1_inferface : public mem_fetch_interface {
+public:
+    l0_l1_inferface(fifo_pipeline<mem_fetch>* fifo) {m_fifo = fifo;}
+    virtual bool full(unsigned size, bool write) const {
+        return m_fifo->full();
+    }
+
+    virtual void push(mem_fetch* mf)
+    {
+        if ( mf && mf->isatomic() ) {
+            mf->do_atomic(); // execute atomic inside the "memory subsystem"
+        }
+
+        m_fifo->push(mf);
+    }
+
+
+private:
+    fifo_pipeline<mem_fetch>* m_fifo;
 };
 
 

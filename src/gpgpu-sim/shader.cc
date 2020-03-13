@@ -101,6 +101,7 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
     		assert(m_config->gpgpu_num_sched_per_core == m_pipeline_reg[ID_OC_DP].get_size() );
     	if(m_config->gpgpu_num_int_units > 0)
     	    assert(m_config->gpgpu_num_sched_per_core == m_pipeline_reg[ID_OC_INT].get_size() );
+
     }
     
     m_threadState = (thread_ctx_t*) calloc(sizeof(thread_ctx_t), config->n_thread_per_shader);
@@ -123,14 +124,32 @@ shader_core_ctx::shader_core_ctx( class gpgpu_sim *gpu,
         m_icnt = new shader_memory_interface(this,cluster);
     }
     m_mem_fetch_allocator = new shader_core_mem_fetch_allocator(shader_id,tpc_id,mem_config);
-    
-    // fetch
-    m_last_warp_fetched = 0;
-    
+
     #define STRSIZE 1024
     char name[STRSIZE];
     snprintf(name, STRSIZE, "L1I_%03d", m_sid);
     m_L1I = new read_only_cache( name,m_config->m_L1I_config,m_sid,get_shader_instruction_cache_id(),m_icnt,IN_L1I_MISS_QUEUE);
+
+    if (m_config->sub_core_model) {
+        // FIXME: make min and max length configurable
+        snprintf(name, STRSIZE, "fifo_L0_L1I_%03d", m_sid);
+        m_l0_l1I_queue = new fifo_pipeline<mem_fetch>(name, 4, 8);
+        m_l0_l1I = new l0_l1_inferface(m_l0_l1I_queue);
+
+        // Set up L0 instruction cache and instruction fetch buffer
+        m_L0I = new read_only_cache*[m_config->gpgpu_num_sched_per_core];
+        for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
+            snprintf(name, STRSIZE, "L0I_%03d_%03d", m_sid, i);
+            m_L0I[i] = new read_only_cache( name, m_config->m_L0I_config, m_sid, get_shader_instruction_cache_l0_id(), m_l0_l1I, IN_L0I_MISS_QUEUE);
+        }
+
+        m_inst_fetch_buffer.resize(m_config->gpgpu_num_sched_per_core, ifetch_buffer_t());
+        m_last_warp_fetched.resize(m_config->gpgpu_num_sched_per_core, 0);
+
+    } else {
+        m_inst_fetch_buffer.resize(1, ifetch_buffer_t());
+        m_last_warp_fetched.resize(1, 0);
+    }
     
     m_warp.resize(m_config->max_warps_per_shader, shd_warp_t(this, warp_size));
     m_scoreboard = new Scoreboard(m_sid, m_config->max_warps_per_shader);
@@ -908,92 +927,99 @@ void shader_core_ctx::decode()
 
 void shader_core_ctx::fetch()
 {
+    const bool is_subcore = m_config->sub_core_model;
 
-    if( !m_inst_fetch_buffer.m_valid ) {
-        if( m_L1I->access_ready() ) {
-            mem_fetch *mf = m_L1I->next_access();
-            m_warp[mf->get_wid()].clear_imiss_pending();
-            m_inst_fetch_buffer = ifetch_buffer_t(m_warp[mf->get_wid()].get_pc(), mf->get_access_size(), mf->get_wid());
-            assert( m_warp[mf->get_wid()].get_pc() == (mf->get_addr()-PROGRAM_MEM_START)); // Verify that we got the instruction we were expecting.
-            m_inst_fetch_buffer.m_valid = true;
-            m_warp[mf->get_wid()].set_last_fetch(gpu_sim_cycle);
-            delete mf;
-        }
-        else {
-            // find an active warp with space in instruction buffer that is not already waiting on a cache miss
-            // and get next 1-2 instructions from i-cache...
-            for( unsigned i=0; i < m_config->max_warps_per_shader; i++ ) {
-                unsigned warp_id = (m_last_warp_fetched+1+i) % m_config->max_warps_per_shader;
+    for (unsigned subcore_id = 0; subcore_id < m_inst_fetch_buffer.size(); subcore_id++) {
+        read_only_cache* next_cache = is_subcore ? m_L0I[subcore_id] : m_L1I;
 
-                // this code checks if this warp has finished executing and can be reclaimed
-                if( m_warp[warp_id].hardware_done() && !m_scoreboard->pendingWrites(warp_id) && !m_warp[warp_id].done_exit() ) {
-                    bool did_exit=false;
+        if( !m_inst_fetch_buffer[subcore_id].m_valid ) {
+            if( next_cache->access_ready() ) {
+                mem_fetch *mf = next_cache->next_access();
+                m_warp[mf->get_wid()].clear_imiss_pending();
 
-                    for( unsigned t=0; t<m_config->warp_size;t++) {
-                        unsigned tid=warp_id*m_config->warp_size+t;
-                        if( m_threadState[tid].m_active == true ) {
-                            m_threadState[tid].m_active = false; 
-                            unsigned cta_id = m_warp[warp_id].get_cta_id();
-                            register_cta_thread_exit(cta_id, &(m_thread[tid]->get_kernel()));
+                m_inst_fetch_buffer[subcore_id] = ifetch_buffer_t(m_warp[mf->get_wid()].get_pc(), mf->get_access_size(), mf->get_wid());
+                assert( m_warp[mf->get_wid()].get_pc() == (mf->get_addr()-PROGRAM_MEM_START)); // Verify that we got the instruction we were expecting.
+                m_inst_fetch_buffer[subcore_id].m_valid = true;
 
-                            m_not_completed -= 1;
-                            m_active_threads.reset(tid);
-                            assert( m_thread[tid]!= NULL );
-                            did_exit=true;
+                m_warp[mf->get_wid()].set_last_fetch(gpu_sim_cycle);
+                delete mf;
+            }
+            else {
+                // find an active warp with space in instruction buffer that is not already waiting on a cache miss
+                // and get next 1-2 instructions from i-cache...
+                for( unsigned i=0; i < m_config->max_warps_per_shader; i++ ) {
+                    unsigned warp_id = (m_last_warp_fetched[subcore_id]+1+i) % m_config->max_warps_per_shader;
+
+                    // this code checks if this warp has finished executing and can be reclaimed
+                    if( m_warp[warp_id].hardware_done() && !m_scoreboard->pendingWrites(warp_id) && !m_warp[warp_id].done_exit() ) {
+                        bool did_exit=false;
+
+                        for( unsigned t=0; t<m_config->warp_size;t++) {
+                            unsigned tid=warp_id*m_config->warp_size+t;
+                            if( m_threadState[tid].m_active == true ) {
+                                m_threadState[tid].m_active = false;
+                                unsigned cta_id = m_warp[warp_id].get_cta_id();
+                                register_cta_thread_exit(cta_id, &(m_thread[tid]->get_kernel()));
+
+                                m_not_completed -= 1;
+                                m_active_threads.reset(tid);
+                                assert( m_thread[tid]!= NULL );
+                                did_exit=true;
+                            }
+                        }
+                        if( did_exit ) {
+                            m_warp[warp_id].set_done_exit();
+
+                            // FIXME: in original code, these two lines are NOT dependent on did_exit
+                            --m_active_warps;
+                            assert(m_active_warps >= 0);
                         }
                     }
-                    if( did_exit ) {
-                        m_warp[warp_id].set_done_exit();
 
-                        // FIXME: in original code, these two lines are NOT dependent on did_exit
-                        --m_active_warps;
-                        assert(m_active_warps >= 0);
+                    // this code fetches instructions from the i-cache or generates memory requests
+                    if( !is_cta_preempted(m_warp[warp_id].get_cta_id()) && !m_warp[warp_id].done_exit()
+                        && !m_warp[warp_id].functional_done() && !m_warp[warp_id].imiss_pending() && m_warp[warp_id].ibuffer_empty() ) {
+                        address_type pc  = m_warp[warp_id].get_pc();
+                        address_type ppc = pc + PROGRAM_MEM_START;
+                        unsigned nbytes=16;
+                        unsigned offset_in_block = pc & (m_config->m_L1I_config.get_line_sz()-1);
+                        if( (offset_in_block+nbytes) > m_config->m_L1I_config.get_line_sz() )
+                            nbytes = (m_config->m_L1I_config.get_line_sz()-offset_in_block);
+
+                        // TODO: replace with use of allocator
+                        // mem_fetch *mf = m_mem_fetch_allocator->alloc()
+                        mem_access_t acc(INST_ACC_R,ppc,nbytes,false);
+
+                        // get stream info
+                        const unsigned tid = warp_id*m_config->warp_size;
+                        const unsigned stream_id = m_thread[tid]->get_kernel().get_stream_id();
+
+                        mem_fetch *mf = new mem_fetch(acc,
+                                                      NULL/*we don't have an instruction yet*/,
+                                                      READ_PACKET_SIZE,
+                                                      warp_id,
+                                                      m_sid,
+                                                      m_tpc,
+                                                      m_memory_config,
+                                                      stream_id);
+                        std::list<cache_event> events;
+                        enum cache_request_status status = m_L1I->access( (new_addr_type)ppc, mf, gpu_sim_cycle+gpu_tot_sim_cycle,events);
+                        if( status == MISS ) {
+                            m_last_warp_fetched=warp_id;
+                            m_warp[warp_id].set_imiss_pending();
+                            m_warp[warp_id].set_last_fetch(gpu_sim_cycle);
+                        } else if( status == HIT ) {
+                            m_last_warp_fetched=warp_id;
+                            m_inst_fetch_buffer = ifetch_buffer_t(pc,nbytes,warp_id);
+                            m_warp[warp_id].set_last_fetch(gpu_sim_cycle);
+                            delete mf;
+                        } else {
+                            m_last_warp_fetched=warp_id;
+                            assert( status == RESERVATION_FAIL );
+                            delete mf;
+                        }
+                        break;
                     }
-                }
-
-                // this code fetches instructions from the i-cache or generates memory requests
-                if( !is_cta_preempted(m_warp[warp_id].get_cta_id()) && !m_warp[warp_id].done_exit()
-                		&& !m_warp[warp_id].functional_done() && !m_warp[warp_id].imiss_pending() && m_warp[warp_id].ibuffer_empty() ) {
-                    address_type pc  = m_warp[warp_id].get_pc();
-                    address_type ppc = pc + PROGRAM_MEM_START;
-                    unsigned nbytes=16;
-                    unsigned offset_in_block = pc & (m_config->m_L1I_config.get_line_sz()-1);
-                    if( (offset_in_block+nbytes) > m_config->m_L1I_config.get_line_sz() )
-                        nbytes = (m_config->m_L1I_config.get_line_sz()-offset_in_block);
-
-                    // TODO: replace with use of allocator
-                    // mem_fetch *mf = m_mem_fetch_allocator->alloc()
-                    mem_access_t acc(INST_ACC_R,ppc,nbytes,false);
-
-                    // get stream info
-                    const unsigned tid = warp_id*m_config->warp_size;
-                    const unsigned stream_id = m_thread[tid]->get_kernel().get_stream_id();
-
-                    mem_fetch *mf = new mem_fetch(acc,
-                            NULL/*we don't have an instruction yet*/,
-                            READ_PACKET_SIZE,
-                            warp_id,
-                            m_sid,
-                            m_tpc,
-                            m_memory_config,
-                            stream_id);
-                    std::list<cache_event> events;
-                    enum cache_request_status status = m_L1I->access( (new_addr_type)ppc, mf, gpu_sim_cycle+gpu_tot_sim_cycle,events);
-                    if( status == MISS ) {
-                        m_last_warp_fetched=warp_id;
-                        m_warp[warp_id].set_imiss_pending();
-                        m_warp[warp_id].set_last_fetch(gpu_sim_cycle);
-                    } else if( status == HIT ) {
-                        m_last_warp_fetched=warp_id;
-                        m_inst_fetch_buffer = ifetch_buffer_t(pc,nbytes,warp_id);
-                        m_warp[warp_id].set_last_fetch(gpu_sim_cycle);
-                        delete mf;
-                    } else {
-                        m_last_warp_fetched=warp_id;
-                        assert( status == RESERVATION_FAIL );
-                        delete mf;
-                    }
-                    break;
                 }
             }
         }

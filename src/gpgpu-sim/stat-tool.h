@@ -306,6 +306,7 @@ int get_shader_normal_cache_id();
 int get_shader_texture_cache_id();
 int get_shader_constant_cache_id();
 int get_shader_instruction_cache_id();
+int get_shader_instruction_cache_l0_id();
 void shader_cache_access_create( int n_loggers, int n_types, unsigned long long  logging_interval );
 void shader_cache_access_log( int logger_id, int type, int miss);
 void shader_cache_access_unlog( int logger_id, int type, int miss);
