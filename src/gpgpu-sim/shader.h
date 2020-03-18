@@ -2011,6 +2011,7 @@ public:
 
     void get_cache_stats(cache_stats &cs);
     void get_L1I_sub_stats(struct cache_sub_stats &css) const;
+    void get_L0I_sub_stats(struct cache_sub_stats &css) const;
     void get_L1D_sub_stats(struct cache_sub_stats &css) const;
     void get_L1C_sub_stats(struct cache_sub_stats &css) const;
     void get_L1T_sub_stats(struct cache_sub_stats &css) const;
@@ -2192,7 +2193,8 @@ private:
     read_only_cache *m_L1I; // instruction cache
     read_only_cache **m_L0I; // instruction cache
     // L1I and L0I interface
-    fifo_pipeline<mem_fetch> *m_l0_l1I_queue;
+    fifo_pipeline<mem_fetch> *m_l0_misses;
+    fifo_pipeline<mem_fetch> *m_l1_replies;
     mem_fetch_interface *m_l0_l1I;
     std::vector<int>  m_last_warp_fetched;
 
@@ -2311,6 +2313,7 @@ public:
 
     void get_cache_stats(cache_stats &cs) const;
     void get_L1I_sub_stats(struct cache_sub_stats &css) const;
+    void get_L0I_sub_stats(struct cache_sub_stats &css) const;
     void get_L1D_sub_stats(struct cache_sub_stats &css) const;
     void get_L1C_sub_stats(struct cache_sub_stats &css) const;
     void get_L1T_sub_stats(struct cache_sub_stats &css) const;
@@ -2383,6 +2386,7 @@ public:
             mf->do_atomic(); // execute atomic inside the "memory subsystem"
         }
 
+        assert(mf != nullptr);
         m_fifo->push(mf);
     }
 
