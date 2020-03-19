@@ -67,5 +67,6 @@ env/
 # CLion stuff
 .idea/
 cmake-build-debug/
+cmake-build-default/
 CMakeLists.txt
 .clion.source.upload.marker
