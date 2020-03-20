@@ -144,7 +144,7 @@ bool Scoreboard::checkCollision( unsigned wid, const class inst_t *inst ) const
 	for(int jjj=0;jjj<inst->incount;jjj++)
 		inst_regs.insert(inst->in[jjj]);
 
-        if(inst->pred > 0) inst_regs.insert(inst->pred);
+    if(inst->pred > 0) inst_regs.insert(inst->pred);
 	if(inst->ar1 > 0) inst_regs.insert(inst->ar1);
 	if(inst->ar2 > 0) inst_regs.insert(inst->ar2);
 
