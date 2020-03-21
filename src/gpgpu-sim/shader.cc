@@ -730,9 +730,10 @@ void shader_core_stats::print( FILE* fout ) const
         double sum_math_int = 0;
         double sum_math_tensor = 0;
         double sum_math_sfu = 0;
-
         double sum_mem = 0;
+
         double sum_not_selected = 0;
+        double sum_cycle_per_issue = 0;
 
         for (auto & state : warp_state_stats[stream_id]) {
             if (!break_limit) {
@@ -755,6 +756,8 @@ void shader_core_stats::print( FILE* fout ) const
                     - state.stall_scoreboard - state.wait_math_sp  - state.wait_math_dp - state.wait_math_int
                     - state.wait_math_tensor - state.wait_math_sfu - state.wait_mem - state.issued;
             sum_not_selected += ((double) not_selected_cycles) / state.issued;
+
+            sum_cycle_per_issue += (double)state.total_cycles / state.issued;
         }
 
         unsigned samples = warp_state_stats[stream_id].size();
@@ -772,6 +775,7 @@ void shader_core_stats::print( FILE* fout ) const
 
         printf("stall_mem_cycles[%u] = %.2f\n", sum_mem / samples, stream_id);
         printf("not_selected_cycles[%u] = %.2f\n", sum_not_selected / samples, stream_id);
+        printf("cycles_per_issue[%u] = %.2f\n", sum_cycle_per_issue / samples, stream_id);
     };
 
     for (unsigned stream_id = 0; stream_id < warp_state_stats.size(); stream_id++) {
