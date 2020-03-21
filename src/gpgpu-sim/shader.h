@@ -903,7 +903,7 @@ private:
                 opndcoll_rfu_t *rfu,
 				bool m_sub_core_model,
 				unsigned num_banks_per_sched);
-      bool allocate( register_set* pipeline_reg, register_set* output_reg );
+      bool allocate( warp_inst_t** pipeline_reg, warp_inst_t** output_reg );
 
       void collect_operand( unsigned op )
       {
@@ -923,7 +923,7 @@ private:
       unsigned m_cuid; // collector unit hw id
       unsigned m_warp_id;
       warp_inst_t  *m_warp;
-      register_set* m_output_register; // pipeline register to issue to when ready
+      warp_inst_t** m_output_register; // pipeline register to issue to when ready
       op_t *m_src_op;
       std::bitset<MAX_REG_OPERANDS*2> m_not_ready;
       unsigned m_num_banks;
@@ -977,6 +977,7 @@ private:
 
    unsigned m_num_banks_per_sched;
    unsigned m_num_warp_sceds;
+   std::vector<unsigned> m_last_alloc_in_port;
    bool sub_core_model;
 
    //unsigned m_num_ports;

@@ -1439,6 +1439,14 @@ public:
 		}
 		return false;
 	}
+	bool has_ready(bool sub_core_model, unsigned reg_id) {
+	    if (!sub_core_model) {
+            return has_ready();
+	    } else {
+	        assert(reg_id < regs.size());
+	        return (not regs[reg_id]->empty());
+	    }
+	}
 
 	void move_in( warp_inst_t *&src ){
 		warp_inst_t** free = get_free();
@@ -1467,7 +1475,20 @@ public:
 		return ready;
 	}
 
-	void print(FILE* fp) const{
+    warp_inst_t** get_ready(bool sub_core_model, unsigned reg_id){
+        warp_inst_t** ready;
+
+        if (!sub_core_model) {
+            ready = get_ready();
+        } else {
+            assert(reg_id < regs.size());
+            ready = &(regs[reg_id]);
+        }
+
+        return ready;
+    }
+
+    void print(FILE* fp) const{
 		fprintf(fp, "%s : @%p\n", m_name, this);
 		for( unsigned i = 0; i < regs.size(); i++ ) {
 			fprintf(fp, "     ");
