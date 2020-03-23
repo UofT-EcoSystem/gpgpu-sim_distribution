@@ -735,32 +735,37 @@ void shader_core_stats::print( FILE* fout ) const
         double sum_not_selected = 0;
         double sum_cycle_per_issue = 0;
 
+        unsigned samples = 0;
+
         for (auto & state : warp_state_stats[stream_id]) {
             if (!break_limit) {
                 assert(state.issued > 0);
             }
-            sum_barrier += ((double) state.barrier) / state.issued;
-            sum_inst_empty += ((double) state.inst_empty) / state.issued;
-            sum_branch += ((double) state.branch) / state.issued;
-            sum_scoreboard += ((double) state.stall_scoreboard) / state.issued;
 
-            sum_math_sp += ((double) state.wait_math_sp) / state.issued;
-            sum_math_dp += ((double) state.wait_math_dp) / state.issued;
-            sum_math_int += ((double) state.wait_math_int) / state.issued;
-            sum_math_tensor += ((double) state.wait_math_tensor) / state.issued;
-            sum_math_sfu += ((double) state.wait_math_sfu) / state.issued;
+            if (state.issued > 0) {
+                samples++;
 
-            sum_mem += ((double) state.wait_mem) / state.issued;
+                sum_barrier += ((double) state.barrier) / state.issued;
+                sum_inst_empty += ((double) state.inst_empty) / state.issued;
+                sum_branch += ((double) state.branch) / state.issued;
+                sum_scoreboard += ((double) state.stall_scoreboard) / state.issued;
 
-            unsigned not_selected_cycles = state.total_cycles - state.barrier - state.inst_empty - state.branch
-                    - state.stall_scoreboard - state.wait_math_sp  - state.wait_math_dp - state.wait_math_int
-                    - state.wait_math_tensor - state.wait_math_sfu - state.wait_mem - state.issued;
-            sum_not_selected += ((double) not_selected_cycles) / state.issued;
+                sum_math_sp += ((double) state.wait_math_sp) / state.issued;
+                sum_math_dp += ((double) state.wait_math_dp) / state.issued;
+                sum_math_int += ((double) state.wait_math_int) / state.issued;
+                sum_math_tensor += ((double) state.wait_math_tensor) / state.issued;
+                sum_math_sfu += ((double) state.wait_math_sfu) / state.issued;
 
-            sum_cycle_per_issue += (double)state.total_cycles / state.issued;
+                sum_mem += ((double) state.wait_mem) / state.issued;
+
+                unsigned not_selected_cycles = state.total_cycles - state.barrier - state.inst_empty - state.branch
+                                               - state.stall_scoreboard - state.wait_math_sp  - state.wait_math_dp - state.wait_math_int
+                                               - state.wait_math_tensor - state.wait_math_sfu - state.wait_mem - state.issued;
+                sum_not_selected += ((double) not_selected_cycles) / state.issued;
+
+                sum_cycle_per_issue += (double)state.total_cycles / state.issued;
+            }
         }
-
-        unsigned samples = warp_state_stats[stream_id].size();
 
         printf("barrier_cycles[%u] = %.2f\n", sum_barrier / samples, stream_id);
         printf("inst_empty_cycles[%u] = %.2f\n", sum_inst_empty / samples, stream_id);
