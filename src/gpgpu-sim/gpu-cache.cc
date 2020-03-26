@@ -64,6 +64,31 @@ const char * cache_fail_status_str(enum cache_reservation_fail_reason status)
    return static_cache_reservation_fail_reason_str[status];
 }
 
+void cache_config::resize_assoc_stream(unsigned int n_stream) {
+    m_assoc_stream_valid = true;
+    m_assoc_stream.resize(n_stream);
+}
+
+void cache_config::set_assoc_stream(unsigned int stream_id, unsigned n_assoc) {
+    if (m_assoc_stream_valid) {
+        // This is L1D only
+        assert(stream_id < m_assoc_stream.size());
+        m_assoc_stream[stream_id] = n_assoc;
+        m_assoc = original_m_assoc;
+    } else {
+        m_assoc = n_assoc;
+    }
+}
+
+unsigned cache_config::get_assoc_stream(unsigned int stream_id) {
+    if (m_assoc_stream_valid) {
+        assert(stream_id < m_assoc_stream.size());
+        return m_assoc_stream[stream_id];
+    } else {
+        return m_assoc;
+    }
+}
+
 unsigned l1d_cache_config::set_index(new_addr_type addr) const{
     unsigned set_index = m_nset; // Default to linear set index function
     unsigned lower_xor = 0;
@@ -282,13 +307,13 @@ enum cache_request_status tag_array::probe( new_addr_type addr, unsigned &idx, m
     bool all_reserved = true;
 
     unsigned way_start = 0;
-    unsigned way_end = m_config.m_assoc;
+    unsigned way_end = m_config.get_assoc_stream(stream_id);
 
-    m_config.get_assoc_stream(stream_id, way_start, way_end);
+    m_config.get_partition_stream(stream_id, way_start, way_end);
 
     // check for hit or pending hit
     for (unsigned way=way_start; way<way_end; way++) {
-        unsigned index = set_index*m_config.m_assoc+way;
+        unsigned index = set_index * m_config.get_assoc_stream(stream_id) + way;
         cache_block_t *line = m_lines[index];
         if (line->m_tag == tag) {
             if ( line->get_status(mask) == RESERVED ) {

@@ -1483,7 +1483,8 @@ struct shader_core_config : public core_config
         gpgpu_cache_texl1_linesize = m_L1T_config.get_line_sz();
         gpgpu_cache_constl1_linesize = m_L1C_config.get_line_sz();
 
-        if (!gpgpu_sharing_intra_sm) {
+        if (gpgpu_concurrent_kernel_sm && !gpgpu_sharing_intra_sm) {
+            // Assign disjoint sets of SMs to each stream
             std::stringstream ss_cta;
             ss_cta << max_sm_in_stream;
             std::string token;
@@ -1498,6 +1499,9 @@ struct shader_core_config : public core_config
             }
 
             assert(sum <= this->num_shader());
+
+            // L1D config will also change accordingly
+            m_L1D_config.resize_assoc_stream(inter_sm_id_range.size());
         }
 
         m_valid = true;

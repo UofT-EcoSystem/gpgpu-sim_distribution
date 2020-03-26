@@ -713,20 +713,23 @@ public:
         }
     }
 
-    void get_assoc_stream(unsigned stream_id, unsigned & start, unsigned & end) {
+    void get_partition_stream(unsigned stream_id, unsigned & start, unsigned & end) {
+    	// Technically assoc_stream is only valid for inter-SM and L1D, which means the cache should not be partitioned
+    	// among streams. But for consistency, let's stick to the same interface to retrieve assoc
+		unsigned n_assoc = get_assoc_stream(stream_id);
 
         if (m_partition_enabled) {
             assert(stream_id < m_partition_per_stream.size());
             if (stream_id == 0) {
                 start = 0;
-                end = floor(m_partition_per_stream[0] * m_assoc);
+                end = floor(m_partition_per_stream[0] * n_assoc);
             } else {
-                start = floor(m_partition_per_stream[stream_id-1] * m_assoc);
-                end = floor(m_partition_per_stream[stream_id] * m_assoc);
+                start = floor(m_partition_per_stream[stream_id-1] * n_assoc);
+                end = floor(m_partition_per_stream[stream_id] * n_assoc);
             }
         } else {
             start = 0;
-            end = m_assoc;
+            end = n_assoc;
         }
     }
 
@@ -810,7 +813,12 @@ public:
     	return m_is_streaming;
     }
     FuncCache get_cache_status() {return cache_status;}
-    char *m_config_string;
+
+	void resize_assoc_stream(unsigned n_stream);
+	void set_assoc_stream(unsigned stream_id, unsigned n_assoc);
+	unsigned get_assoc_stream(unsigned stream_id);
+
+	char *m_config_string;
     char *m_config_stringPrefL1;
     char *m_config_stringPrefShared;
     FuncCache cache_status;
@@ -861,6 +869,10 @@ protected:
     enum set_index_function m_set_index_function; // Hash, linear, or custom set index function
 
     std::vector<float> m_partition_per_stream;
+
+	// inter-SM sharing allows different L1D configs for different streams (SMs)
+	std::vector<unsigned> m_assoc_stream;
+	bool m_assoc_stream_valid;
 
     friend class tag_array;
     friend class baseline_cache;
