@@ -81,6 +81,22 @@ enum exec_unit_type_t
   CONTROL = 7
 };
 
+enum possible_warp_state_t{
+    BARRIER = 0,
+    INST_EMPTY,
+    STALL_BRANCH,
+    STALL_SCOREBOARD,
+    STALL_SP,
+    STALL_DP,
+    STALL_INT,
+    STALL_TENSOR,
+    STALL_SFU,
+    STALL_MEM,
+    STALL_CONTROL,
+    UNSET
+};
+
+
 class thread_ctx_t {
 public:
    unsigned m_cta_id; // hardware CTA this thread belongs
@@ -1874,9 +1890,11 @@ private:
             wait_math_int = 0;
             wait_math_tensor = 0;
             wait_math_sfu = 0;
+            wait_control = 0;
             wait_mem = 0;
             issued = 0;
             total_cycles = 0;
+            set = possible_warp_state_t::UNSET;
         }
 
         unsigned barrier;
@@ -1889,10 +1907,13 @@ private:
         unsigned wait_math_int;
         unsigned wait_math_tensor;
         unsigned wait_math_sfu;
+        unsigned wait_control;
 
         unsigned wait_mem;
         unsigned issued;
-        unsigned total_cycles;
+        unsigned long total_cycles;
+
+        unsigned set;
     };
 
     std::vector<std::vector<warp_state_t> > warp_state_stats;
