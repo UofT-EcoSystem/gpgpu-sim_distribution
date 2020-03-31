@@ -1847,20 +1847,23 @@ unsigned shader_core_ctx::translate_local_memaddr( address_type localaddr, unsig
     // required input: max ctas per shader, thread id, number of shaders, top or bottom if kernel sharing
     int max_cta_per_shader = m_config->max_cta(*kernel);
     unsigned adjusted_tid = tid;
+    unsigned adjusted_sid = m_sid;
     unsigned adjusted_num_shader = num_shader;
     bool from_top = true;
 
     if (m_config->gpgpu_concurrent_kernel_sm) {
         from_top = kernel->allocate_from_top();
+        adjusted_tid = from_top ? tid : m_config->n_thread_per_shader - 1 - tid;
 
         if (m_config->gpgpu_sharing_intra_sm) {
             // intra-SM sharing, we should find cta quota
             max_cta_per_shader = kernel->get_cta_quota();
-            adjusted_tid = from_top ? tid : m_config->n_thread_per_shader - 1 - tid;
         } else {
             // inter-SM sharing
             std::tuple<unsigned, unsigned> sm_range = m_config->inter_sm_id_range[kernel->get_stream_id()];
             adjusted_num_shader = std::get<1>(sm_range) - std::get<0>(sm_range);
+
+            adjusted_sid = from_top ? m_sid : num_shader - 1 - m_sid;
         }
     }
 
@@ -1880,13 +1883,13 @@ unsigned shader_core_ctx::translate_local_memaddr( address_type localaddr, unsig
       // for a given local memory address threads in a CTA map to contiguous addresses,
       // then distribute across memory space by CTAs from successive shader cores first, 
       // then by successive CTA in same shader core
-      thread_base = 4*(padded_cta_size * (m_sid + adjusted_num_shader * (adjusted_tid / padded_cta_size))
+      thread_base = 4*(padded_cta_size * (adjusted_sid + adjusted_num_shader * (adjusted_tid / padded_cta_size))
                        + adjusted_tid % padded_cta_size);
       max_concurrent_threads = padded_cta_size * max_cta_per_shader * adjusted_num_shader;
    } else {
       // legacy mapping that maps the same address in the local memory space of all threads 
       // to a single contiguous address region 
-      thread_base = 4*(m_config->n_thread_per_shader * m_sid + adjusted_tid);
+      thread_base = 4*(m_config->n_thread_per_shader * adjusted_sid + adjusted_tid);
       max_concurrent_threads = adjusted_num_shader * m_config->n_thread_per_shader;
    }
    assert( thread_base < 4/*word size*/*max_concurrent_threads );
