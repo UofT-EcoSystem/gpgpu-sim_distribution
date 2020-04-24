@@ -76,7 +76,11 @@ enum dram_ctrl_t {
    DRAM_FR_PRIOR=2
 };
 
-
+enum intra_sm_option_t {
+    MAX_CTA=0,
+    CTX_RATIO,
+    SMK
+};
 
 struct power_config {
 	power_config()
@@ -345,6 +349,18 @@ public:
 
         ss.clear();
 
+        ss << ctx_ratio_str;
+        float sum_ctx = 0;
+        while (std::getline(ss, token, ':')) {
+            float ctx_pct = std::stof(token);
+            assert(ctx_pct <= 1.0);
+            sum_ctx += ctx_pct;
+            ctx_ratio_per_stream.push_back(ctx_pct);
+        }
+        assert(sum_ctx <= 1.0);
+
+        ss.clear();
+
         ss << icnt_priority_str;
         while (std::getline(ss, token, ':')) {
             icnt_priority_per_stream.push_back(std::stoul(token));
@@ -367,6 +383,11 @@ public:
     unsigned get_max_cta_by_stream(unsigned stream_id) const {
         assert(stream_id < get_config_num_streams());
         return max_cta_per_stream[stream_id];
+    }
+
+    float get_ctx_ratio_by_stream(unsigned stream_id) const {
+        assert(stream_id < get_config_num_streams());
+        return ctx_ratio_per_stream[stream_id];
     }
 private:
     void init_clock_domains(void ); 
@@ -397,8 +418,11 @@ private:
     int   gpgpu_cflog_interval;
     char * gpgpu_clock_domains;
     unsigned max_concurrent_kernel;
+    int intra_sm_option;
     char *max_cta_str;
+    char *ctx_ratio_str;
     std::vector<unsigned> max_cta_per_stream;
+    std::vector<float> ctx_ratio_per_stream;
 
     unsigned delayed_cycle_btw_kernels;
 

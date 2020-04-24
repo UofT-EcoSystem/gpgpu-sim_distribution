@@ -610,10 +610,18 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
     		&delayed_cycle_btw_kernels, "Number of cycles to delay the second kernel", "0");
 
 
-    // customize number of ctas for each stream
-    // FIXME: move to shader config
+    // intra-SM settings
+    option_parser_register(opp, "-intra_sm_option", OPT_INT32, &intra_sm_option,
+            "0: passed max cta per stream, 1: passed execution context proportion, 2: SMK", "0");
+
+    // Option 1: customize number of ctas for each stream
     option_parser_register(opp, "-max_cta_in_stream", OPT_CSTR, &max_cta_str,
             "<max_cta_in_stream_default>:<in_stream_1>:<in_stream_2>", "0:0:0");
+
+    // Option 2: fixed execution context proportion
+    option_parser_register(opp, "-ctx_ratio_in_stream", OPT_CSTR, &ctx_ratio_str,
+            "<Execution context percentage in default stream>:<in_stream_1>:<in_stream_2>",
+            "0:0.5:0.5");
 
     option_parser_register(opp, "-icnt_priority", OPT_CSTR, &icnt_priority_str,
             "<priority in stream 0>:<in_stream_1>:<in_stream_2>, higher number indicates higher priority",
@@ -773,22 +781,34 @@ void gpgpu_sim::resource_partition_smk() {
 	// write back the partitioning results
 	for (auto k_usage : rK) {
 	    unsigned stream_id = m_running_kernels[k_usage.first]->get_stream_id();
-	    unsigned config_max_cta = m_config.get_max_cta_by_stream(stream_id);
-	    // check if the config file has overridden the cta
-	    // only effective when we have multiple kernels
-	    if (config_max_cta > 0) {
-            m_running_kernels[k_usage.first]->set_cta_quota(config_max_cta);
-	    }
-	    else {
-	        // make sure we are setting a non-zero cta quota
-	        assert(k_usage.second.cta_quota > 0);
-	        m_running_kernels[k_usage.first]->set_cta_quota(k_usage.second.cta_quota);
-	    }
 
-		// print the resource partition results
-		printf("Stream %d/%d (%s): %d ctas/SM\n", m_running_kernels[k_usage.first]->get_stream_id(), rK.size(), m_running_kernels[k_usage.first]->name().c_str(), m_running_kernels[k_usage.first]->get_cta_quota());
-	}
+	    unsigned cta_quota;
+	    switch (m_config.intra_sm_option) {
+            case intra_sm_option_t ::MAX_CTA: {
+                cta_quota = m_config.get_max_cta_by_stream(stream_id);
+                break;
+            }
 
+            case intra_sm_option_t ::CTX_RATIO: {
+                float config_ctx_ratio = m_config.get_ctx_ratio_by_stream(stream_id);
+                cta_quota = std::floor(config_ctx_ratio / k_usage.second.max_usage);
+                printf("ctx ratio: %f, max_usage: %f\n", config_ctx_ratio, k_usage.second.max_usage);
+                break;
+            }
+
+            case intra_sm_option_t ::SMK:
+	        default: {
+                cta_quota = k_usage.second.cta_quota;
+                break;
+            }
+        }
+        assert(cta_quota > 0);
+        m_running_kernels[k_usage.first]->set_cta_quota(cta_quota);
+
+        // print the resource partition results
+        printf("Stream %d/%d (%s): %d ctas/SM\n", m_running_kernels[k_usage.first]->get_stream_id(), rK.size(),
+                m_running_kernels[k_usage.first]->name().c_str(), m_running_kernels[k_usage.first]->get_cta_quota());
+    }
 }
 
 void gpgpu_sim::launch( kernel_info_t *kinfo )
