@@ -604,7 +604,7 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
                     (ctaid % m_config->warp_state_sample_cta == 0) &&
                     (i == start_warp);
             unsigned stat_idx = ctaid / m_config->warp_state_sample_cta;
-            assert(stat_idx < m_stats->warp_state_stats[stream_id].size());
+            assert(stat_idx < m_stats->active_warp_stats[stream_id].size());
 
             m_warp[i].init(start_pc,cta_id,ctaid, i,active_threads, m_dynamic_warp_id,
                     kernel->get_stream_id(), should_track, stat_idx);
@@ -719,90 +719,28 @@ void shader_core_stats::print( FILE* fout ) const
    fprintf(fout, "gpgpu_tensor_busy  = %f\n", avg_busy(tensor_busy_cycles, m_config->gpgpu_num_tensor_core_units));
    fprintf(fout, "gpgpu_sfu_busy  = %f\n", avg_busy(sfu_busy_cycles, m_config->gpgpu_num_sfu_units));
 
-    auto print_warp_stats = [&](unsigned stream_id) {
-        double sum_barrier = 0;
-        double sum_inst_empty = 0;
-        double sum_branch = 0;
-        double sum_scoreboard = 0;
 
-        double sum_math_sp = 0;
-        double sum_math_dp = 0;
-        double sum_math_int = 0;
-        double sum_math_tensor = 0;
-        double sum_math_sfu = 0;
-        double sum_control = 0;
-        double sum_mem = 0;
+    for (unsigned stream_id = 0; stream_id < m_num_streams; stream_id++) {
+        for (unsigned kidx = 0; kidx < warp_stats_kidx[stream_id].size(); kidx++) {
+            const warp_state_t<double> & state = warp_stats_kidx[stream_id][kidx];
 
-        double sum_not_selected = 0;
-        double sum_cycle_per_issue = 0;
+            printf("barrier_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[BARRIER]);
+            printf("inst_empty_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[INST_EMPTY]);
+            printf("branch_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_BRANCH]);
+            printf("stall_scoreboard_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_SCOREBOARD]);
 
-        unsigned samples = 0;
+            printf("stall_sp_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_SP]);
+            printf("stall_dp_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_DP]);
+            printf("stall_int_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_INT]);
+            printf("stall_tensor_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_TENSOR]);
+            printf("stall_sfu_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_SFU]);
+            printf("stall_control_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_CONTROL]);
 
-        for (unsigned sample_id = 0; sample_id < warp_state_stats[stream_id].size(); sample_id++) {
-            auto & state = warp_state_stats[stream_id][sample_id];
-            if (!break_limit) {
-                assert(state.issued > 0);
-            }
-
-            if (state.issued > 0) {
-                samples++;
-
-                sum_barrier += ((double) state.barrier) / state.issued;
-                sum_inst_empty += ((double) state.inst_empty) / state.issued;
-                sum_branch += ((double) state.branch) / state.issued;
-                sum_scoreboard += ((double) state.stall_scoreboard) / state.issued;
-
-                sum_math_sp += ((double) state.wait_math_sp) / state.issued;
-                sum_math_dp += ((double) state.wait_math_dp) / state.issued;
-                sum_math_int += ((double) state.wait_math_int) / state.issued;
-                sum_math_tensor += ((double) state.wait_math_tensor) / state.issued;
-                sum_math_sfu += ((double) state.wait_math_sfu) / state.issued;
-                sum_control += ((double) state.wait_control) / state.issued;
-
-                sum_mem += ((double) state.wait_mem) / state.issued;
-
-                long not_selected_cycles = state.total_cycles - state.barrier - state.inst_empty - state.branch
-                                               - state.stall_scoreboard - state.wait_math_sp  - state.wait_math_dp
-                                               - state.wait_math_int - state.wait_math_tensor - state.wait_math_sfu
-                                               - state.wait_control - state.wait_mem - state.issued;
-
-                if (not_selected_cycles < 0) {
-                    printf("%u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u, %ld\n", state.total_cycles, state.barrier, state.inst_empty,
-                           state.branch, state.stall_scoreboard, state.wait_math_sp, state.wait_math_dp, state.wait_math_int,
-                           state.wait_math_tensor, state.wait_math_sfu, state.wait_mem, state.issued, not_selected_cycles);
-
-                    printf("sample_id: %u", sample_id);
-                    abort();
-                }
-
-                assert(not_selected_cycles >= 0);
-                sum_not_selected += ((double) not_selected_cycles) / state.issued;
-
-                sum_cycle_per_issue += (double)state.total_cycles / state.issued;
-            }
+            printf("stall_mem_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.state_array[STALL_MEM]);
+            printf("not_selected_cycles[%u][%u] = %.2f\n", stream_id, kidx, state.not_selected_cycles);
+            printf("cycles_per_issue[%u][%u] = %.2f\n", stream_id, kidx, state.total_cycles);
         }
 
-        printf("barrier_cycles[%u] = %.2f\n", sum_barrier / samples, stream_id);
-        printf("inst_empty_cycles[%u] = %.2f\n", sum_inst_empty / samples, stream_id);
-        printf("branch_cycles[%u] = %.2f\n", sum_branch / samples, stream_id);
-        printf("stall_scoreboard_cycles[%u] = %.2f\n", sum_scoreboard / samples, stream_id);
-
-        printf("stall_sp_cycles[%u] = %.2f\n", sum_math_sp / samples, stream_id);
-        printf("stall_dp_cycles[%u] = %.2f\n", sum_math_dp / samples, stream_id);
-        printf("stall_int_cycles[%u] = %.2f\n", sum_math_int / samples, stream_id);
-        printf("stall_tensor_cycles[%u] = %.2f\n", sum_math_tensor / samples, stream_id);
-        printf("stall_sfu_cycles[%u] = %.2f\n", sum_math_sfu / samples, stream_id);
-        printf("stall_control_cycles[%u] = %.2f\n", sum_control / samples, stream_id);
-
-        printf("stall_mem_cycles[%u] = %.2f\n", sum_mem / samples, stream_id);
-        printf("not_selected_cycles[%u] = %.2f\n", sum_not_selected / samples, stream_id);
-        printf("cycles_per_issue[%u] = %.2f\n", sum_cycle_per_issue / samples, stream_id);
-    };
-
-    for (unsigned stream_id = 0; stream_id < warp_state_stats.size(); stream_id++) {
-        if (warp_state_stats[stream_id].size() > 0) {
-            print_warp_stats(stream_id);
-        }
     }
 
 //   fprintf(fout, "gpgpu_n_shmem_bkconflict = %d\n", gpgpu_n_shmem_bkconflict);
@@ -875,6 +813,34 @@ void shader_core_stats::print( FILE* fout ) const
 
    m_outgoing_traffic_stats->print(fout); 
    m_incoming_traffic_stats->print(fout); 
+}
+
+void shader_core_stats::collect_warp_state_stats(unsigned int stream_id) {
+    warp_state_t<double> average_stat = {};
+    unsigned samples = 0;
+
+    // Sum up stats
+    for (unsigned sample_id = 0; sample_id < active_warp_stats[stream_id].size(); sample_id++) {
+        auto & state = active_warp_stats[stream_id][sample_id];
+        if (!break_limit) {
+            assert(state.issued > 0);
+        }
+
+        if (state.issued > 0) {
+            samples++;
+
+            state.fill_not_selected();
+            average_stat += state.divided_by(state.issued);
+        }
+    }
+
+    // Take average of stats
+    average_stat = average_stat.divided_by(samples);
+    warp_stats_kidx[stream_id].push_back(average_stat);
+}
+
+void shader_core_stats::clear_active_warp_stats(unsigned stream_id) {
+    active_warp_stats[stream_id] = {};
 }
 
 void shader_core_stats::event_warp_issued( unsigned s_id, unsigned warp_id, unsigned num_issued, unsigned dynamic_warp_id ) {
@@ -1345,14 +1311,16 @@ void scheduler_unit::update_warp_state_stats() {
         int stream_id = shd_warp.get_stream_id();
         unsigned stat_idx = shd_warp.get_stat_idx();
 
+        shader_core_stats::warp_state_t<unsigned> & current_stat = m_stats->active_warp_stats[stream_id][stat_idx];
+
         // increment active cycle count
-        m_stats->warp_state_stats[stream_id][stat_idx].total_cycles += 1;
-        m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::UNSET;
+        current_stat.total_cycles += 1;
+        current_stat.set = possible_warp_state_t::UNSET;
 
         // determine if the warp is waiting for a barrier
         if (shd_warp.waiting()) {
-            m_stats->warp_state_stats[stream_id][stat_idx].barrier += 1;
-            m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::BARRIER;
+            current_stat.state_array[possible_warp_state_t::BARRIER] += 1;
+            current_stat.set = possible_warp_state_t::BARRIER;
             continue;
         }
 
@@ -1360,8 +1328,8 @@ void scheduler_unit::update_warp_state_stats() {
         const warp_inst_t *pI = warp(warp_id).ibuffer_next_inst();
 
         if (!(shd_warp.ibuffer_next_valid()) || (pI == nullptr)) {
-            m_stats->warp_state_stats[stream_id][stat_idx].inst_empty += 1;
-            m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::INST_EMPTY;
+            current_stat.state_array[possible_warp_state_t::INST_EMPTY] += 1;
+            current_stat.set = possible_warp_state_t::INST_EMPTY;
             continue;
         }
 
@@ -1369,15 +1337,15 @@ void scheduler_unit::update_warp_state_stats() {
         unsigned pc, rpc;
         m_simt_stack[warp_id]->get_pdom_stack_top_info(&pc, &rpc);
         if (pc != pI->pc) {
-            m_stats->warp_state_stats[stream_id][stat_idx].branch += 1;
-            m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_BRANCH;
+            current_stat.state_array[possible_warp_state_t::STALL_BRANCH] += 1;
+            current_stat.set = possible_warp_state_t::STALL_BRANCH;
             continue;
         }
 
         // check scoreboard stalls
         if (m_scoreboard->checkCollision(warp_id, pI)) {
-            m_stats->warp_state_stats[stream_id][stat_idx].stall_scoreboard += 1;
-            m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_SCOREBOARD;
+            current_stat.state_array[possible_warp_state_t::STALL_SCOREBOARD] += 1;
+            current_stat.set = possible_warp_state_t::STALL_SCOREBOARD;
             continue;
         }
 
@@ -1385,39 +1353,39 @@ void scheduler_unit::update_warp_state_stats() {
         if ((pI->op == LOAD_OP) || (pI->op == STORE_OP) || (pI->op == MEMORY_BARRIER_OP)
             || (pI->op == TENSOR_CORE_LOAD_OP) || (pI->op == TENSOR_CORE_STORE_OP)) {
             if (!m_mem_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
-                m_stats->warp_state_stats[stream_id][stat_idx].wait_mem += 1;
-                m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_MEM;
+                current_stat.state_array[possible_warp_state_t::STALL_MEM] += 1;
+                current_stat.set = possible_warp_state_t::STALL_MEM;
             }
         } else if ((m_shader->m_config->gpgpu_num_dp_units > 0) && (pI->op == DP_OP)) {
             if (!m_dp_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
-                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_dp += 1;
-                m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_DP;
+                current_stat.state_array[possible_warp_state_t::STALL_DP] += 1;
+                current_stat.set = possible_warp_state_t::STALL_DP;
             }
         } else if ((m_shader->m_config->gpgpu_num_dp_units == 0 && pI->op == DP_OP) || (pI->op == SFU_OP) ||
                    (pI->op == ALU_SFU_OP)) {
             if (!m_sfu_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
-                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_sfu += 1;
-                m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_SFU;
+                current_stat.state_array[possible_warp_state_t::STALL_SFU] += 1;
+                current_stat.set = possible_warp_state_t::STALL_SFU;
             }
         } else if ((pI->op == BRANCH_OP) || (pI->op == CALL_OPS) || (pI->op == RET_OPS) || (pI->op == BARRIER_OP)) {
             if(!m_control_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
-                m_stats->warp_state_stats[stream_id][stat_idx].wait_control += 1;
-                m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_CONTROL;
+                current_stat.state_array[possible_warp_state_t::STALL_CONTROL] += 1;
+                current_stat.set = possible_warp_state_t::STALL_CONTROL;
             }
         } else if (pI->op == TENSOR_CORE_OP) {
             if (!m_tensor_core_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
-                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_tensor += 1;
-                m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_TENSOR;
+                current_stat.state_array[possible_warp_state_t::STALL_TENSOR] += 1;
+                current_stat.set = possible_warp_state_t::STALL_TENSOR;
             }
         } else if (m_shader->m_config->gpgpu_num_int_units > 0 && pI->op != SP_OP) {
             if (!m_int_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
-                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_int += 1;
-                m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_INT;
+                current_stat.state_array[possible_warp_state_t::STALL_INT] += 1;
+                current_stat.set = possible_warp_state_t::STALL_INT;
             }
         } else {
             if (!m_sp_out->has_free(m_shader->m_config->sub_core_model, m_id)) {
-                m_stats->warp_state_stats[stream_id][stat_idx].wait_math_sp += 1;
-                m_stats->warp_state_stats[stream_id][stat_idx].set = possible_warp_state_t::STALL_SP;
+                current_stat.state_array[possible_warp_state_t::STALL_SP] += 1;
+                current_stat.set = possible_warp_state_t::STALL_SP;
             }
         }
     }
@@ -1617,8 +1585,8 @@ void scheduler_unit::cycle()
             if ((*iter)->should_track_stats()) {
                 int stream_id = (*iter)->get_stream_id();
                 unsigned stat_idx = (*iter)->get_stat_idx();
-                assert(m_stats->warp_state_stats[stream_id][stat_idx].set == possible_warp_state_t::UNSET);
-                m_stats->warp_state_stats[stream_id][stat_idx].issued += 1;
+                assert(m_stats->active_warp_stats[stream_id][stat_idx].set == possible_warp_state_t::UNSET);
+                m_stats->active_warp_stats[stream_id][stat_idx].issued += 1;
             }
 
             // This might be a bit inefficient, but we need to maintain

@@ -82,7 +82,8 @@ enum exec_unit_type_t
 };
 
 enum possible_warp_state_t{
-    BARRIER = 0,
+    UNSET = 0,
+    BARRIER,
     INST_EMPTY,
     STALL_BRANCH,
     STALL_SCOREBOARD,
@@ -93,7 +94,7 @@ enum possible_warp_state_t{
     STALL_SFU,
     STALL_MEM,
     STALL_CONTROL,
-    UNSET
+    SIZE
 };
 
 
@@ -1825,7 +1826,9 @@ public:
         tensor_blocked_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
         sfu_blocked_cycles = (unsigned*) calloc(config->num_shader(),sizeof(unsigned));
 
-        warp_state_stats.resize(num_streams);
+        m_num_streams = num_streams;
+        active_warp_stats = new std::vector<warp_state_t<unsigned>>[num_streams];
+        warp_stats_kidx = new std::vector<warp_state_t<double>>[num_streams];
 
     }
 
@@ -1838,6 +1841,9 @@ public:
         free(m_n_diverge); 
         free(shader_cycle_distro);
         free(last_shader_cycle_distro);
+
+        delete [] active_warp_stats;
+        delete [] warp_stats_kidx;
     }
 
     void new_grid()
@@ -1861,10 +1867,13 @@ public:
     }
 
     void resize_warp_stats(unsigned stream_id, unsigned samples) {
-        assert(stream_id < warp_state_stats.size());
-        warp_state_stats[stream_id].clear();
-        warp_state_stats[stream_id].resize(samples);
+        assert(stream_id < m_num_streams);
+        active_warp_stats[stream_id].clear();
+        active_warp_stats[stream_id].resize(samples);
     }
+
+    void collect_warp_state_stats(unsigned stream_id);
+    void clear_active_warp_stats(unsigned stream_id);
 
 private:
     const shader_core_config *m_config;
@@ -1878,45 +1887,67 @@ private:
     std::vector< std::vector<unsigned> > m_shader_warp_slot_issue_distro;
     std::vector<unsigned> m_last_shader_warp_slot_issue_distro;
 
+    template<typename T>
     struct warp_state_t {
-        // default constructor sets all field to zero
-        warp_state_t() {
-            barrier = 0;
-            inst_empty = 0;
-            branch = 0;
-            stall_scoreboard = 0;
-            wait_math_sp = 0;
-            wait_math_dp = 0;
-            wait_math_int = 0;
-            wait_math_tensor = 0;
-            wait_math_sfu = 0;
-            wait_control = 0;
-            wait_mem = 0;
-            issued = 0;
-            total_cycles = 0;
-            set = possible_warp_state_t::UNSET;
+        // Raw stats
+//        T barrier;
+//        T inst_empty;
+//        T branch;
+//        T stall_scoreboard;
+//
+//        T wait_math_sp;
+//        T wait_math_dp;
+//        T wait_math_int;
+//        T wait_math_tensor;
+//        T wait_math_sfu;
+//        T wait_control;
+//
+//        T wait_mem;
+        T state_array[possible_warp_state_t::SIZE];
+        T total_cycles;
+        T not_selected_cycles;
+        // end raw stats
+
+        T issued;
+        unsigned set;
+
+        // This is called after the kernel is done
+        void fill_not_selected() {
+            double _not_selected = total_cycles - issued;
+
+            for (unsigned i = 0; i < possible_warp_state_t::SIZE; i++) {
+                _not_selected -= state_array[i];
+            }
+
+            assert(_not_selected > 0);
+            not_selected_cycles = (T)_not_selected;
         }
 
-        unsigned barrier;
-        unsigned inst_empty;
-        unsigned branch;
-        unsigned stall_scoreboard;
+        warp_state_t<double> divided_by(unsigned divisor) const {
+            warp_state_t<double> result = {};
 
-        unsigned wait_math_sp;
-        unsigned wait_math_dp;
-        unsigned wait_math_int;
-        unsigned wait_math_tensor;
-        unsigned wait_math_sfu;
-        unsigned wait_control;
+            for (unsigned i = 0; i < possible_warp_state_t::SIZE; i++) {
+                result.state_array[i] = (double)state_array[i] / divisor;
+            }
+            result.total_cycles = (double)total_cycles / divisor;
+            result.not_selected_cycles = (double)not_selected_cycles / divisor;
 
-        unsigned wait_mem;
-        unsigned issued;
-        unsigned long total_cycles;
+            return result;
+        }
 
-        unsigned set;
+        warp_state_t<T>& operator+=(const warp_state_t<T>& rhs) {
+            for (unsigned i = 0; i < possible_warp_state_t::SIZE; i++) {
+                state_array[i] += rhs.state_array[i];
+            }
+            total_cycles += rhs.total_cycles;
+
+            return *this;
+        }
     };
 
-    std::vector<std::vector<warp_state_t> > warp_state_stats;
+    int m_num_streams;
+    std::vector<warp_state_t<unsigned> > * active_warp_stats;
+    std::vector<warp_state_t<double> > * warp_stats_kidx;
 
     friend class power_stat_t;
     friend class shader_core_ctx;

@@ -854,6 +854,9 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
                gpu_tot_sim_insn_stream[stream_id].push_back(0);
                partition_replys_total_per_stream[stream_id].push_back(0);
                m_memory_stats->mem_stats_stream[stream_id].push_back(memory_stats_t::mem_stats_kidx_t());
+
+               // clear active warp sampler stats
+               m_shader_stats->clear_active_warp_stats(stream_id);
            }
 
            break;
@@ -977,6 +980,8 @@ void gpgpu_sim::set_kernel_done( kernel_info_t *kernel, bool has_completed )
         const unsigned stream_id = kernel->get_stream_id();
         assert(stream_id < m_config.get_config_num_streams());
         gpu_tot_sim_cycle_stream[stream_id].back() = kernel->end_cycle - kernel->start_cycle;
+
+        m_shader_stats->collect_warp_state_stats(stream_id);
     }
 
     printf(">>>>>>>> kernel %s launched @ %llu, started @ %llu, ended @ %llu. \n",
