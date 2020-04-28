@@ -1873,7 +1873,6 @@ public:
     }
 
     void collect_warp_state_stats(unsigned stream_id);
-    void clear_active_warp_stats(unsigned stream_id);
 
 private:
     const shader_core_config *m_config;
@@ -1889,24 +1888,19 @@ private:
 
     template<typename T>
     struct warp_state_t {
-        // Raw stats
-//        T barrier;
-//        T inst_empty;
-//        T branch;
-//        T stall_scoreboard;
-//
-//        T wait_math_sp;
-//        T wait_math_dp;
-//        T wait_math_int;
-//        T wait_math_tensor;
-//        T wait_math_sfu;
-//        T wait_control;
-//
-//        T wait_mem;
+        // Might not be necessary, but I don't trust c++ zero initialization
+        warp_state_t() {
+            for (auto & x: state_array) {
+                x = 0;
+            }
+            total_cycles = 0;
+            not_selected_cycles = 0;
+            issued = 0;
+            set = possible_warp_state_t::UNSET;
+        }
         T state_array[possible_warp_state_t::SIZE];
         T total_cycles;
         T not_selected_cycles;
-        // end raw stats
 
         T issued;
         unsigned set;
@@ -1919,7 +1913,7 @@ private:
                 _not_selected -= state_array[i];
             }
 
-            assert(_not_selected > 0);
+            assert(_not_selected >= 0);
             not_selected_cycles = (T)_not_selected;
         }
 

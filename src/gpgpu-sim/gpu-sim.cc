@@ -847,6 +847,7 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
                    samples += 1;
                }
 
+               // clear active warp sampler stats
                m_shader_stats->resize_warp_stats(stream_id, samples);
 
                // insert element for stats
@@ -855,8 +856,6 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
                partition_replys_total_per_stream[stream_id].push_back(0);
                m_memory_stats->mem_stats_stream[stream_id].push_back(memory_stats_t::mem_stats_kidx_t());
 
-               // clear active warp sampler stats
-               m_shader_stats->clear_active_warp_stats(stream_id);
            }
 
            break;

@@ -839,10 +839,6 @@ void shader_core_stats::collect_warp_state_stats(unsigned int stream_id) {
     warp_stats_kidx[stream_id].push_back(average_stat);
 }
 
-void shader_core_stats::clear_active_warp_stats(unsigned stream_id) {
-    active_warp_stats[stream_id] = {};
-}
-
 void shader_core_stats::event_warp_issued( unsigned s_id, unsigned warp_id, unsigned num_issued, unsigned dynamic_warp_id ) {
     assert( warp_id <= m_config->max_warps_per_shader );
     for ( unsigned i = 0; i < num_issued; ++i ) {
