@@ -296,7 +296,7 @@ void memory_stats_t::memlatstat_print( unsigned n_mem, unsigned gpu_mem_n_bk )
 
                    if(stats.tot_mrq)
                       printf("avg_mrq_latency[%u][%u] = %lld \n",
-                              stream_id, kidx, stats.mf_tot_latency / stats.tot_mrq);
+                              stream_id, kidx, stats.mrq_latency / stats.tot_mrq);
 
                    printf("avg_icnt2sh_latency[%u][%u] = %lld \n",
                            stream_id, kidx, stats.mem2shader_latency / stats.num_mfs);
