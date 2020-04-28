@@ -612,7 +612,7 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
 
     // intra-SM settings
     option_parser_register(opp, "-intra_sm_option", OPT_INT32, &intra_sm_option,
-            "0: passed max cta per stream, 1: passed execution context proportion, 2: SMK", "0");
+            "0: SMK, 1: passed execution context proportion, 2: passed max cta per stream", "0");
 
     // Option 1: customize number of ctas for each stream
     option_parser_register(opp, "-max_cta_in_stream", OPT_CSTR, &max_cta_str,

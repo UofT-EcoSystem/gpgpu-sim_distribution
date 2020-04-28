@@ -77,9 +77,9 @@ enum dram_ctrl_t {
 };
 
 enum intra_sm_option_t {
-    MAX_CTA=0,
+    SMK = 0,
     CTX_RATIO,
-    SMK
+    MAX_CTA,
 };
 
 struct power_config {
