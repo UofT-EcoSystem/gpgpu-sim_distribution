@@ -345,10 +345,14 @@ bool stream_manager::should_record_stat(unsigned stream_id) {
         // don't even bother with default stream
         return false;
     } else {
-        assert(stream_id <= m_streams.size());
-        auto it = std::next(m_streams.begin(), stream_id-1);
+//        assert(stream_id <= m_streams.size());
+//        auto it = std::next(m_streams.begin(), stream_id-1);
+//
+//        return (*it)->should_record_stat();
 
-        return (*it)->should_record_stat();
+        // TODO: always return true for now in case in the future we want to limit should record to a few kernels
+        // This function is subject to permanent removal.
+        return true;
     }
 }
 
