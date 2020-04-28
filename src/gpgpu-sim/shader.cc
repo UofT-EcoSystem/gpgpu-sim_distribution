@@ -2037,7 +2037,7 @@ void shader_core_ctx::warp_inst_complete(const warp_inst_t &inst)
 
   int stream_id = inst.get_stream_id();
   if (g_stream_manager->should_record_stat(stream_id)) {
-      m_gpu->gpu_tot_sim_insn_stream[stream_id] += inst.active_count();
+      m_gpu->gpu_tot_sim_insn_stream[stream_id].back() += inst.active_count();
   }
 
   inst.completed(gpu_tot_sim_cycle + gpu_sim_cycle);

@@ -39,6 +39,10 @@ public:
                    const struct memory_config *mem_config,
                    unsigned n_streams);
 
+   ~memory_stats_t() {
+       delete [] mem_stats_stream;
+   }
+
    unsigned memlatstat_done( class mem_fetch *mf );
    void memlatstat_read_done( class mem_fetch *mf );
    void memlatstat_dram_access( class mem_fetch *mf );
@@ -90,17 +94,19 @@ public:
 
    // per stream stats
    unsigned num_streams;
-   unsigned * num_mfs_streams;
-   unsigned long long int * tot_icnt2mem_latency_streams;
-   std::vector<std::vector<long long int>> tot_icnt2mem_subpart_streams;
-   std::vector<std::vector<long long int>> num_mem_subpart_streams;
-   unsigned long long int * tot_offchip2mem_latency_streams;
-   unsigned long long int * tot_icnt2sh_latency_streams;
-   unsigned long long int * mf_total_lat_streams;
 
-   unsigned long long int * tot_mrq_num_streams;
-   unsigned long long int * tot_mrq_latency_streams;
+   struct mem_stats_kidx_t {
+       unsigned num_mfs;
+       unsigned long long int shader2mem_latency;
+       unsigned long long int offchip2mem_latency;
+       unsigned long long int mem2shader_latency;
+       unsigned long long int mf_tot_latency;
 
+       unsigned long long int tot_mrq;
+       unsigned long long int mrq_latency;
+   };
+
+   std::vector<mem_stats_kidx_t>* mem_stats_stream;
 
    // AerialVision L2 stats
    unsigned L2_read_miss;

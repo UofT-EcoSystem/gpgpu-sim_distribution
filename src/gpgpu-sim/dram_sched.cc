@@ -340,8 +340,8 @@ void dram_t::scheduler_frfcfs(bool priority/*=false*/)
                if (stream_id != -1 && req->data->should_record_stat()) {
             	   assert(stream_id < m_stats->num_streams);
 
-                   m_stats->tot_mrq_latency_streams[stream_id] += mrq_latency;
-                   m_stats->tot_mrq_num_streams[stream_id] += 1;
+            	   m_stats->mem_stats_stream[stream_id].back().mrq_latency += mrq_latency;
+                   m_stats->mem_stats_stream[stream_id].back().tot_mrq += 1;
                }
 
                bk[b]->mrq->timestamp = gpu_tot_sim_cycle + gpu_sim_cycle;

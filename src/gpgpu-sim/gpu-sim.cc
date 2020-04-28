@@ -98,7 +98,7 @@ unsigned long long  gpu_sim_cycle_parition_util = 0;
 unsigned long long  gpu_tot_sim_cycle_parition_util = 0;
 unsigned long long partiton_replys_in_parallel = 0;
 unsigned long long partiton_replys_in_parallel_total = 0;
-unsigned long long * partition_replys_total_per_stream;
+std::vector<unsigned long long> * partition_replys_total_per_stream;
 
 tr1_hash_map<new_addr_type,unsigned> address_random_interleaving;
 
@@ -840,13 +840,20 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
            }
 
            // resize the warp state stats if we still need to record performance
-           if (g_stream_manager->should_record_stat(kinfo->get_stream_id())) {
+           const unsigned stream_id = kinfo->get_stream_id();
+           if (g_stream_manager->should_record_stat(stream_id)) {
                unsigned samples = kinfo->num_blocks() / m_shader_config->warp_state_sample_cta;
                if (kinfo->num_blocks() % m_shader_config->warp_state_sample_cta != 0) {
                    samples += 1;
                }
 
-               m_shader_stats->resize_warp_stats(kinfo->get_stream_id(), samples);
+               m_shader_stats->resize_warp_stats(stream_id, samples);
+
+               // insert element for stats
+               gpu_tot_sim_cycle_stream[stream_id].push_back(0);
+               gpu_tot_sim_insn_stream[stream_id].push_back(0);
+               partition_replys_total_per_stream[stream_id].push_back(0);
+               m_memory_stats->mem_stats_stream[stream_id].push_back(memory_stats_t::mem_stats_kidx_t());
            }
 
            break;
@@ -969,7 +976,7 @@ void gpgpu_sim::set_kernel_done( kernel_info_t *kernel, bool has_completed )
     if (has_completed && kernel->should_record_stat()) {
         const unsigned stream_id = kernel->get_stream_id();
         assert(stream_id < m_config.get_config_num_streams());
-        gpu_tot_sim_cycle_stream[stream_id] = kernel->end_cycle - kernel->start_cycle;
+        gpu_tot_sim_cycle_stream[stream_id].back() = kernel->end_cycle - kernel->start_cycle;
     }
 
     printf(">>>>>>>> kernel %s launched @ %llu, started @ %llu, ended @ %llu. \n",
@@ -1008,8 +1015,8 @@ gpgpu_sim::gpgpu_sim( const gpgpu_sim_config &config )
     m_power_stats = new power_stat_t(m_shader_config,average_pipeline_duty_cycle,active_sms,m_shader_stats,m_memory_config,m_memory_stats);
 
     gpu_sim_insn = 0;
-    gpu_tot_sim_insn_stream = (unsigned long long*) calloc(m_config.get_config_num_streams(), sizeof(unsigned long long));
-    gpu_tot_sim_cycle_stream = (unsigned long long*) calloc(m_config.get_config_num_streams(), sizeof(unsigned long long));
+    gpu_tot_sim_insn_stream = new std::vector<unsigned long long>[m_config.get_config_num_streams()];
+    gpu_tot_sim_cycle_stream = new std::vector<unsigned long long>[m_config.get_config_num_streams()];
 
     gpu_tot_sim_insn = 0;
     gpu_tot_issued_cta = 0;
@@ -1165,8 +1172,8 @@ void gpgpu_sim::init()
     gpu_sim_cycle = 0;
     gpu_sim_insn = 0;
     for (int i = 0; i < m_config.get_config_num_streams(); i++) {
-        gpu_tot_sim_insn_stream[i] = 0;
-        gpu_tot_sim_cycle_stream[i] = 0;
+        gpu_tot_sim_insn_stream[i].reserve(5);
+        gpu_tot_sim_cycle_stream[i].reserve(5);
     }
     last_gpu_sim_insn = 0;
     m_total_cta_launched=0;
@@ -1175,9 +1182,10 @@ void gpgpu_sim::init()
     partiton_reqs_in_parallel_util = 0;
     gpu_sim_cycle_parition_util = 0;
 
-    partition_replys_total_per_stream = new unsigned long long[m_config.get_config_num_streams()];
-    memset(partition_replys_total_per_stream, 0,
-            sizeof(unsigned long long)*m_config.get_config_num_streams());
+    partition_replys_total_per_stream = new std::vector<unsigned long long>[m_config.get_config_num_streams()];
+    for (unsigned stream_id = 0; stream_id < m_config.get_config_num_streams(); stream_id++) {
+        partition_replys_total_per_stream[stream_id].reserve(5);
+    }
 
     reinit_clock_domains();
     set_param_gpgpu_num_shaders(m_config.num_shader());
@@ -1404,12 +1412,16 @@ void gpgpu_sim::gpu_print_stat()
 
    printf("gpu_ipc = %12.4f\n", (float)gpu_sim_insn / gpu_sim_cycle);
    printf("gpu_tot_sim_cycle = %lld\n", gpu_tot_sim_cycle+gpu_sim_cycle);
-   for (int i = 0; i < m_config.get_config_num_streams(); i++) {
-       printf("gpu_tot_sim_cycle[%d]: %lld\n", i, gpu_tot_sim_cycle_stream[i]);
+   for (unsigned i = 0; i < m_config.get_config_num_streams(); i++) {
+       for (unsigned kidx = 0; kidx < gpu_tot_sim_cycle_stream[i].size(); kidx++) {
+           printf("gpu_tot_sim_cycle[%u][%u]: %lld\n", i, kidx, gpu_tot_sim_cycle_stream[i][kidx]);
+       }
    }
    printf("gpu_tot_sim_insn = %lld\n", gpu_tot_sim_insn+gpu_sim_insn);
-   for (int i = 0; i < m_config.get_config_num_streams(); i++) {
-       printf("gpu_tot_sim_insn[%d]: %lld\n", i, gpu_tot_sim_insn_stream[i]);
+   for (unsigned i = 0; i < m_config.get_config_num_streams(); i++) {
+       for (unsigned kidx = 0; kidx < gpu_tot_sim_cycle_stream[i].size(); kidx++) {
+           printf("gpu_tot_sim_insn[%u][%u]: %lld\n", i, kidx, gpu_tot_sim_insn_stream[i][kidx]);
+       }
    }
    printf("gpu_tot_ipc = %12.4f\n", (float)(gpu_tot_sim_insn+gpu_sim_insn) / (gpu_tot_sim_cycle+gpu_sim_cycle));
    printf("gpu_tot_issued_cta = %lld\n", gpu_tot_issued_cta + m_total_cta_launched);
@@ -1443,8 +1455,10 @@ void gpgpu_sim::gpu_print_stat()
 
    // L2_BW per stream
    for (unsigned stream_id = 0; stream_id < m_config.get_config_num_streams(); stream_id++) {
-       printf("L2_BW_total[%u] = %12.4f GB/Sec\n", stream_id,
-               ((float)(partition_replys_total_per_stream[stream_id] * 32) / seconds) / 1000000000 );
+       for (unsigned kidx = 0; kidx < partition_replys_total_per_stream[stream_id].size(); kidx++) {
+           const float bw = ((float)(partition_replys_total_per_stream[stream_id][kidx] * 32) / seconds) / 1000000000;
+           printf("L2_BW_total[%u][%u] = %12.4f GB/Sec\n", stream_id, kidx, bw);
+       }
    }
 
    time_t curr_time;
@@ -1467,6 +1481,7 @@ void gpgpu_sim::gpu_print_stat()
    shader_print_scheduler_stat( stdout, false );
 
    m_shader_stats->print(stdout);
+
 #ifdef GPGPUSIM_POWER_MODEL
    if(m_config.g_power_simulation_enabled){
 	   m_gpgpusim_wrapper->print_power_kernel_stats(gpu_sim_cycle, gpu_tot_sim_cycle, gpu_tot_sim_insn + gpu_sim_insn, kernel_info_str, true );
@@ -2035,8 +2050,7 @@ void gpgpu_sim::cycle()
    partiton_replys_in_parallel += partiton_replys_in_parallel_per_cycle;
 
    for (unsigned stream_id = 0; stream_id < m_config.get_config_num_streams(); stream_id++) {
-       partition_replys_total_per_stream[stream_id] +=
-               partiton_replys_in_parallel_per_cycle_stream[stream_id];
+       partition_replys_total_per_stream[stream_id].back() += partiton_replys_in_parallel_per_cycle_stream[stream_id];
    }
 
    if (clock_mask & DRAM) {
