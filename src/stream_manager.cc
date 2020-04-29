@@ -112,11 +112,15 @@ void CUstream_st::cancel_front()
 }
 
 bool CUstream_st::should_record_stat() {
-	pthread_mutex_lock(&m_lock);
-	bool result = !m_done_first;
-	pthread_mutex_unlock(&m_lock);
+//	pthread_mutex_lock(&m_lock);
+//	bool result = !m_done_first;
+//	pthread_mutex_unlock(&m_lock);
+//
+//	return result;
 
-	return result;
+    // TODO: always return true for now in case in the future we want to limit should record to a few kernels
+    // This function is subject to permanent removal.
+    return true;
 }
 
 void CUstream_st::print(FILE *fp)
@@ -345,14 +349,10 @@ bool stream_manager::should_record_stat(unsigned stream_id) {
         // don't even bother with default stream
         return false;
     } else {
-//        assert(stream_id <= m_streams.size());
-//        auto it = std::next(m_streams.begin(), stream_id-1);
-//
-//        return (*it)->should_record_stat();
+        assert(stream_id <= m_streams.size());
+        auto it = std::next(m_streams.begin(), stream_id-1);
 
-        // TODO: always return true for now in case in the future we want to limit should record to a few kernels
-        // This function is subject to permanent removal.
-        return true;
+        return (*it)->should_record_stat();
     }
 }
 
