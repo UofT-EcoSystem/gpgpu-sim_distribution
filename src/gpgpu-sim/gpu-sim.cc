@@ -1423,7 +1423,7 @@ void gpgpu_sim::gpu_print_stat()
    }
    printf("gpu_tot_sim_insn = %lld\n", gpu_tot_sim_insn+gpu_sim_insn);
    for (unsigned i = 0; i < m_config.get_config_num_streams(); i++) {
-       for (unsigned kidx = 0; kidx < gpu_tot_sim_cycle_stream[i].size(); kidx++) {
+       for (unsigned kidx = 0; kidx < gpu_tot_sim_insn_stream[i].size(); kidx++) {
            printf("gpu_tot_sim_insn[%u][%u]: %lld\n", i, kidx, gpu_tot_sim_insn_stream[i][kidx]);
        }
    }
@@ -1460,7 +1460,8 @@ void gpgpu_sim::gpu_print_stat()
    // L2_BW per stream
    for (unsigned stream_id = 0; stream_id < m_config.get_config_num_streams(); stream_id++) {
        for (unsigned kidx = 0; kidx < partition_replys_total_per_stream[stream_id].size(); kidx++) {
-           const float bw = ((float)(partition_replys_total_per_stream[stream_id][kidx] * 32) / seconds) / 1000000000;
+           const double k_seconds = gpu_tot_sim_cycle_stream[stream_id][kidx] * m_config.icnt_period;
+           const float bw = ((partition_replys_total_per_stream[stream_id][kidx] * 32) / k_seconds) / 1000000000;
            printf("L2_BW_total[%u][%u] = %12.4f GB/Sec\n", stream_id, kidx, bw);
        }
    }
@@ -2024,7 +2025,7 @@ void gpgpu_sim::cycle()
    unsigned partiton_replys_in_parallel_per_cycle = 0;
 
    unsigned partiton_replys_in_parallel_per_cycle_stream[m_config.get_config_num_streams()];
-   memset(partiton_replys_in_parallel_per_cycle_stream, 0, sizeof(partiton_replys_in_parallel_per_cycle_stream));
+   memset(partiton_replys_in_parallel_per_cycle_stream, 0, sizeof(unsigned)*m_config.get_config_num_streams());
 
    if (clock_mask & ICNT) {
        // pop from memory controller to interconnect
