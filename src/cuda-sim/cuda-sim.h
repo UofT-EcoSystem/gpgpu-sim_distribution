@@ -42,8 +42,6 @@ class symbol_table;
 
 extern const char *g_gpgpusim_version_string;
 extern int g_ptx_sim_mode;
-extern int g_mix_sim_mode;
-extern int g_perf_sim_kernel_idx;
 extern int g_debug_execution;
 extern int g_debug_thread_uid;
 extern void ** g_inst_classification_stat;

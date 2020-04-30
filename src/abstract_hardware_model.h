@@ -628,6 +628,8 @@ public:
     int get_resume_CTA() const {return resume_CTA; }
     int get_checkpoint_CTA_t() const {return checkpoint_CTA_t; }
     int get_checkpoint_insn_Y() const {return checkpoint_insn_Y; }
+    char* get_ptx_perf_kernel_str() const {return g_ptx_perf_kernel_str;}
+    bool get_mix_sim_mode() const {return g_mix_sim_mode;}
 private:
     // PTX options
     int m_ptx_convert_to_ptxplus;
@@ -647,6 +649,9 @@ private:
     char* g_ptx_inst_debug_file;
     int   g_ptx_inst_debug_thread_uid;
 
+    char* g_ptx_perf_kernel_str;
+    bool g_mix_sim_mode;
+
     unsigned m_texcache_linesize;
 };
 
@@ -662,6 +667,8 @@ public:
     int resume_CTA;
     int checkpoint_CTA_t;
     int checkpoint_insn_Y;
+    bool mix_perf_mode;
+    std::vector<int> perf_kernel_idx;
     void* gpu_malloc( size_t size );
     void* gpu_mallocarray( size_t count );
     void  gpu_memset( size_t dst_start_addr, int c, size_t count );

@@ -154,9 +154,10 @@ void gpgpu_functional_sim_config::reg_options(class OptionParser * opp)
     option_parser_register(opp, "-gpgpu_ptx_mix_sim_mode", OPT_BOOL, &g_mix_sim_mode,
             "Whether we are mixing functional and performance simulation mode.",
             "0");
-    option_parser_register(opp, "-gpgpu_ptx_perf_kernel_idx", OPT_INT32, &g_perf_sim_kernel_idx,
-                           "Kernel index to run full performance simulation for. 1 will indicate the first kernel",
-                           "1");
+    option_parser_register(opp, "-gpgpu_ptx_perf_kernel_idx", OPT_CSTR, &g_ptx_perf_kernel_str,
+                           "Kernel index to run full performance simulation for in each stream. "
+                           "1 will indicate the first kernel",
+                           "0:1:1");
 
 
 
@@ -188,29 +189,42 @@ void gpgpu_functional_sim_config::ptx_set_tex_cache_linesize(unsigned linesize)
 gpgpu_t::gpgpu_t( const gpgpu_functional_sim_config &config )
     : m_function_model_config(config)
 {
-   m_global_mem = new memory_space_impl<8192>("global",64*1024);
-   
-   m_tex_mem = new memory_space_impl<8192>("tex",64*1024);
-   m_surf_mem = new memory_space_impl<8192>("surf",64*1024);
+    m_global_mem = new memory_space_impl<8192>("global",64*1024);
 
-   m_dev_malloc=GLOBAL_HEAP_START; 
-   checkpoint_option = m_function_model_config.get_checkpoint_option();
-   checkpoint_kernel = m_function_model_config.get_checkpoint_kernel();
-   checkpoint_CTA = m_function_model_config.get_checkpoint_CTA();
-   resume_option = m_function_model_config.get_resume_option();
-   resume_kernel = m_function_model_config.get_resume_kernel();
-   resume_CTA = m_function_model_config.get_resume_CTA();
-   checkpoint_CTA_t = m_function_model_config.get_checkpoint_CTA_t();
-   checkpoint_insn_Y = m_function_model_config.get_checkpoint_insn_Y();
+    m_tex_mem = new memory_space_impl<8192>("tex",64*1024);
+    m_surf_mem = new memory_space_impl<8192>("surf",64*1024);
 
-   // initialize texture mappings to empty
-   m_NameToTextureInfo.clear();
-   m_NameToCudaArray.clear();
-   m_TextureRefToName.clear();
-   m_NameToAttribute.clear();
+    m_dev_malloc=GLOBAL_HEAP_START;
+    checkpoint_option = m_function_model_config.get_checkpoint_option();
+    checkpoint_kernel = m_function_model_config.get_checkpoint_kernel();
+    checkpoint_CTA = m_function_model_config.get_checkpoint_CTA();
+    resume_option = m_function_model_config.get_resume_option();
+    resume_kernel = m_function_model_config.get_resume_kernel();
+    resume_CTA = m_function_model_config.get_resume_CTA();
+    checkpoint_CTA_t = m_function_model_config.get_checkpoint_CTA_t();
+    checkpoint_insn_Y = m_function_model_config.get_checkpoint_insn_Y();
 
-   if(m_function_model_config.get_ptx_inst_debug_to_file() != 0) 
-      ptx_inst_debug_file = fopen(m_function_model_config.get_ptx_inst_debug_file(), "w");
+    mix_perf_mode = config.get_mix_sim_mode();
+
+    // parse perf_kernel_idx
+    std::string token;
+    std::stringstream ss;
+
+    ss << config.get_ptx_perf_kernel_str();
+    while (std::getline(ss, token, ':')) {
+        perf_kernel_idx.push_back(std::stoul(token));
+    }
+
+    ss.clear();
+
+    // initialize texture mappings to empty
+    m_NameToTextureInfo.clear();
+    m_NameToCudaArray.clear();
+    m_TextureRefToName.clear();
+    m_NameToAttribute.clear();
+
+    if(m_function_model_config.get_ptx_inst_debug_to_file() != 0)
+        ptx_inst_debug_file = fopen(m_function_model_config.get_ptx_inst_debug_file(), "w");
 }
 
 address_type line_size_based_tag_func(new_addr_type address, new_addr_type line_size)

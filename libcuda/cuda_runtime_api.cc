@@ -1609,9 +1609,12 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 	    announce_call(__my_func__);
     }
 	CUctx_st* context = GPGPUSim_Context();
+    gpgpu_t *gpu = context->get_device()->get_gpgpu();
+
 	char *mode = getenv("PTX_SIM_MODE_FUNC");
 	if( mode )
 		sscanf(mode,"%u", &g_ptx_sim_mode);
+
 	gpgpusim_ptx_assert( !g_cuda_launch_stack.empty(), "empty launch stack" );
 	kernel_config config = g_cuda_launch_stack.back();
 	{
@@ -1630,8 +1633,8 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 	kernel_info_t *grid = gpgpu_cuda_ptx_sim_init_grid(hostFun,config.get_args(),config.grid_dim(),config.block_dim(),context,stream?stream->get_uid():0);
 
     bool should_func_sim = g_ptx_sim_mode;
-    if (g_mix_sim_mode) {
-        should_func_sim = (grid->get_uid() != g_perf_sim_kernel_idx);
+    if (gpu->mix_perf_mode) {
+        should_func_sim = (grid->get_uid() != gpu->perf_kernel_idx[stream->get_uid()]);
     }
     printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n", hostFun,
            should_func_sim?"functional simulation":"performance simulation", stream?stream->get_uid():0 );
@@ -1649,7 +1652,6 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 	dim3 gridDim = config.grid_dim();
 	dim3 blockDim = config.block_dim();
 		
-	gpgpu_t *gpu = context->get_device()->get_gpgpu();
 	checkpoint *g_checkpoint;
 	g_checkpoint = new checkpoint();
 	class memory_space *global_mem;
