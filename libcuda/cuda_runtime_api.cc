@@ -1634,7 +1634,7 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 
     bool should_func_sim = g_ptx_sim_mode;
     if (gpu->mix_perf_mode) {
-        should_func_sim = (grid->get_uid() != gpu->perf_kernel_idx[stream->get_uid()]);
+        should_func_sim = (grid->get_uid_in_stream() != gpu->perf_kernel_idx[stream->get_uid()]);
     }
     printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n", hostFun,
            should_func_sim?"functional simulation":"performance simulation", stream?stream->get_uid():0 );

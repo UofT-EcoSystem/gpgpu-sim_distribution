@@ -36,6 +36,7 @@ CUstream_st::CUstream_st()
 {
     m_pending = false;
     m_uid = sm_next_stream_uid++;
+    m_next_grid_id = 0;
 
     m_done_first = false;
     pthread_mutex_init(&m_lock,NULL);
@@ -353,6 +354,17 @@ bool stream_manager::should_record_stat(unsigned stream_id) {
         auto it = std::next(m_streams.begin(), stream_id-1);
 
         return (*it)->should_record_stat();
+    }
+}
+
+unsigned stream_manager::next_grid_uid_in_stream(unsigned stream_id) {
+    if (stream_id == 0) {
+        return m_stream_zero.get_next_grid_id();
+    } else {
+        assert(stream_id <= m_streams.size());
+        auto it = std::next(m_streams.begin(), stream_id-1);
+
+        return (*it)->get_next_grid_id();
     }
 }
 

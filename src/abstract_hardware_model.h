@@ -331,6 +331,7 @@ public:
       return m_next_tid.z < m_block_dim.z && m_next_tid.y < m_block_dim.y && m_next_tid.x < m_block_dim.x;
    }
    unsigned get_uid() const { return m_uid; }
+   unsigned get_uid_in_stream() const { return m_uid_in_stream; }
    std::string name() const;
 
    std::list<class ptx_thread_info *> &active_threads() { return m_active_threads; }
@@ -366,6 +367,7 @@ private:
    class function_info *m_kernel_entry;
 
    unsigned m_uid;
+   unsigned m_uid_in_stream;
    static unsigned m_next_uid;
    
    //These maps contain the snapshot of the texture mappings at kernel launch

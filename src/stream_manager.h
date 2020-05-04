@@ -247,10 +247,12 @@ public:
     void print( FILE *fp );
     unsigned get_uid() const { return m_uid; }
     bool should_record_stat() ;
+    unsigned get_next_grid_id() { m_next_grid_id++; return m_next_grid_id; }
 
 private:
     unsigned m_uid;
     static unsigned sm_next_stream_uid;
+    unsigned m_next_grid_id;
 
     std::list<stream_operation> m_operations;
     bool m_pending; // front operation has started but not yet completed
@@ -278,6 +280,7 @@ public:
     bool operation(bool * sim);
     void stop_all_running_kernels();
     bool should_record_stat(unsigned stream_id);
+    unsigned next_grid_uid_in_stream(unsigned stream_id);
 
 private:
     void print_impl( FILE *fp);
