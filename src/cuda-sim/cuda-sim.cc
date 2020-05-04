@@ -2257,11 +2257,14 @@ void gpgpu_cuda_ptx_sim_main_func( kernel_info_t &kernel, bool openCL )
 	 kernel_func_info->set_pdom();
     }
 
-    unsigned max_cta_tot = max_cta(kernel_info,kernel.threads_per_cta(), g_the_gpu->getShaderCoreConfig()->warp_size, g_the_gpu->getShaderCoreConfig()->n_thread_per_shader, g_the_gpu->getShaderCoreConfig()->gpgpu_shmem_size, g_the_gpu->getShaderCoreConfig()->gpgpu_shader_registers, g_the_gpu->getShaderCoreConfig()->max_cta_per_core);
+    unsigned max_cta_tot = max_cta(kernel_info,kernel.threads_per_cta(),
+            g_the_gpu->getShaderCoreConfig()->warp_size,
+            g_the_gpu->getShaderCoreConfig()->n_thread_per_shader,
+            g_the_gpu->getShaderCoreConfig()->gpgpu_shmem_size,
+            g_the_gpu->getShaderCoreConfig()->gpgpu_shader_registers,
+            g_the_gpu->getShaderCoreConfig()->max_cta_per_core);
+
     printf("Max CTA : %d\n",max_cta_tot);
-
-    
-
 
       
     int inst_count=50;
@@ -2352,13 +2355,27 @@ void functionalCoreSim::initializeCTA(unsigned ctaid_cp)
         m_warpAtBarrier[i]=false;
         m_liveThreadCount[i]=0;
     }
-    for(int i=0; i< m_warp_count*m_warp_size;i++)
-        m_thread[i]=NULL;
-    
-    //get threads for a cta
-    for(unsigned i=0; i<m_kernel->threads_per_cta();i++) {
-        ptx_sim_init_thread(*m_kernel,&m_thread[i],0,i,m_kernel->threads_per_cta()-i,m_kernel->threads_per_cta(),this,0,i/m_warp_size,(gpgpu_t*)m_gpu, true);
+
+    // Functional sim should be compatible with concurrent kernel execution
+    const bool from_top = m_kernel->allocate_from_top();
+    unsigned hw_thread_start_id, hw_cta_id;
+
+    if (from_top) {
+        hw_thread_start_id = 0;
+        hw_cta_id = 0;
+    } else {
+        hw_thread_start_id = m_warp_count * m_warp_size - m_kernel->threads_per_cta();
+        hw_cta_id = m_gpu->getShaderCoreConfig()->max_cta_per_core - 1;
+    }
+
+    for(unsigned i = hw_thread_start_id; i < hw_thread_start_id + m_kernel->threads_per_cta(); i++) {
+        m_thread[i] = NULL;
+        ptx_sim_init_thread(*m_kernel,&m_thread[i],0, i,m_kernel->threads_per_cta()-i,
+                            m_kernel->threads_per_cta(),this, hw_cta_id,i/m_warp_size,
+                            (gpgpu_t*)m_gpu, true);
+
         assert(m_thread[i]!=NULL && !m_thread[i]->is_done());
+
         char fname[2048];
         snprintf(fname,2048,"checkpoint_files/thread_%d_0_reg.txt",i );
         if(cp_cta_resume==1)
@@ -2366,8 +2383,11 @@ void functionalCoreSim::initializeCTA(unsigned ctaid_cp)
         ctaLiveThreads++;
     }
 
-    for(int k=0;k<m_warp_count;k++)
+    const unsigned hw_warp_start_id = hw_thread_start_id / m_warp_size;
+    const unsigned num_warps = m_kernel->threads_per_cta() / m_warp_size;
+    for(unsigned k = hw_warp_start_id; k < hw_warp_start_id + num_warps; k++) {
         createWarp(k);
+    }
 }
 
 void  functionalCoreSim::createWarp(unsigned warpId)
