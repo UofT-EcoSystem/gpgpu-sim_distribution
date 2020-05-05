@@ -30,6 +30,9 @@
 #include "cuda-sim/cuda-sim.h"
 #include "gpgpu-sim/gpu-sim.h"
 
+#include <thread>
+#include <chrono>
+
 unsigned CUstream_st::sm_next_stream_uid = 0;
 
 CUstream_st::CUstream_st() 
@@ -66,6 +69,9 @@ void CUstream_st::synchronize()
         pthread_mutex_lock(&m_lock);
         done = m_operations.empty();
         pthread_mutex_unlock(&m_lock);
+
+        // Let's save some cpu cycles by sleeping here
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     } while ( !done );
 }
 
