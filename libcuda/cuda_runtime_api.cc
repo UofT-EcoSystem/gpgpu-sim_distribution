@@ -1634,7 +1634,13 @@ __host__ cudaError_t CUDARTAPI cudaLaunch( const char *hostFun )
 
     bool should_func_sim = g_ptx_sim_mode;
     if (gpu->mix_perf_mode) {
-        should_func_sim = (grid->get_uid_in_stream() != gpu->perf_kernel_idx[stream->get_uid()]);
+    	const unsigned stream_id = stream->get_uid();
+    	unsigned grid_uid_in_iter = (grid->get_uid_in_stream() % gpu->num_kernel_stream[stream_id]);
+    	if (grid_uid_in_iter == 0) {
+    		// need to adjust because grid uid starts at 1 instead of 0
+    		grid_uid_in_iter = gpu->num_kernel_stream[stream_id];
+    	}
+        should_func_sim = ( grid_uid_in_iter != gpu->perf_kernel_idx[stream_id]);
     }
     printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n", hostFun,
            should_func_sim?"functional simulation":"performance simulation", stream?stream->get_uid():0 );

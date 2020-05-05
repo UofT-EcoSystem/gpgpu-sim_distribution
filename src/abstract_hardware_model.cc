@@ -158,6 +158,9 @@ void gpgpu_functional_sim_config::reg_options(class OptionParser * opp)
                            "Kernel index to run full performance simulation for in each stream. "
                            "1 will indicate the first kernel",
                            "0:1:1");
+    option_parser_register(opp, "-gpgpu_ptx_num_kernel", OPT_CSTR, &g_ptx_num_kernel_str,
+                           "Number of kernels per iteration in each stream. ",
+                           "0:1:1");
 
 
 
@@ -214,7 +217,12 @@ gpgpu_t::gpgpu_t( const gpgpu_functional_sim_config &config )
     while (std::getline(ss, token, ':')) {
         perf_kernel_idx.push_back(std::stoul(token));
     }
+    ss.clear();
 
+    ss << config.get_ptx_num_kernel_str();
+    while (std::getline(ss, token, ':')) {
+        num_kernel_stream.push_back(std::stoul(token));
+    }
     ss.clear();
 
     // initialize texture mappings to empty
