@@ -2384,7 +2384,8 @@ void functionalCoreSim::initializeCTA(unsigned ctaid_cp)
     }
 
     const unsigned hw_warp_start_id = hw_thread_start_id / m_warp_size;
-    const unsigned num_warps = m_kernel->threads_per_cta() / m_warp_size;
+    // Make sure the number of warps are padded
+    const unsigned num_warps = std::ceil((float)m_kernel->threads_per_cta() / m_warp_size);
     for(unsigned k = hw_warp_start_id; k < hw_warp_start_id + num_warps; k++) {
         createWarp(k);
     }
