@@ -1956,6 +1956,12 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         	m_thread[i]->m_local_mem->load(context.local_mem[tid_in_cta]);
         	m_thread[i]->set_npc(context.pcs[tid_in_cta]);
         	m_thread[i]->update_pc();
+
+        	if (context.retired_threads[tid_in_cta]) {
+                m_thread[i]->set_done();
+                m_thread[i]->exitCore();
+                m_thread[i]->registerExit();
+        	}
         }
         //
         warps.set( warp_id );

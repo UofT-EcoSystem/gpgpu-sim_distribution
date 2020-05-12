@@ -219,6 +219,9 @@ struct preempted_cta_context {
 	std::queue<bool> at_barrier;
 	std::map< unsigned, std::queue<bool> >  bar_id_to_warps;
 	std::queue<bool> active_mask;
+
+	// retired thread info
+	std::vector<bool> retired_threads; // per thread
 };
 
 // kernel resource usage information

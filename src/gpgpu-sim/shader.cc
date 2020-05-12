@@ -2985,6 +2985,11 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 	const unsigned start_hwtid = m_occupied_cta_to_hwtid[cta_num];
 	const unsigned end_hwtid = start_hwtid + cta_size;
 
+    context.regs.reserve(cta_size);
+    context.local_mem.reserve(cta_size);
+    context.pcs.reserve(cta_size);
+    context.retired_threads.reserve(cta_size);
+
 	for (unsigned hwtid = start_hwtid; hwtid < start_hwtid + cta_size; ++hwtid) {
 		// registers
 		char* reg_buf;
@@ -3002,10 +3007,17 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 		// thread's pcs
 		context.pcs.push_back(m_thread[hwtid]->get_pc());
 
-		// mark threads inactive..
-        m_thread[hwtid]->set_done();
-        m_thread[hwtid]->exitCore();
-        m_thread[hwtid]->registerExit();
+		if (m_thread[hwtid]->is_done()) {
+		    context.retired_threads.push_back(true);
+		} else {
+            context.retired_threads.push_back(false);
+
+            // mark threads inactive..
+            m_thread[hwtid]->set_done();
+            m_thread[hwtid]->exitCore();
+            m_thread[hwtid]->registerExit();
+		}
+
 	}
 
 	// store shared memory
@@ -3013,7 +3025,6 @@ void shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
 
 	// store simt_stack
     unsigned start_warp = start_hwtid / m_config->warp_size;
-    unsigned warp_per_cta =  cta_size / m_config->warp_size;
     unsigned end_warp = end_hwtid / m_config->warp_size + ((end_hwtid % m_config->warp_size)? 1 : 0);
 
     for (unsigned warp_id = start_warp; warp_id < end_warp; warp_id++) {
