@@ -212,11 +212,8 @@ void ptx_thread_info::print_reg_thread(char * fname)
 
 void ptx_thread_info::print_reg_thread_strbuf(char *& buf)
 {
-	const unsigned buf_size = 8192;
-	buf = new char[buf_size];
-	memset(buf, 0, buf_size);
-	int length = 0;
-
+    // Avoid c char array overflow, use stringstream and then copy
+	std::stringstream ss;
 	int size = m_regs.size();
 
 	if(size>0)
@@ -228,13 +225,25 @@ void ptx_thread_info::print_reg_thread_strbuf(char *& buf)
 		{
 			const std::string &name = it->first->name();
 			const std::string &dec= it->first->decl_location();
-			unsigned size = it->first->get_size_in_bytes();
-			length += snprintf(buf+length, buf_size-length, "%s %llu %s %d\n",name.c_str(),it->second, dec.c_str(),size );
-			assert(length<buf_size);
+			unsigned sizeBytes = it->first->get_size_in_bytes();
+
+//			length += snprintf(buf+length, buf_size-length, "%s %llu %s %d\n",name.c_str(),it->second,
+//			        dec.c_str(),sizeBytes );
+
+            char reg_union[256];
+            snprintf(reg_union, 256, "%llu", it->second);
+
+            ss << name.c_str() << " " << reg_union << " " << dec.c_str() << " " << sizeBytes << "\n";
 
 		}
 		//m_regs.pop_back();
 	}
+
+	// +1 to include the null terminating string
+    const unsigned buf_size = std::strlen(ss.str().c_str()) + 1;
+    buf = new char[buf_size];
+    memset(buf, 0, buf_size);
+    std::strcpy(buf, ss.str().c_str());
 }
 
 void ptx_thread_info::resume_reg_thread(char * fname, symbol_table * symtab)
