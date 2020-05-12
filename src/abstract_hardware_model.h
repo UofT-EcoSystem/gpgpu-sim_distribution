@@ -428,7 +428,7 @@ public:
    mutable bool volta_cache_config_set;
 
    void set_usage(float thread_usage, float smem_usage, float reg_usage, float cta_usage);
-   Usage get_usage() {return usage;}
+   Usage get_usage() const {return usage;}
    bool has_set_usage() {return usage_valid;}
 
    std::queue<preempted_cta_context> m_preempted_queue;

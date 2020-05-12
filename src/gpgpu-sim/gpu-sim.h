@@ -80,6 +80,7 @@ enum intra_sm_option_t {
     SMK = 0,
     CTX_RATIO,
     MAX_CTA,
+    CTA_LUT,
 };
 
 struct power_config {
@@ -338,32 +339,76 @@ public:
         snprintf(buf,1024,"gpgpusim_visualizer__%s.log.gz",date);
         g_visualizer_filename = strdup(buf);
 
-        // extra per stream info
-        std::string token;
-        std::stringstream ss;
 
-        ss << max_cta_str;
-        while (std::getline(ss, token, ':')) {
-            max_cta_per_stream.push_back(std::stoul(token));
+        auto parse_uint_vector = [&](const char* str, std::vector<unsigned> & vec) {
+            std::string _token;
+            std::stringstream _ss;
+
+            _ss << str;
+
+            while (std::getline(_ss, _token, ':')) {
+                vec.push_back(std::stoul(_token));
+            }
+
+            _ss.clear();
+        };
+
+        // Parse max cta per stream
+        parse_uint_vector(max_cta_str, max_cta_per_stream);
+
+        // Parse execution context ratio
+        {
+            std::string token;
+            std::stringstream ss;
+
+            ss << ctx_ratio_str;
+            float sum_ctx = 0;
+            while (std::getline(ss, token, ':')) {
+                float ctx_pct = std::stof(token);
+                assert(ctx_pct <= 1.0);
+                sum_ctx += ctx_pct;
+                ctx_ratio_per_stream.push_back(ctx_pct);
+            }
+            assert(sum_ctx <= 1.0);
+            ss.clear();
+
         }
 
-        ss.clear();
+        // Parse cta lut per stream
+        {
+            std::string token;
+            std::stringstream ss;
 
-        ss << ctx_ratio_str;
-        float sum_ctx = 0;
-        while (std::getline(ss, token, ':')) {
-            float ctx_pct = std::stof(token);
-            assert(ctx_pct <= 1.0);
-            sum_ctx += ctx_pct;
-            ctx_ratio_per_stream.push_back(ctx_pct);
+            ss << cta_lut_str;
+            printf("str: %s\n", cta_lut_str);
+            while(std::getline(ss, token, ',')) {
+                // token is in the form of "kidx => cta"
+                std::string key, value;
+                std::stringstream sub_ss;
+
+                sub_ss << token;
+                std::getline(sub_ss, key, '=');
+                std::getline(sub_ss, value, '=');
+
+                std::vector<unsigned> * cta_lut_entry = new std::vector<unsigned>();
+                parse_uint_vector(value.c_str(), *cta_lut_entry);
+
+                cta_lut_per_stream.emplace(key, cta_lut_entry);
+            }
         }
-        assert(sum_ctx <= 1.0);
 
-        ss.clear();
+        // Parse priority in interconnect
+        {
+            std::string token;
+            std::stringstream ss;
 
-        ss << icnt_priority_str;
-        while (std::getline(ss, token, ':')) {
-            icnt_priority_per_stream.push_back(std::stoul(token));
+            ss << icnt_priority_str;
+
+            while (std::getline(ss, token, ':')) {
+                icnt_priority_per_stream.push_back(std::stoul(token));
+            }
+
+            ss.clear();
         }
 
         m_valid=true;
@@ -389,6 +434,23 @@ public:
         assert(stream_id < get_config_num_streams());
         return ctx_ratio_per_stream[stream_id];
     }
+
+    std::vector<unsigned> get_cta_from_lut(std::vector<unsigned> kidx) const {
+        std::string key;
+        for (unsigned i = 0; i < kidx.size(); i++) {
+            if (i == 0) {
+                key = std::to_string(kidx[0]);
+            } else {
+                key += ":" + std::to_string(kidx[i]);
+            }
+        }
+
+        auto it = cta_lut_per_stream.find(key);
+        assert(it != cta_lut_per_stream.end());
+
+        return *(it->second);
+    }
+
 private:
     void init_clock_domains(void ); 
 
@@ -420,9 +482,11 @@ private:
     unsigned max_concurrent_kernel;
     int intra_sm_option;
     char *max_cta_str;
+    char *cta_lut_str;
     char *ctx_ratio_str;
     std::vector<unsigned> max_cta_per_stream;
     std::vector<float> ctx_ratio_per_stream;
+    std::map<std::string, std::vector<unsigned>* > cta_lut_per_stream;
 
     unsigned delayed_cycle_btw_kernels;
 
@@ -560,31 +624,34 @@ public:
     const std::vector<kernel_info_t*>& get_running_kernels() {return m_running_kernels;}
     void update_executed_kernel(kernel_info_t* kernel);
 private:
-   // clocks
-   void reinit_clock_domains(void);
-   int  next_clock_domain(void);
-   void issue_block2core();
-   void print_dram_stats(FILE *fout) const;
-   void shader_print_runtime_stat( FILE *fout );
-   void shader_print_l1_miss_stat( FILE *fout ) const;
-   void shader_print_cache_stats( FILE *fout ) const;
-   void shader_print_scheduler_stat( FILE* fout, bool print_dynamic_info ) const;
-   void visualizer_printstat();
-   void print_shader_cycle_distro( FILE *fout ) const;
+    // clocks
+    void reinit_clock_domains(void);
+    int  next_clock_domain(void);
+    void issue_block2core();
+    void print_dram_stats(FILE *fout) const;
+    void shader_print_runtime_stat( FILE *fout );
+    void shader_print_l1_miss_stat( FILE *fout ) const;
+    void shader_print_cache_stats( FILE *fout ) const;
+    void shader_print_scheduler_stat( FILE* fout, bool print_dynamic_info ) const;
+    void visualizer_printstat();
+    void print_shader_cycle_distro( FILE *fout ) const;
 
-   void gpgpu_debug();
+    void gpgpu_debug();
 
-   void resource_partition_smk();
+    struct kernel_usage_info {
+        bool being_considered;
 
-   struct kernel_usage_info {
-	   bool being_considered;
+        float max_usage;
+        Usage usage;
 
-	   float max_usage;
-	   Usage usage;
+        unsigned cta_quota;
+        unsigned grid_over_sm;
+    };
 
-	   unsigned cta_quota;
-	   unsigned grid_over_sm;
-   };
+    void calculate_smk_quota(std::map<unsigned, kernel_usage_info> & usage_map);
+    void set_resource_config();
+
+    void reset_volta_l1_cache(float total_smem);
 
 ///// data /////
 

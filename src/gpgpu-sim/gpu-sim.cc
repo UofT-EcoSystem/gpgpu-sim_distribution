@@ -612,16 +612,22 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
 
     // intra-SM settings
     option_parser_register(opp, "-intra_sm_option", OPT_INT32, &intra_sm_option,
-            "0: SMK, 1: passed execution context proportion, 2: passed max cta per stream", "0");
+            "0: SMK, 1: passed execution context proportion, 2: passed max cta per stream, "
+            "3: passed cta max per kernel per stream",
+            "0");
 
-    // Option 1: customize number of ctas for each stream
+    // Option 1: fixed execution context proportion
+    option_parser_register(opp, "-ctx_ratio_in_stream", OPT_CSTR, &ctx_ratio_str,
+                           "<Execution context percentage in default stream>:<in_stream_1>:<in_stream_2>",
+                           "0:0.5:0.5");
+
+    // Option 2: customize number of ctas for each stream
     option_parser_register(opp, "-max_cta_in_stream", OPT_CSTR, &max_cta_str,
             "<max_cta_in_stream_default>:<in_stream_1>:<in_stream_2>", "0:0:0");
 
-    // Option 2: fixed execution context proportion
-    option_parser_register(opp, "-ctx_ratio_in_stream", OPT_CSTR, &ctx_ratio_str,
-            "<Execution context percentage in default stream>:<in_stream_1>:<in_stream_2>",
-            "0:0.5:0.5");
+    // Option 3: cta config look-up table for each kernel pair
+    option_parser_register(opp, "-cta_lut", OPT_CSTR, &cta_lut_str,
+                           "kidx=>cta, ...", "0:1:1=>0:1:1");
 
     option_parser_register(opp, "-icnt_priority", OPT_CSTR, &icnt_priority_str,
             "<priority in stream 0>:<in_stream_1>:<in_stream_2>, higher number indicates higher priority",
@@ -645,17 +651,63 @@ void increment_x_then_y_then_z( dim3 &i, const dim3 &bound)
    }
 }
 
-void gpgpu_sim::resource_partition_smk() {
 
-	std::map<unsigned, kernel_usage_info> rK;
+void gpgpu_sim::calculate_smk_quota(std::map<unsigned int, kernel_usage_info> & usage_map) {
+    unsigned num_kernel = usage_map.size();
 
-	unsigned num_kernel = 0;
+    float tot_thread = 0;
+    float tot_smem = 0;
+    float tot_reg = 0;
+    float tot_cta = 0;
+
+    while (num_kernel > 0) {
+        // find the lowest usage_map
+        float min_usage = 1;
+        unsigned min_k;
+
+        for (auto k_usage : usage_map) {
+            if (k_usage.second.being_considered) {
+                float current_usage = k_usage.second.cta_quota * k_usage.second.max_usage;
+
+                if (current_usage < min_usage) {
+                    min_usage = current_usage;
+                    min_k = k_usage.first;
+                }
+            }
+        }
+
+        // check if we can add one cta of the min_k without exceeding resource limits
+        if ((usage_map[min_k].usage.thread_usage + tot_thread) <= 1.0
+            && (usage_map[min_k].usage.smem_usage + tot_smem) <= 1.0
+            && (usage_map[min_k].usage.reg_usage + tot_reg) <= 1.0
+            && (usage_map[min_k].usage.cta_usage + tot_cta) <= 1.0
+            && usage_map[min_k].cta_quota < usage_map[min_k].grid_over_sm) {
+
+            tot_thread += usage_map[min_k].usage.thread_usage;
+            tot_smem += usage_map[min_k].usage.smem_usage;
+            tot_reg += usage_map[min_k].usage.reg_usage;
+            tot_cta += usage_map[min_k].usage.cta_usage;
+
+            // let's add one cta of this kernel
+            usage_map[min_k].cta_quota++;
+        } else {
+            // mark min_k as donezo
+            usage_map[min_k].being_considered = false;
+            num_kernel--;
+        }
+    }
+}
+
+void gpgpu_sim::set_resource_config() {
+    printf(">>>>>>>>> set_resource_config:\n");
+
+    // Grab resource usage information from currently running kernels
+	std::map<unsigned, kernel_usage_info> usage_map;
+
 	for (unsigned idx = 0; idx < m_running_kernels.size(); idx++) {
 		kernel_info_t* kernel = m_running_kernels[idx];
 
 		if (kernel && !kernel->done()) {
-			++num_kernel;
-
 			if (!kernel->has_set_usage()) {
 				// new incoming kernel
 				// iterate the following resources that could limit cta quota
@@ -686,7 +738,7 @@ void gpgpu_sim::resource_partition_smk() {
 				kernel->set_usage(thread_usage, smem_usage, reg_usage, cta_usage);
 			}
 
-			// calculate rK for the kernel => max resource usage
+			// calculate usage_map for the kernel => max resource usage
 			kernel_usage_info usage_info;
 
 			Usage k_usage = kernel->get_usage();
@@ -702,57 +754,117 @@ void gpgpu_sim::resource_partition_smk() {
 
 			usage_info.being_considered = true;
 
-			rK[idx] = usage_info;
+            usage_map[idx] = usage_info;
 		}
 	}
 
-	float tot_thread = 0;
-	float tot_smem = 0;
-	float tot_reg = 0;
-	float tot_cta = 0;
+	// Set CTA quota based on sharing mechanisms
+    switch (m_config.intra_sm_option) {
+        case intra_sm_option_t ::MAX_CTA: {
+            for (auto k_usage : usage_map) {
+                const unsigned stream_id = m_running_kernels[k_usage.first]->get_stream_id();
+                const unsigned cta_quota = m_config.get_max_cta_by_stream(stream_id);
+                assert(cta_quota > 0);
 
-	while (num_kernel > 0) {
-		// find the lowest rK
-		float min_usage = 1;
-		unsigned min_k;
+                m_running_kernels[k_usage.first]->set_cta_quota(cta_quota);
+            }
+            break;
+        }
 
-		for (auto k_usage : rK) {
-			if (k_usage.second.being_considered) {
-				float current_usage = k_usage.second.cta_quota * k_usage.second.max_usage;
+        case intra_sm_option_t ::CTX_RATIO: {
+            for (auto k_usage : usage_map) {
+                const unsigned stream_id = m_running_kernels[k_usage.first]->get_stream_id();
+                float config_ctx_ratio = m_config.get_ctx_ratio_by_stream(stream_id);
 
-				if (current_usage < min_usage) {
-					min_usage = current_usage;
-					min_k = k_usage.first;
-				}
-			}
-		}
+                unsigned cta_quota = std::floor(config_ctx_ratio / k_usage.second.max_usage);
 
-		// check if we can add one cta of the min_k without exceeding resource limits
-		if ((rK[min_k].usage.thread_usage + tot_thread) <= 1.0
-				&& (rK[min_k].usage.smem_usage + tot_smem) <= 1.0
-				&& (rK[min_k].usage.reg_usage + tot_reg) <= 1.0
-				&& (rK[min_k].usage.cta_usage + tot_cta) <= 1.0
-				&& rK[min_k].cta_quota < rK[min_k].grid_over_sm) {
+                assert(cta_quota > 0);
+                m_running_kernels[k_usage.first]->set_cta_quota(cta_quota);
 
-			tot_thread += rK[min_k].usage.thread_usage;
-			tot_smem += rK[min_k].usage.smem_usage;
-			tot_reg += rK[min_k].usage.reg_usage;
-			tot_cta += rK[min_k].usage.cta_usage;
+                printf("ctx ratio: %f, max_usage: %f\n", config_ctx_ratio, k_usage.second.max_usage);
+            }
 
-			// let's add one cta of this kernel
-			rK[min_k].cta_quota++;
-		} else {
-			// mark min_k as donezo
-			rK[min_k].being_considered = false;
-			num_kernel--;
-		}
+            break;
+        }
 
-	}
+        case intra_sm_option_t ::CTA_LUT: {
+            // Case I: there are two concurrent kernels, query LUT
+            if (usage_map.size() > 1) {
+                std::vector<unsigned> kidx;
+                // +1 for default stream
+                kidx.resize(usage_map.size() + 1, 0);
 
-	printf(">>>>>>>>> resource_partition_smk:\n");
+                for (auto k_usage: usage_map) {
+                    const unsigned stream_id = m_running_kernels[k_usage.first]->get_stream_id();
+                    assert(stream_id < kidx.size());
 
-	// reset volta cache / shared mem config
-	const struct shader_core_config* shader_config = getShaderCoreConfig();
+                    unsigned adj_kidx = m_running_kernels[k_usage.first]->get_uid_in_stream() %
+                            num_kernel_stream[stream_id];
+                    if (adj_kidx == 0) {
+                        adj_kidx = num_kernel_stream[stream_id];
+                    }
+
+                    kidx[stream_id] = adj_kidx;
+                }
+
+                const std::vector<unsigned> cta_quota = m_config.get_cta_from_lut(kidx);
+
+                for (auto k_usage: usage_map) {
+                    const unsigned stream_id = m_running_kernels[k_usage.first]->get_stream_id();
+                    const unsigned quota = cta_quota[stream_id];
+                    assert(quota > 0);
+                    m_running_kernels[k_usage.first]->set_cta_quota(quota);
+                }
+
+            } else if (usage_map.size() == 1) {
+                // Case II: there's only one kernel in the system,
+                // use existing quota if exists,
+                // else use the max possible config
+                auto begin = usage_map.begin();
+                unsigned quota = m_running_kernels[begin->first]->get_cta_quota();
+
+                if (quota == 0) {
+                    quota = std::floor(1.0 / begin->second.max_usage);
+                }
+
+                assert(quota > 0);
+                m_running_kernels[begin->first]->set_cta_quota(quota);
+            }
+
+            break;
+        }
+
+        case intra_sm_option_t ::SMK:
+        default: {
+            calculate_smk_quota(usage_map);
+
+            for (auto k_usage : usage_map) {
+                const unsigned cta_quota = k_usage.second.cta_quota;
+
+                assert(cta_quota > 0);
+                m_running_kernels[k_usage.first]->set_cta_quota(cta_quota);
+            }
+            break;
+        }
+    }
+
+    // Print cta quota settings
+    float tot_smem = 0;
+    for (auto k_usage : usage_map) {
+        // print the resource partition results
+        const kernel_info_t* p_kernel = m_running_kernels[k_usage.first];
+        printf("Stream %d/%d (%s): %d ctas/SM\n", p_kernel->get_stream_id(), usage_map.size(),
+               p_kernel->name().c_str(), p_kernel->get_cta_quota());
+
+        tot_smem += p_kernel->get_cta_quota() * p_kernel->get_usage().smem_usage;
+    }
+
+    // reset volta cache / shared mem config
+    reset_volta_l1_cache(tot_smem);
+}
+
+void gpgpu_sim::reset_volta_l1_cache(float tot_smem) {
+    const struct shader_core_config* shader_config = getShaderCoreConfig();
     if(shader_config->adaptive_volta_cache_config) {
         //For Volta, we assign the remaining shared memory to L1 cache
         //For more info, see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#shared-memory-7-x
@@ -775,39 +887,8 @@ void gpgpu_sim::resource_partition_smk() {
         else
             assert(0);
 
-        printf ("GPGPU-Sim: Reconfigure L1 cache in Volta Archi to %uKB\n", shader_config->m_L1D_config.get_total_size_inKB());
-    }
-
-	// write back the partitioning results
-	for (auto k_usage : rK) {
-	    unsigned stream_id = m_running_kernels[k_usage.first]->get_stream_id();
-
-	    unsigned cta_quota;
-	    switch (m_config.intra_sm_option) {
-            case intra_sm_option_t ::MAX_CTA: {
-                cta_quota = m_config.get_max_cta_by_stream(stream_id);
-                break;
-            }
-
-            case intra_sm_option_t ::CTX_RATIO: {
-                float config_ctx_ratio = m_config.get_ctx_ratio_by_stream(stream_id);
-                cta_quota = std::floor(config_ctx_ratio / k_usage.second.max_usage);
-                printf("ctx ratio: %f, max_usage: %f\n", config_ctx_ratio, k_usage.second.max_usage);
-                break;
-            }
-
-            case intra_sm_option_t ::SMK:
-	        default: {
-                cta_quota = k_usage.second.cta_quota;
-                break;
-            }
-        }
-        assert(cta_quota > 0);
-        m_running_kernels[k_usage.first]->set_cta_quota(cta_quota);
-
-        // print the resource partition results
-        printf("Stream %d/%d (%s): %d ctas/SM\n", m_running_kernels[k_usage.first]->get_stream_id(), rK.size(),
-                m_running_kernels[k_usage.first]->name().c_str(), m_running_kernels[k_usage.first]->get_cta_quota());
+        printf ("GPGPU-Sim: Reconfigure L1 cache in Volta Archi to %uKB\n",
+                shader_config->m_L1D_config.get_total_size_inKB());
     }
 }
 
@@ -836,7 +917,7 @@ void gpgpu_sim::launch( kernel_info_t *kinfo )
            if (getShaderCoreConfig()->gpgpu_concurrent_kernel_sm &&
                    getShaderCoreConfig()->gpgpu_sharing_intra_sm) {
                // call resource partitioning algorithm to update cta quota for each kernel
-               resource_partition_smk();
+               set_resource_config();
            }
 
            // resize the warp state stats if we still need to record performance
@@ -971,7 +1052,7 @@ void gpgpu_sim::set_kernel_done( kernel_info_t *kernel, bool has_completed )
     }
 
     // call resource partition algorithm to update cta quota for the remaining kernels
-    resource_partition_smk();
+    set_resource_config();
 
     assert( k != m_running_kernels.end() ); 
 
