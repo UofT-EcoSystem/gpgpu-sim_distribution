@@ -1952,24 +1952,30 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
         	preempted_cta_context context = kernel.m_preempted_queue.front();
         	unsigned tid_in_cta = i - start_thread;
 
-        	m_thread[i]->resume_reg_thread_strbuf(context.regs[tid_in_cta], symtab);
-        	m_thread[i]->m_local_mem->load(context.local_mem[tid_in_cta]);
-        	m_thread[i]->set_npc(context.pcs[tid_in_cta]);
-        	m_thread[i]->update_pc();
-
         	if (context.retired_threads[tid_in_cta]) {
                 m_thread[i]->set_done();
                 m_thread[i]->exitCore();
                 m_thread[i]->registerExit();
-        	}
+
+                --nthreads_in_block;
+                m_threadState[i].m_active = false;
+            } else {
+                m_thread[i]->resume_reg_thread_strbuf(context.regs[tid_in_cta], symtab);
+                m_thread[i]->m_local_mem->load(context.local_mem[tid_in_cta]);
+                m_thread[i]->set_npc(context.pcs[tid_in_cta]);
+                m_thread[i]->update_pc();
+            }
         }
-        //
+
         warps.set( warp_id );
     }
-    assert( nthreads_in_block > 0 && nthreads_in_block <= m_config->n_thread_per_shader); // should be at least one, but less than max
+
+    // should be at least one, but less than max
+    assert( nthreads_in_block > 0 && nthreads_in_block <= m_config->n_thread_per_shader);
     m_cta_status[free_cta_hw_id]=nthreads_in_block;
 
-    if(m_gpu->resume_option==1 && kernel.get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA && ctaid<m_gpu->checkpoint_CTA_t )
+    if(m_gpu->resume_option==1 && kernel.get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA &&
+        ctaid<m_gpu->checkpoint_CTA_t )
     {
         char f1name[2048];
         snprintf(f1name,2048,"checkpoint_files/shared_mem_%d.txt", ctaid);

@@ -222,6 +222,7 @@ struct preempted_cta_context {
 
 	// retired thread info
 	std::vector<bool> retired_threads; // per thread
+	std::vector<bool> done_warps; // per warp
 };
 
 // kernel resource usage information
