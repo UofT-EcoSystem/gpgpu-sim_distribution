@@ -324,16 +324,32 @@ public:
        return no_next_cta && no_in_preempted_queue;
    }
 
-   void increment_thread_id() { increment_x_then_y_then_z(m_next_tid,m_block_dim); }
-   dim3 get_next_thread_id_3d() const  { return m_next_tid; }
+   // ONLY called by ptx_sim_init_thread
+   void reset_thread_id() {
+       m_next_tid.x=0;
+       m_next_tid.y=0;
+       m_next_tid.z=0;
+   }
+
+   void increment_thread_id() {
+       increment_x_then_y_then_z(m_next_tid, m_block_dim);
+   }
+
+   dim3 get_next_thread_id_3d() const  {
+       return m_next_tid;
+   }
+
    unsigned get_next_thread_id() const 
    { 
       return m_next_tid.x + m_block_dim.x*m_next_tid.y + m_block_dim.x*m_block_dim.y*m_next_tid.z;
    }
+
    bool more_threads_in_cta() const 
    {
       return m_next_tid.z < m_block_dim.z && m_next_tid.y < m_block_dim.y && m_next_tid.x < m_block_dim.x;
    }
+    // ONLY called by ptx_sim_init_thread
+
    unsigned get_uid() const { return m_uid; }
    unsigned get_uid_in_stream() const { return m_uid_in_stream; }
    std::string name() const;

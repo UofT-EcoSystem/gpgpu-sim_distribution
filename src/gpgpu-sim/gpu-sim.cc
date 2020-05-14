@@ -1933,11 +1933,17 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
     for (unsigned i = start_thread; i<end_thread; i++) {
         m_threadState[i].m_cta_id = free_cta_hw_id;
         unsigned warp_id = i/m_config->warp_size;
-        nthreads_in_block += ptx_sim_init_thread(kernel,&m_thread[i],m_sid,i,cta_size-(i-start_thread),m_config->n_thread_per_shader,this,free_cta_hw_id,warp_id,m_cluster->get_gpu());
-        m_threadState[i].m_active = true; 
+
+        nthreads_in_block += ptx_sim_init_thread(kernel,&m_thread[i], m_sid, i,
+                cta_size-(i-start_thread), m_config->n_thread_per_shader,this,
+                free_cta_hw_id,warp_id,m_cluster->get_gpu());
+
+        m_threadState[i].m_active = true;
+
         // load thread local memory and register file
         // checkpoint?
-        if(m_gpu->resume_option==1 && kernel.get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA && ctaid<m_gpu->checkpoint_CTA_t )
+        if(m_gpu->resume_option==1 && kernel.get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA &&
+            ctaid<m_gpu->checkpoint_CTA_t )
         {
             char fname[2048];
             snprintf(fname,2048,"checkpoint_files/thread_%d_%d_reg.txt",i%cta_size,ctaid );
@@ -1989,17 +1995,19 @@ void shader_core_ctx::issue_block2core( kernel_info_t &kernel )
 
 #ifdef TIMELINE_ON
     		printf("TIMELINE: Restore preempted kernel %d cta %d,%d,%d on shader %d @ cycle %d\n",
-    			      		kernel.get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z, get_sid(), gpu_sim_cycle+gpu_tot_sim_cycle);
+    			      		kernel.get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z, get_sid(),
+    			      		gpu_sim_cycle+gpu_tot_sim_cycle);
     } else {
 
     	printf("TIMELINE: Launch kernel %d cta %d,%d,%d on shader %d @ cycle %d\n",
-    			      		kernel.get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z, get_sid(), gpu_sim_cycle+gpu_tot_sim_cycle);
+    			      		kernel.get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z, get_sid(),
+    			      		gpu_sim_cycle+gpu_tot_sim_cycle);
 #endif
     }
 
     // now that we know which warps are used in this CTA, we can allocate
     // resources for use in CTA-wide barrier operations
-    m_barriers.allocate_barrier(free_cta_hw_id,warps);
+    m_barriers.allocate_barrier(free_cta_hw_id, warps);
 
     if (kernel.has_preempted_cta()) {
     	preempted_cta_context context = kernel.m_preempted_queue.front();

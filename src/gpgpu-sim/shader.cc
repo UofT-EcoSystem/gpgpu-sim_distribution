@@ -581,7 +581,8 @@ void shader_core_ctx::init_warps( unsigned cta_id, unsigned start_thread, unsign
             }
             m_simt_stack[i]->launch(start_pc,active_threads);
 
-            if(m_gpu->resume_option==1 && kernel->get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA && ctaid<m_gpu->checkpoint_CTA_t )
+            if(m_gpu->resume_option==1 && kernel->get_uid()==m_gpu->resume_kernel && ctaid>=m_gpu->resume_CTA
+                && ctaid<m_gpu->checkpoint_CTA_t )
             {
                 char fname[2048];
                 snprintf(fname,2048,"checkpoint_files/warp_%d_%d_simt.txt",i%warp_per_cta,ctaid );
@@ -4308,7 +4309,8 @@ bool shd_warp_t::hardware_done() const
 		// got preempted, simply check if stores and compute are done
 		// we should also preempt warps that are stalled at barrier right away cuz the other warps might be preempted
 		// before getting to the barrier, in which case, this warp can never proceed
-		return !imiss_pending() && stores_done() && (!inst_in_pipeline() || m_shader->warp_can_preempt_barrier_inst(m_warp_id));
+		return !imiss_pending() && stores_done() &&
+		    (!inst_in_pipeline() || m_shader->warp_can_preempt_barrier_inst(m_warp_id));
 	}
 
     return functional_done() && stores_done() && !inst_in_pipeline(); 
@@ -5050,17 +5052,19 @@ void shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst, unsigned 
 {
     if(inst.isatomic())
            m_warp[inst.warp_id()].inc_n_atomic();
-        if (inst.space.is_local() && (inst.is_load() || inst.is_store())) {
-            new_addr_type localaddrs[MAX_ACCESSES_PER_INSN_PER_THREAD];
-            unsigned num_addrs;
-            num_addrs = translate_local_memaddr(inst.get_addr(t), tid, m_config->n_simt_clusters*m_config->n_simt_cores_per_cluster,
-                   inst.data_size, (new_addr_type*) localaddrs );
-            inst.set_addr(t, (new_addr_type*) localaddrs, num_addrs);
-        }
-        if ( ptx_thread_done(tid) ) {
-            m_warp[inst.warp_id()].set_completed(t);
-            m_warp[inst.warp_id()].ibuffer_flush();
-        }
+
+    if (inst.space.is_local() && (inst.is_load() || inst.is_store())) {
+        new_addr_type localaddrs[MAX_ACCESSES_PER_INSN_PER_THREAD];
+        unsigned num_addrs;
+        num_addrs = translate_local_memaddr(inst.get_addr(t), tid,
+                m_config->n_simt_clusters*m_config->n_simt_cores_per_cluster,
+                inst.data_size, (new_addr_type*) localaddrs );
+        inst.set_addr(t, (new_addr_type*) localaddrs, num_addrs);
+    }
+    if ( ptx_thread_done(tid) ) {
+        m_warp[inst.warp_id()].set_completed(t);
+        m_warp[inst.warp_id()].ibuffer_flush();
+    }
 
     // PC-Histogram Update 
     unsigned warp_id = inst.warp_id(); 

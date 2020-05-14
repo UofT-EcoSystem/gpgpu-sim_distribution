@@ -540,7 +540,10 @@ void warp_inst_t::memory_coalescing_arch( bool is_write, mem_access_type access_
             assert(num_accesses <= MAX_ACCESSES_PER_INSN_PER_THREAD);
 
 //            for(unsigned access=0; access<num_accesses; access++) {
-            for(unsigned access=0; (access<MAX_ACCESSES_PER_INSN_PER_THREAD)&&(m_per_scalar_thread[thread].memreqaddr[access]!=0); access++) {
+            for(unsigned access=0;
+                (access<MAX_ACCESSES_PER_INSN_PER_THREAD)&&(m_per_scalar_thread[thread].memreqaddr[access]!=0);
+                access++)
+            {
                 new_addr_type addr = m_per_scalar_thread[thread].memreqaddr[access];
                 unsigned block_address = line_size_based_tag_func(addr,segment_size);
                 unsigned chunk = (addr&127)/32; // which 32-byte chunk within in a 128-byte chunk does this thread access?
@@ -806,11 +809,6 @@ void kernel_info_t::increment_cta_id()
 
 		m_preempted_queue.pop();
 	}
-
-	// reset block-relative thread id regardless
-	m_next_tid.x=0;
-	m_next_tid.y=0;
-	m_next_tid.z=0;
 }
 
 

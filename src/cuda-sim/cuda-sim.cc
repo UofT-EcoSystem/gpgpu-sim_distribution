@@ -1867,6 +1867,7 @@ unsigned ptx_sim_init_thread( kernel_info_t &kernel,
    static std::map<unsigned,ptx_warp_info*> ptx_warp_lookup;
    static std::map<unsigned,std::map<unsigned,memory_space*> > local_memory_lookup;
 
+   // Clean up old thread info (must be a done thread)
    if ( *thread_info != NULL ) {
       ptx_thread_info *thd = *thread_info;
       assert( thd->is_done() );
@@ -1882,8 +1883,8 @@ unsigned ptx_sim_init_thread( kernel_info_t &kernel,
       *thread_info = NULL;
    }
 
-   // another performance optimization:
-   // perform all thread computation in the cta at once
+   // Performance optimization: all thread computation in the cta has been done in previous call
+   // Now we only need to grab one of the initialized thread info
    if ( !active_threads.empty() ) {
       assert( active_threads.size() <= threads_left );
       ptx_thread_info *thd = active_threads.front(); 
@@ -1897,6 +1898,8 @@ unsigned ptx_sim_init_thread( kernel_info_t &kernel,
       return 0; //finished!
    }
 
+   // We only do thread computation once when threads_left == threads per cta
+   // Which is the initial call to this function for a given cta
    if ( threads_left < kernel.threads_per_cta() ) {
       return 0;
    }
@@ -1918,6 +1921,7 @@ unsigned ptx_sim_init_thread( kernel_info_t &kernel,
    //unsigned sm_idx = (tid/cta_size)*gpgpu_param_num_shaders + sid;
    unsigned sm_idx = hw_cta_id*gpgpu_param_num_shaders + sid;
 
+   // Shared memory allocation or reallocation
    if ( shared_memory_lookup.find(sm_idx) == shared_memory_lookup.end() ) {
       if ( g_debug_execution >= 1 ) {
          printf("  <CTA alloc> : sm_idx=%u sid=%u max_cta_per_sm=%u\n", 
@@ -1943,7 +1947,10 @@ unsigned ptx_sim_init_thread( kernel_info_t &kernel,
       cta_info->check_cta_thread_status_and_reset();
    }
 
+   // Local memory allocation and thread computation
    std::map<unsigned,memory_space*> &local_mem_lookup = local_memory_lookup[sid];
+
+   kernel.reset_thread_id();
    while( kernel.more_threads_in_cta() ) {
       dim3 ctaid3d = kernel.get_next_cta_id();
       unsigned new_tid = kernel.get_next_thread_id();
@@ -1994,6 +2001,7 @@ unsigned ptx_sim_init_thread( kernel_info_t &kernel,
       }
       active_threads.push_back(thd);
    }
+
    if ( g_debug_execution==-1 ) {
       printf("GPGPU-Sim PTX simulator:  <-- FINISHING THREAD ALLOCATION\n");
       fflush(stdout);
