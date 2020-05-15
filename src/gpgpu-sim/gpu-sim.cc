@@ -627,7 +627,7 @@ void gpgpu_sim_config::reg_options(option_parser_t opp)
 
     // Option 3: cta config look-up table for each kernel pair
     option_parser_register(opp, "-cta_lut", OPT_CSTR, &cta_lut_str,
-                           "kidx=>cta, ...", "0:1:1=>0:1:1");
+                           "kidx=>cta, ...", "0:1:1=0:1:1");
 
     option_parser_register(opp, "-icnt_priority", OPT_CSTR, &icnt_priority_str,
             "<priority in stream 0>:<in_stream_1>:<in_stream_2>, higher number indicates higher priority",
