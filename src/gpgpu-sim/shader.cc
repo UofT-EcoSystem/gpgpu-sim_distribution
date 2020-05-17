@@ -3013,7 +3013,7 @@ bool shader_core_ctx::store_preempted_context(unsigned cta_num, kernel_info_t* k
         return false;
     }
 
-    preempted_cta_context context;
+    preempted_cta_context context = {};
 
     // store registers and local memory
     context.regs.reserve(cta_size);
@@ -4091,29 +4091,37 @@ void barrier_set_t::restore_preempted_context(unsigned cta_id, preempted_cta_con
 	}
 
 	warp_set_t warps = w->second;
+    unsigned warp_id_in_cta = 0;
 
 	// fill at_barrier
 	for (int i = 0; i < WARP_PER_CTA_MAX; i++) {
 		if (warps.test(i)) {
-			if (context.at_barrier.front()) {
+			if (context.at_barrier.front() && !context.done_warps[warp_id_in_cta]) {
 				m_warp_at_barrier.set(i);
+			} else {
+			    m_warp_at_barrier.reset(i);
 			}
 			context.at_barrier.pop();
 
-			if (context.active_mask.front()) {
+			if (context.active_mask.front() && !context.done_warps[warp_id_in_cta]) {
 				m_warp_active.set(i);
+			} else {
+			    m_warp_active.reset(i);
 			}
 			context.active_mask.pop();
 
 			for(unsigned bar_id = 0; bar_id < m_max_barriers_per_cta; bar_id++) {
 				if (context.bar_id_to_warps[bar_id].front()) {
 					m_bar_id_to_warps[bar_id].set(i);
+				} else {
+				    m_bar_id_to_warps[bar_id].reset(i);
 				}
 				context.bar_id_to_warps[bar_id].pop();
 			}
+
+			warp_id_in_cta++;
 		}
 	}
-
 }
 
 void shader_core_ctx::warp_exit( unsigned warp_id )
