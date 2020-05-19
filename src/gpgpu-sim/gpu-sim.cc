@@ -1186,14 +1186,15 @@ void gpgpu_sim::set_kernel_done(kernel_info_t *kernel, bool has_completed) {
 
     assert(k != m_running_kernels.end());
 
+    const unsigned stream_id = kernel->get_stream_id();
+    assert(stream_id < m_config.get_config_num_streams());
+
     if (has_completed && kernel->should_record_stat()) {
-        const unsigned stream_id = kernel->get_stream_id();
-        assert(stream_id < m_config.get_config_num_streams());
         gpu_tot_sim_cycle_stream[stream_id].back() =
             kernel->end_cycle - kernel->start_cycle;
-
-        m_shader_stats->collect_warp_state_stats(stream_id);
     }
+
+    m_shader_stats->collect_warp_state_stats(stream_id);
 
     printf(
         ">>>>>>>> kernel %s launched @ %llu, started @ %llu, ended @ %llu. \n",
