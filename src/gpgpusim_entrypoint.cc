@@ -166,9 +166,9 @@ void *gpgpu_sim_thread_concurrent(void *) {
                 g_the_gpu->deadlock_check();
             } else {
                 if (g_the_gpu->cycle_insn_cta_max_hit()) {
-                    g_stream_manager->stop_all_running_kernels();
                     g_sim_done = true;
                     break_limit = true;
+                    g_stream_manager->stop_all_running_kernels();
                 }
             }
 
