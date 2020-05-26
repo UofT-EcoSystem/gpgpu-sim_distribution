@@ -3217,14 +3217,14 @@ void ldst_unit::cycle() {
 }
 
 bool shader_core_ctx::store_preempted_context(unsigned cta_num,
-                                              kernel_info_t *kernel) {
-    unsigned int cta_size =
+                                              kernel_info_t *kernel) const {
+    const unsigned int cta_size =
         kernel->threads_per_cta(); // work with non-padded cta size
-    const unsigned start_hwtid = m_occupied_cta_to_hwtid[cta_num];
+    const unsigned start_hwtid = m_occupied_cta_to_hwtid.at(cta_num);
     const unsigned end_hwtid = start_hwtid + cta_size;
 
-    unsigned start_warp = start_hwtid / m_config->warp_size;
-    unsigned end_warp = end_hwtid / m_config->warp_size +
+    const unsigned start_warp = start_hwtid / m_config->warp_size;
+    const unsigned end_warp = end_hwtid / m_config->warp_size +
                         ((end_hwtid % m_config->warp_size) ? 1 : 0);
 
     // If all the warps inside this cta are already functional done, no need to
@@ -3268,11 +3268,6 @@ bool shader_core_ctx::store_preempted_context(unsigned cta_num,
             context.retired_threads.push_back(true);
         } else {
             context.retired_threads.push_back(false);
-
-            // mark threads inactive..
-            m_thread[hwtid]->set_done();
-            m_thread[hwtid]->exitCore();
-            m_thread[hwtid]->registerExit();
         }
     }
 
@@ -3288,9 +3283,7 @@ bool shader_core_ctx::store_preempted_context(unsigned cta_num,
         m_simt_stack[warp_id]->print_context(stack_buf);
         context.simt_stack.push_back(stack_buf);
 
-        // Warps might be preempted when reached a barrier with remaining
-        // instructions in ibuffer
-        m_warp[warp_id].ibuffer_flush();
+
     }
 
     // store barrier info
@@ -3305,6 +3298,36 @@ bool shader_core_ctx::store_preempted_context(unsigned cta_num,
     return true;
 }
 
+void shader_core_ctx:: clean_up_preempted_cta(unsigned int cta_num,
+                                              kernel_info_t *kernel) {
+    const unsigned int cta_size =
+        kernel->threads_per_cta(); // work with non-padded cta size
+    const unsigned start_hwtid = m_occupied_cta_to_hwtid[cta_num];
+    const unsigned end_hwtid = start_hwtid + cta_size;
+
+    const unsigned start_warp = start_hwtid / m_config->warp_size;
+    const unsigned end_warp = end_hwtid / m_config->warp_size +
+                              ((end_hwtid % m_config->warp_size) ? 1 : 0);
+
+    for (unsigned hwtid = start_hwtid; hwtid < start_hwtid + cta_size;
+         ++hwtid) {
+        if (!m_thread[hwtid]->is_done()) {
+            // mark threads inactive..
+            m_thread[hwtid]->set_done();
+            m_thread[hwtid]->exitCore();
+            m_thread[hwtid]->registerExit();
+        }
+    }
+
+    for (unsigned warp_id = start_warp; warp_id < end_warp; warp_id++) {
+        // Warps might be preempted when reached a barrier with remaining
+        // instructions in ibuffer
+        m_warp[warp_id].ibuffer_flush();
+    }
+
+    m_barriers.clean_up_preempted_context(cta_num);
+}
+
 void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
                                                kernel_info_t *kernel) {
     assert(m_cta_status[cta_num] > 0);
@@ -3317,26 +3340,32 @@ void shader_core_ctx::register_cta_thread_exit(unsigned cta_num,
 
         bool did_store = false;
         if (preempted_cta_it != m_preempted_ctas.end()) {
-            // this cta was preempted, need to store its state before exiting
+            // this cta was preempted, try to store its state before exiting
             did_store = store_preempted_context(cta_num, kernel);
 
             // erase it from the preempted list
             m_preempted_ctas.erase(preempted_cta_it);
         }
 
-#ifdef TIMELINE_ON
         if (did_store) {
+            // If we did preempt the CTA, clean up current states
+            clean_up_preempted_cta(cta_num, kernel);
+
+#ifdef TIMELINE_ON
             printf("TIMELINE: Preempted kernel %d cta %d,%d,%d on shader %d @ "
                    "cycle %d\n",
                    kernel->get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z,
                    get_sid(), gpu_sim_cycle + gpu_tot_sim_cycle);
+
+#endif
         } else {
+#ifdef TIMELINE_ON
             printf("TIMELINE: Finished kernel %d cta %d,%d,%d on shader %d @ "
                    "cycle %d\n",
                    kernel->get_uid(), cta_id3d.x, cta_id3d.y, cta_id3d.z,
                    get_sid(), gpu_sim_cycle + gpu_tot_sim_cycle);
-        }
 #endif
+        }
 
         m_n_active_cta--;
         m_barriers.deallocate_barrier(cta_num);
@@ -4347,26 +4376,43 @@ void barrier_set_t::dump() {
 }
 
 void barrier_set_t::store_preempted_context(unsigned cta_id,
-                                            preempted_cta_context &context) {
-    cta_to_warp_t::iterator w = m_cta_to_warps.find(cta_id);
+                                            preempted_cta_context &context) const {
+    auto w = m_cta_to_warps.find(cta_id);
     if (w == m_cta_to_warps.end())
         return;
 
     warp_set_t warps = w->second;
 
     // fill at_barrier
-    for (int i = 0; i < WARP_PER_CTA_MAX; i++) {
+    for (unsigned i = 0; i < WARP_PER_CTA_MAX; i++) {
         if (warps.test(i)) {
             context.at_barrier.push(m_warp_at_barrier[i]);
+            context.active_mask.push(m_warp_active[i]);
+
+            for (unsigned bar_id = 0; bar_id < m_max_barriers_per_cta;
+                 bar_id++) {
+                const warp_set_t warp_flags = m_bar_id_to_warps.at(bar_id);
+                context.bar_id_to_warps[bar_id].push(warp_flags[i]);
+            }
+        }
+    }
+}
+
+void barrier_set_t::clean_up_preempted_context(unsigned cta_id) {
+    const cta_to_warp_t::iterator w = m_cta_to_warps.find(cta_id);
+    if (w == m_cta_to_warps.end())
+        return;
+
+    warp_set_t warps = w->second;
+
+    for (int i = 0; i < WARP_PER_CTA_MAX; i++) {
+        if (warps.test(i)) {
             m_warp_at_barrier.reset(i);
 
-            context.active_mask.push(m_warp_active[i]);
             m_warp_active.reset(i);
 
             for (unsigned bar_id = 0; bar_id < m_max_barriers_per_cta;
                  bar_id++) {
-                context.bar_id_to_warps[bar_id].push(
-                    m_bar_id_to_warps[bar_id][i]);
                 m_bar_id_to_warps[bar_id].reset(i);
             }
         }
@@ -4383,38 +4429,22 @@ void barrier_set_t::restore_preempted_context(unsigned cta_id,
     }
 
     warp_set_t warps = w->second;
-    unsigned warp_id_in_cta = 0;
 
     // fill at_barrier
-    for (int i = 0; i < WARP_PER_CTA_MAX; i++) {
+    for (unsigned i = 0; i < WARP_PER_CTA_MAX; i++) {
         if (warps.test(i)) {
-            if (context.at_barrier.front() &&
-                !context.done_warps[warp_id_in_cta]) {
-                m_warp_at_barrier.set(i);
-            } else {
-                m_warp_at_barrier.reset(i);
-            }
+            m_warp_at_barrier.set(i, context.at_barrier.front());
             context.at_barrier.pop();
 
-            if (context.active_mask.front() &&
-                !context.done_warps[warp_id_in_cta]) {
-                m_warp_active.set(i);
-            } else {
-                m_warp_active.reset(i);
-            }
+            m_warp_active.set(i, context.active_mask.front());
             context.active_mask.pop();
 
             for (unsigned bar_id = 0; bar_id < m_max_barriers_per_cta;
                  bar_id++) {
-                if (context.bar_id_to_warps[bar_id].front()) {
-                    m_bar_id_to_warps[bar_id].set(i);
-                } else {
-                    m_bar_id_to_warps[bar_id].reset(i);
-                }
+                m_bar_id_to_warps[bar_id].set(i,
+                    context.bar_id_to_warps[bar_id].front());
                 context.bar_id_to_warps[bar_id].pop();
             }
-
-            warp_id_in_cta++;
         }
     }
 }
