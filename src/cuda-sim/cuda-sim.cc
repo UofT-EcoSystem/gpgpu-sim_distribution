@@ -2681,18 +2681,24 @@ void functionalCoreSim::initializeCTA(unsigned ctaid_cp) {
         hw_thread_start_id = 0;
         hw_cta_id = 0;
     } else {
+        const unsigned padded_cta_size =
+            std::ceil((double)m_kernel->threads_per_cta()/m_warp_size)
+            * m_warp_size;
+
         hw_thread_start_id =
-            m_warp_count * m_warp_size - m_kernel->threads_per_cta();
+            m_gpu->getShaderCoreConfig()->max_warps_per_shader * m_warp_size
+            - padded_cta_size;
         hw_cta_id = m_gpu->getShaderCoreConfig()->max_cta_per_core - 1;
     }
 
-    for (unsigned i = hw_thread_start_id;
-         i < hw_thread_start_id + m_kernel->threads_per_cta(); i++) {
+    for (unsigned i = 0; i < m_kernel->threads_per_cta(); i++) {
         m_thread[i] = NULL;
-        ptx_sim_init_thread(*m_kernel, &m_thread[i], 0, i,
+        ptx_sim_init_thread(*m_kernel, &m_thread[i], 0,
+                            hw_thread_start_id + i,
                             m_kernel->threads_per_cta() - i,
                             m_kernel->threads_per_cta(), this, hw_cta_id,
-                            i / m_warp_size, (gpgpu_t *)m_gpu, true);
+                            (hw_thread_start_id + i) / m_warp_size,
+                            (gpgpu_t *)m_gpu, true);
 
         assert(m_thread[i] != NULL && !m_thread[i]->is_done());
 
@@ -2703,11 +2709,10 @@ void functionalCoreSim::initializeCTA(unsigned ctaid_cp) {
         ctaLiveThreads++;
     }
 
-    const unsigned hw_warp_start_id = hw_thread_start_id / m_warp_size;
     // Make sure the number of warps are padded
     const unsigned num_warps =
         std::ceil((float)m_kernel->threads_per_cta() / m_warp_size);
-    for (unsigned k = hw_warp_start_id; k < hw_warp_start_id + num_warps; k++) {
+    for (unsigned k = 0; k < num_warps; k++) {
         createWarp(k);
     }
 }

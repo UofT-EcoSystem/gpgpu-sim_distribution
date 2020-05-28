@@ -1418,13 +1418,16 @@ class checkpoint {
 class core_t {
   public:
     core_t(gpgpu_sim *gpu, kernel_info_t *kernel, unsigned warp_size,
-           unsigned threads_per_shader)
+           unsigned max_threads)
         : m_gpu(gpu), m_kernel(kernel), m_simt_stack(NULL), m_thread(NULL),
           m_warp_size(warp_size) {
-        m_warp_count = threads_per_shader / m_warp_size;
+
+        // max_threads is max threads per shader for performance sim core
+        // but is max threads per CTA of the kernel for functional sim core
+        m_warp_count = max_threads / m_warp_size;
         // Handle the case where the number of threads is not a
         // multiple of the warp size
-        if (threads_per_shader % m_warp_size != 0) {
+        if (max_threads % m_warp_size != 0) {
             m_warp_count += 1;
         }
         assert(m_warp_count * m_warp_size > 0);
