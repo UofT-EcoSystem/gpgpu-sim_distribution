@@ -1677,13 +1677,35 @@ __host__ cudaError_t CUDARTAPI cudaLaunch(const char *hostFun) {
     bool should_func_sim = g_ptx_sim_mode;
     if (gpu->mix_perf_mode) {
         const unsigned stream_id = stream->get_uid();
+
         unsigned grid_uid_in_iter =
             (grid->get_uid_in_stream() % gpu->num_kernel_stream[stream_id]);
         if (grid_uid_in_iter == 0) {
             // need to adjust because grid uid starts at 1 instead of 0
             grid_uid_in_iter = gpu->num_kernel_stream[stream_id];
         }
+
         should_func_sim = (grid_uid_in_iter != gpu->perf_kernel_idx[stream_id]);
+
+        // Extra logic to skip doing unnecessary functional simulation
+        if (should_func_sim) {
+            // skip condition 1: this kernel is after target perf sim kernel
+            // within the iteration
+            // skip condition 2: this kernel instance has done
+            // the first iteration, at which point target kernel has got
+            // the necessary input and we only need to repeat the target kernel
+            if (grid_uid_in_iter > gpu->perf_kernel_idx[stream_id] ||
+            (grid->get_uid_in_stream() > gpu->num_kernel_stream[stream_id])) {
+                // exit without launching
+                delete grid;
+                g_cuda_launch_stack.pop_back();
+                lock_context.unlock();
+
+                std::cout << "Skip launching kernel " << grid->name() <<
+                             " on Stream " << stream_id << std::endl;
+                return g_last_cudaError = cudaSuccess;
+            }
+        }
     }
     printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n",
            hostFun,
@@ -1742,10 +1764,11 @@ __host__ cudaError_t CUDARTAPI cudaLaunch(const char *hostFun) {
            "(%u,%u,%u) blockDim = (%u,%u,%u) \n",
            kname.c_str(), stream ? stream->get_uid() : 0, gridDim.x, gridDim.y,
            gridDim.z, blockDim.x, blockDim.y, blockDim.z);
+
     stream_operation op(grid, should_func_sim, stream);
     g_stream_manager->push(op);
-    g_cuda_launch_stack.pop_back();
 
+    g_cuda_launch_stack.pop_back();
     lock_context.unlock();
 
     return g_last_cudaError = cudaSuccess;
