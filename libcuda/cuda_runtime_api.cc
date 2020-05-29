@@ -1697,12 +1697,16 @@ __host__ cudaError_t CUDARTAPI cudaLaunch(const char *hostFun) {
             if (grid_uid_in_iter > gpu->perf_kernel_idx[stream_id] ||
             (grid->get_uid_in_stream() > gpu->num_kernel_stream[stream_id])) {
                 // exit without launching
-                delete grid;
+                std::cout << "Skip launching kernel " << grid->name() <<
+                          " on Stream " << stream_id << std::endl;
+
                 g_cuda_launch_stack.pop_back();
+
+                // Clean up memory for kernel_info for that will not be used
+                delete grid;
+
                 lock_context.unlock();
 
-                std::cout << "Skip launching kernel " << grid->name() <<
-                             " on Stream " << stream_id << std::endl;
                 return g_last_cudaError = cudaSuccess;
             }
         }
