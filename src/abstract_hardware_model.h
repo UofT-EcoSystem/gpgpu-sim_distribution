@@ -684,6 +684,7 @@ class gpgpu_t {
     void *gpu_mallocarray(size_t count);
     void gpu_memset(size_t dst_start_addr, int c, size_t count);
     void gpu_invalidate_cache(unsigned stream_id);
+    bool gpu_concurrent_kernel();
     void memcpy_to_gpu(size_t dst_start_addr, const void *src, size_t count,
                        unsigned stream_id = 0);
     void memcpy_from_gpu(void *dst, size_t src_start_addr, size_t count,

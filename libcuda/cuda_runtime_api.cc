@@ -1675,23 +1675,25 @@ __host__ cudaError_t CUDARTAPI cudaLaunch(const char *hostFun) {
         context, stream ? stream->get_uid() : 0);
 
     bool should_func_sim = g_ptx_sim_mode;
-    if (gpu->mix_perf_mode) {
-        const unsigned stream_id = stream->get_uid();
+    const unsigned stream_id = stream->get_uid();
 
-        unsigned grid_uid_in_iter =
-            (grid->get_uid_in_stream() % gpu->num_kernel_stream[stream_id]);
-        if (grid_uid_in_iter == 0) {
-            // need to adjust because grid uid starts at 1 instead of 0
-            grid_uid_in_iter = gpu->num_kernel_stream[stream_id];
-        }
+    unsigned grid_uid_in_iter =
+        (grid->get_uid_in_stream() % gpu->num_kernel_stream[stream_id]);
+    if (grid_uid_in_iter == 0) {
+        // need to adjust because grid uid starts at 1 instead of 0
+        grid_uid_in_iter = gpu->num_kernel_stream[stream_id];
+    }
 
+    if (gpu->gpu_concurrent_kernel()) {
         if (grid_uid_in_iter == 1
             && grid->get_uid_in_stream() > gpu->num_kernel_stream[stream_id]) {
             // To avoid cache effects among iterations, flush L2 cache here
             stream_operation op(stream);
             g_stream_manager->push(op);
         }
+    }
 
+    if (gpu->mix_perf_mode) {
         should_func_sim = (grid_uid_in_iter != gpu->perf_kernel_idx[stream_id]);
 
         // Extra logic to skip doing unnecessary functional simulation
@@ -1718,6 +1720,7 @@ __host__ cudaError_t CUDARTAPI cudaLaunch(const char *hostFun) {
             }
         }
     }
+
     printf("\nGPGPU-Sim PTX: cudaLaunch for 0x%p (mode=%s) on stream %u\n",
            hostFun,
            should_func_sim ? "functional simulation" : "performance simulation",

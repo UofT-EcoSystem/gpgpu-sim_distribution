@@ -572,6 +572,11 @@ void gpgpu_t::gpu_invalidate_cache(unsigned stream_id) {
     g_the_gpu->invalidate_cache(stream_id);
 }
 
+bool gpgpu_t::gpu_concurrent_kernel() {
+    extern gpgpu_sim *g_the_gpu;
+    return g_the_gpu->getShaderCoreConfig()->gpgpu_concurrent_kernel_sm;
+}
+
 void ptx_print_insn(address_type pc, FILE *fp) {
     std::map<unsigned, function_info *>::iterator f = g_pc_to_finfo.find(pc);
     if (f == g_pc_to_finfo.end()) {
