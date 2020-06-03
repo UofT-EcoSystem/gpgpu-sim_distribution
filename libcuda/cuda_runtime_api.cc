@@ -1685,6 +1685,13 @@ __host__ cudaError_t CUDARTAPI cudaLaunch(const char *hostFun) {
             grid_uid_in_iter = gpu->num_kernel_stream[stream_id];
         }
 
+        if (grid_uid_in_iter == 1
+            && grid->get_uid_in_stream() > gpu->num_kernel_stream[stream_id]) {
+            // To avoid cache effects among iterations, flush L2 cache here
+            stream_operation op(stream);
+            g_stream_manager->push(op);
+        }
+
         should_func_sim = (grid_uid_in_iter != gpu->perf_kernel_idx[stream_id]);
 
         // Extra logic to skip doing unnecessary functional simulation

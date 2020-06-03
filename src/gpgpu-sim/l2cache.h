@@ -163,6 +163,7 @@ class memory_sub_partition {
 
     unsigned flushL2();
     unsigned invalidateL2();
+    void invalidateL2(unsigned stream_id);
 
     // interface to L2_dram_queue
     bool L2_dram_queue_empty() const;

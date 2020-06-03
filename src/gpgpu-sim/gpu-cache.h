@@ -963,8 +963,12 @@ class tag_array {
     unsigned size() const { return m_config.get_num_lines(); }
     cache_block_t *get_block(unsigned idx) { return m_lines[idx]; }
 
-    void flush();      // flush all written entries
-    void invalidate(); // invalidate all entries
+    // flush all written entries
+    void flush();
+    // invalidate all entries
+    void invalidate();
+    // invalidate all entries associated with stream_id
+    void invalidate(unsigned stream_id);
     void new_window();
 
     void print(FILE *stream, unsigned &total_access,
@@ -1326,6 +1330,7 @@ class baseline_cache : public cache_t {
     // flash invalidate all entries in cache
     void flush() { m_tag_array->flush(); }
     void invalidate() { m_tag_array->invalidate(); }
+    void invalidate(unsigned stream_id) { m_tag_array->invalidate(stream_id); }
     void print(FILE *fp, unsigned &accesses, unsigned &misses) const;
     void display_state(FILE *fp) const;
 

@@ -54,7 +54,8 @@ enum stream_operation_type {
     stream_kernel_launch,
     stream_event,
     stream_wait_event,
-    stream_memset
+    stream_memset,
+    stream_invalidate_l2,
 };
 
 class stream_operation {
@@ -156,6 +157,13 @@ class stream_operation {
         m_device_address_dst = device_address_dst;
         m_value = c;
         m_cnt = cnt;
+        m_stream = stream;
+        m_func_mode = false;
+        m_done = false;
+    }
+    stream_operation(struct CUstream_st *stream) {
+        m_kernel = NULL;
+        m_type = stream_invalidate_l2;
         m_stream = stream;
         m_func_mode = false;
         m_done = false;

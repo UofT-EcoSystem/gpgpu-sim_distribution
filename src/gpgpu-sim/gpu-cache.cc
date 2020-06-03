@@ -526,6 +526,23 @@ void tag_array::invalidate() {
     is_used = false;
 }
 
+void tag_array::invalidate(unsigned stream_id) {
+    if (!is_used)
+        return;
+
+    for (unsigned i = 0; i < m_config.get_num_lines(); i++) {
+        if (m_lines[i]->get_stream_id() == stream_id) {
+            for (unsigned j = 0; j < SECTOR_CHUNCK_SIZE; j++) {
+                m_lines[i]->set_status(INVALID,
+                                       mem_access_sector_mask_t().set(j));
+                m_lines[i]->set_stream_id(-1, mem_access_sector_mask_t().set(j));
+            }
+        }
+    }
+
+    is_used = false;
+}
+
 float tag_array::windowed_miss_rate() const {
     unsigned n_access = m_access - m_prev_snapshot_access;
     unsigned n_miss = (m_miss + m_sector_miss) - m_prev_snapshot_miss;
