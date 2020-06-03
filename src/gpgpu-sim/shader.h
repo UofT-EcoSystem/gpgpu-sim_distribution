@@ -1285,6 +1285,7 @@ class ldst_unit : public pipelined_simd_unit {
     void fill(mem_fetch *mf);
     void flush();
     void invalidate();
+    void invalidate(unsigned stream_id);
     void writeback();
 
     // accessors
@@ -2065,6 +2066,7 @@ class shader_core_ctx : public core_t {
 
     void cache_flush();
     void cache_invalidate();
+    void cache_invalidate(unsigned stream_id);
     void accept_fetch_response(mem_fetch *mf);
     void accept_ldst_unit_response(class mem_fetch *mf);
     void broadcast_barrier_reduction(unsigned cta_id, unsigned bar_id,
@@ -2466,6 +2468,7 @@ class simt_core_cluster {
     unsigned issue_block2core();
     void cache_flush();
     void cache_invalidate();
+    void cache_invalidate(unsigned stream_id);
     bool icnt_injection_buffer_full(unsigned size, bool write);
     void icnt_inject_request_packet(class mem_fetch *mf);
 

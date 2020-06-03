@@ -2895,9 +2895,15 @@ void gpgpu_sim::perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
     }
 }
 
-void gpgpu_sim::invalidateL2(unsigned stream_id) {
+void gpgpu_sim::invalidate_cache(unsigned stream_id) {
+    // Invalidate L2
     for (unsigned i = 0; i < m_memory_config->m_n_mem_sub_partition; i++) {
         m_memory_sub_partition[i]->invalidateL2(stream_id);
+    }
+
+    // Invalidate L1D, L1I, L0I
+    for (unsigned i = 0; i < m_shader_config->n_simt_clusters; i++) {
+        m_cluster[i]->cache_invalidate(stream_id);
     }
 }
 

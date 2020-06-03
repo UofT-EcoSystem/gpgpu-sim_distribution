@@ -635,7 +635,7 @@ class gpgpu_sim : public gpgpu_t {
     void perf_memcpy_to_gpu(size_t dst_start_addr, size_t count,
                             unsigned stream_id);
 
-    void invalidateL2(unsigned stream_id);
+    void invalidate_cache(unsigned stream_id);
 
     // The next three functions added to be used by the functional simulation
     // function

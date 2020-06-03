@@ -567,9 +567,9 @@ void gpgpu_t::gpu_memset(size_t dst_start_addr, int c, size_t count) {
     }
 }
 
-void gpgpu_t::gpu_invalidate_l2(unsigned stream_id) {
+void gpgpu_t::gpu_invalidate_cache(unsigned stream_id) {
     extern gpgpu_sim *g_the_gpu;
-    g_the_gpu->invalidateL2(stream_id);
+    g_the_gpu->invalidate_cache(stream_id);
 }
 
 void ptx_print_insn(address_type pc, FILE *fp) {

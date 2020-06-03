@@ -2610,6 +2610,11 @@ void ldst_unit::invalidate() {
     m_L1D->invalidate();
 }
 
+void ldst_unit::invalidate(unsigned stream_id) {
+    // Flush L1D cache
+    m_L1D->invalidate(stream_id);
+}
+
 simd_function_unit::simd_function_unit(const shader_core_config *config) {
     m_config = config;
     m_dispatch_reg = new warp_inst_t(config);
@@ -4104,6 +4109,19 @@ void shader_core_ctx::cache_flush() { m_ldst_unit->flush(); }
 
 void shader_core_ctx::cache_invalidate() { m_ldst_unit->invalidate(); }
 
+void shader_core_ctx::cache_invalidate(unsigned stream_id) {
+    // L1 data cache
+    m_ldst_unit->invalidate(stream_id);
+
+    // L1 instruction cache
+    m_L1I->invalidate(stream_id);
+
+    // L0 instruction cache
+    for (unsigned i = 0; i < m_config->gpgpu_num_sched_per_core; i++) {
+        m_L0I[i]->invalidate(stream_id);
+    }
+}
+
 // modifiers
 std::list<opndcoll_rfu_t::op_t> opndcoll_rfu_t::arbiter_t::allocate_reads() {
     std::list<op_t>
@@ -5204,6 +5222,11 @@ void simt_core_cluster::cache_flush() {
 void simt_core_cluster::cache_invalidate() {
     for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; i++)
         m_core[i]->cache_invalidate();
+}
+
+void simt_core_cluster::cache_invalidate(unsigned stream_id) {
+    for (unsigned i = 0; i < m_config->n_simt_cores_per_cluster; i++)
+        m_core[i]->cache_invalidate(stream_id);
 }
 
 bool simt_core_cluster::icnt_injection_buffer_full(unsigned size, bool write) {

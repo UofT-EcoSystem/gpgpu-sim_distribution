@@ -241,7 +241,7 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
     }
     case stream_invalidate_l2: {
         printf("stream invalidate L2...\n");
-        gpu->gpu_invalidate_l2(m_stream->get_uid());
+        gpu->gpu_invalidate_cache(m_stream->get_uid());
         m_stream->record_next_done();
         break;
     }
