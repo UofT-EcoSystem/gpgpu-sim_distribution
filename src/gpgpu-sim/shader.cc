@@ -2611,8 +2611,12 @@ void ldst_unit::invalidate() {
 }
 
 void ldst_unit::invalidate(unsigned stream_id) {
-    // Flush L1D cache
+    // Flush L1D and L1C cache
     m_L1D->invalidate(stream_id);
+    m_L1C->invalidate(stream_id);
+
+    // Texture cache does not have stream info.
+    // Volta does not use texture cache.
 }
 
 simd_function_unit::simd_function_unit(const shader_core_config *config) {

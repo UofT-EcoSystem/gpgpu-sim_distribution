@@ -342,11 +342,17 @@ void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
                         printf("avg_offchip2mem_latency[%u][%u] = %lld \n",
                                stream_id, kidx,
                                stats.offchip2mem_latency / stats.num_mfs);
+                        printf("num_mfs[%u][%u] = %u\n",
+                               stream_id, kidx, stats.num_mfs);
 
-                        if (stats.tot_mrq)
+                        if (stats.tot_mrq) {
                             printf("avg_mrq_latency[%u][%u] = %lld \n",
                                    stream_id, kidx,
                                    stats.mrq_latency / stats.tot_mrq);
+
+                            printf("num_mrq[%u][%u] = %u\n",
+                                stream_id, kidx, stats.tot_mrq);
+                        }
 
                         printf("avg_icnt2sh_latency[%u][%u] = %lld \n",
                                stream_id, kidx,
@@ -355,6 +361,7 @@ void memory_stats_t::memlatstat_print(unsigned n_mem, unsigned gpu_mem_n_bk) {
                 }
             }
         }
+
         printf("mrq_lat_table:");
         for (i = 0; i < 32; i++) {
             printf("%d \t", mrq_lat_table[i]);
