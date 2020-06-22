@@ -138,7 +138,7 @@ struct cache_block_t {
     virtual void print_status() = 0;
     virtual ~cache_block_t() {}
 
-    virtual int get_stream_id() = 0;
+    virtual int get_stream_id(mem_access_sector_mask_t mask) const = 0;
     virtual void set_stream_id(int stream_id,
                                mem_access_sector_mask_t sector_mask) = 0;
 
@@ -223,7 +223,9 @@ struct line_cache_block : public cache_block_t {
         printf("m_block_addr is %llu, status = %u\n", m_block_addr, m_status);
     }
 
-    virtual int get_stream_id() { return m_stream_id; }
+    virtual int get_stream_id(mem_access_sector_mask_t mask) const {
+        return m_stream_id;
+    }
 
     virtual void set_stream_id(int stream_id,
                                mem_access_sector_mask_t sector_mask) {
@@ -426,24 +428,28 @@ struct sector_cache_block : public cache_block_t {
                m_status[0], m_status[1], m_status[2], m_status[3]);
     }
 
-    virtual int get_stream_id() {
-        // assume if stream ids for any of the sectors are set,
-        // they will be consistent with each other
-        int id = -1;
-        for (int i = 0; i < SECTOR_CHUNCK_SIZE; i++) {
-            if (m_stream_id[i] != -1) {
-                if (id != -1) {
-                    if (id != m_stream_id[i]) {
-                        printf("id = %d, stream id = %d\n", id, m_stream_id[i]);
-                    }
-                    assert(id == m_stream_id[i]);
-                } else {
-                    id = m_stream_id[i];
+    virtual int get_stream_id(mem_access_sector_mask_t sector_mask) const {
+        if (sector_mask.count() == 1) {
+            unsigned sidx = get_sector_index(sector_mask);
+            return m_stream_id[sidx];
+        } else {
+            // When the mask doesn't have a bit set, we return the stream id
+            // of the first modified sector for "writeback stream id"
+            // This is not accurate in all case scenario where the cache line
+            // has sectors from multiple streams. But oh wells, don't want to
+            // complicate things by changing the return type of this virtual
+            // function to vector
+            for (unsigned i = 0; i < SECTOR_CHUNCK_SIZE; ++i) {
+                if (m_status[i] == MODIFIED) {
+                    return m_stream_id[i];
                 }
             }
         }
 
-        return id;
+        // Something went wrong...
+        std::cout << "gpu-cache.h:450 No stream ID found... "
+                     "Something might have gone wrong." << std::endl;
+        return -1;
     }
 
     virtual void set_stream_id(int stream_id,
@@ -465,7 +471,7 @@ struct sector_cache_block : public cache_block_t {
     bool m_set_modified_on_fill[SECTOR_CHUNCK_SIZE];
     bool m_readable[SECTOR_CHUNCK_SIZE];
 
-    unsigned get_sector_index(mem_access_sector_mask_t sector_mask) {
+    unsigned get_sector_index(mem_access_sector_mask_t sector_mask) const {
         assert(sector_mask.count() == 1);
         for (unsigned i = 0; i < SECTOR_CHUNCK_SIZE; ++i) {
             if (sector_mask.to_ulong() & (1 << i))

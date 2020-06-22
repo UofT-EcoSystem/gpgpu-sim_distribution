@@ -311,19 +311,19 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
         if (line->m_tag == tag) {
             if (line->get_status(mask) == RESERVED) {
                 if (m_type_id == NORMAL) {
-                    assert(line->get_stream_id() == stream_id);
+                    assert(line->get_stream_id(mask) == stream_id);
                 }
                 idx = index;
                 return HIT_RESERVED;
             } else if (line->get_status(mask) == VALID) {
                 if (m_type_id == NORMAL) {
-                    assert(line->get_stream_id() == stream_id);
+                    assert(line->get_stream_id(mask) == stream_id);
                 }
                 idx = index;
                 return HIT;
             } else if (line->get_status(mask) == MODIFIED) {
                 if (m_type_id == NORMAL) {
-                    assert(line->get_stream_id() == stream_id);
+                    assert(line->get_stream_id(mask) == stream_id);
                 }
 
                 if (line->is_readable(mask)) {
@@ -337,7 +337,7 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
             } else if (line->is_valid_line() &&
                        line->get_status(mask) == INVALID) {
                 if (m_type_id == NORMAL) {
-                    assert(line->get_stream_id() == stream_id);
+                    assert(line->get_stream_id(mask) == stream_id);
                 }
 
                 idx = index;
@@ -428,7 +428,11 @@ enum cache_request_status tag_array::access(new_addr_type addr, unsigned time,
         if (m_config.m_alloc_policy == ON_MISS) {
             if (m_lines[idx]->is_modified_line()) {
                 wb = true;
-                wb_stream_id = m_lines[idx]->get_stream_id();
+                // Pass an empty sector mask because we don't know
+                // which which sector is modified. This should be handled by
+                // the sector cache get stream id function
+                wb_stream_id =
+                        m_lines[idx]->get_stream_id(mem_access_sector_mask_t());
 
                 evicted.set_info(m_lines[idx]->m_block_addr,
                                  m_lines[idx]->get_modified_size());
@@ -531,11 +535,14 @@ void tag_array::invalidate(unsigned stream_id) {
         return;
 
     for (unsigned i = 0; i < m_config.get_num_lines(); i++) {
-        if (m_lines[i]->get_stream_id() == stream_id) {
-            for (unsigned j = 0; j < SECTOR_CHUNCK_SIZE; j++) {
+        for (unsigned j = 0; j < SECTOR_CHUNCK_SIZE; j++) {
+            const mem_access_sector_mask_t mask =
+                    mem_access_sector_mask_t().set(j);
+
+            if (m_lines[i]->get_stream_id(mask) == stream_id) {
                 m_lines[i]->set_status(INVALID,
-                                       mem_access_sector_mask_t().set(j));
-                m_lines[i]->set_stream_id(-1, mem_access_sector_mask_t().set(j));
+                                       mask);
+                m_lines[i]->set_stream_id(-1, mask);
             }
         }
     }
