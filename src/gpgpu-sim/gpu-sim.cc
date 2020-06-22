@@ -1066,6 +1066,17 @@ void gpgpu_sim::launch(kernel_info_t *kinfo) {
     assert(n < m_running_kernels.size());
 }
 
+unsigned gpgpu_sim::num_running_kernel() const {
+    unsigned result = 0;
+    for (unsigned n = 0; n < m_running_kernels.size(); n++) {
+        if ((NULL != m_running_kernels[n]) && !(m_running_kernels[n]->done())) {
+            result++;
+        }
+    }
+
+    return result;
+}
+
 bool gpgpu_sim::can_start_kernel() {
     if (m_blocked_launch_cycle != 0) {
         return false;
