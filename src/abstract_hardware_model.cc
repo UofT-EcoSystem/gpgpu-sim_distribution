@@ -781,7 +781,7 @@ void warp_inst_t::completed(unsigned long long cycle) const {
 
 // Jin: CDP support
 bool g_cdp_enabled;
-unsigned g_kernel_launch_latency;
+std::vector<unsigned> g_kernel_launch_latency;
 
 unsigned kernel_info_t::m_next_uid = 1;
 

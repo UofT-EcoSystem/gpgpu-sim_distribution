@@ -299,7 +299,8 @@ class stream_manager {
 
     bool m_cuda_launch_blocking;
     gpgpu_sim *m_gpu;
-    std::list<CUstream_st *> m_streams;
+    std::vector<CUstream_st *> m_streams;
+    unsigned m_previous_stream_idx;
     std::map<unsigned, CUstream_st *> m_grid_id_to_stream;
     CUstream_st m_stream_zero;
     bool m_service_stream_zero;

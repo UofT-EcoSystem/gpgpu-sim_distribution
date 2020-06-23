@@ -564,7 +564,7 @@ void shader_core_config::reg_options(class OptionParser *opp) {
         "Support concurrent kernels on a SM (default = disabled)", "0");
 
     option_parser_register(
-        opp, "-gpgpu_sharing_intra_sm", OPT_BOOL, &gpgpu_sharing_intra_sm,
+        opp, "-gpgpu_sharing_intra_sm", OPT_UINT32, &gpgpu_sharing_intra_sm,
         "Use intra SM sharing for concurrent kernel implementation", "1");
     option_parser_register(
         opp, "-max_sm_in_stream", OPT_CSTR, &max_sm_in_stream,
@@ -675,10 +675,10 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
     ptx_file_line_stats_options(opp);
 
     // Jin: kernel launch latency
-    extern unsigned g_kernel_launch_latency;
-    option_parser_register(opp, "-gpgpu_kernel_launch_latency", OPT_INT32,
-                           &g_kernel_launch_latency,
-                           "Kernel launch latency in cycles. Default: 0", "0");
+    option_parser_register(opp, "-gpgpu_kernel_launch_latency", OPT_CSTR,
+                           &kernel_launch_latency_str,
+                           "Kernel launch latency in cycles. Default: 0:0:0",
+                           "0:0:0");
     extern bool g_cdp_enabled;
     option_parser_register(opp, "-gpgpu_cdp_enabled", OPT_BOOL, &g_cdp_enabled,
                            "Turn on CDP", "0");
@@ -1031,7 +1031,8 @@ void gpgpu_sim::launch(kernel_info_t *kinfo) {
             m_blocked_launch_cycle = m_config.delayed_cycle_btw_kernels;
 
             if (getShaderCoreConfig()->gpgpu_concurrent_kernel_sm &&
-                getShaderCoreConfig()->gpgpu_sharing_intra_sm) {
+                (getShaderCoreConfig()->gpgpu_sharing_intra_sm
+                 == sharing_option_t::INTRA)) {
                 // call resource partitioning algorithm to update cta quota for
                 // each kernel
                 set_resource_config();

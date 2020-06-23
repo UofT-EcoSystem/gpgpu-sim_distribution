@@ -440,6 +440,20 @@ class gpgpu_sim_config : public power_config,
             ss.clear();
         }
 
+        // Parse kernel launch latency in each stream, typically used for
+        // CUDA stream behavior simulation
+        {
+            std::string token;
+            std::stringstream ss;
+
+            ss << kernel_launch_latency_str;
+
+            extern std::vector<unsigned> g_kernel_launch_latency;
+            while (std::getline(ss, token, ':')) {
+                g_kernel_launch_latency.push_back(std::stoul(token));
+            }
+        }
+
         m_valid = true;
     }
 
@@ -516,6 +530,7 @@ class gpgpu_sim_config : public power_config,
     char *max_cta_str;
     char *cta_lut_str;
     char *ctx_ratio_str;
+    char *kernel_launch_latency_str;
     std::vector<unsigned> max_cta_per_stream;
     std::vector<float> ctx_ratio_per_stream;
     std::map<std::string, std::vector<unsigned> *> cta_lut_per_stream;

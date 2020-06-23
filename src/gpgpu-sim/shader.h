@@ -97,6 +97,12 @@ enum possible_warp_state_t {
     SIZE
 };
 
+enum sharing_option_t {
+    INTER = 0,
+    INTRA,
+    CUDA_STREAM,
+};
+
 class thread_ctx_t {
   public:
     unsigned m_cta_id; // hardware CTA this thread belongs
@@ -1490,7 +1496,8 @@ struct shader_core_config : public core_config {
         gpgpu_cache_texl1_linesize = m_L1T_config.get_line_sz();
         gpgpu_cache_constl1_linesize = m_L1C_config.get_line_sz();
 
-        if (gpgpu_concurrent_kernel_sm && !gpgpu_sharing_intra_sm) {
+        if (gpgpu_concurrent_kernel_sm &&
+            (gpgpu_sharing_intra_sm == sharing_option_t::INTER)) {
             // Assign disjoint sets of SMs to each stream
             std::stringstream ss_cta;
             ss_cta << max_sm_in_stream;
@@ -1639,7 +1646,7 @@ struct shader_core_config : public core_config {
     // Jin: concurrent kernel on sm
     bool gpgpu_concurrent_kernel_sm;
 
-    bool gpgpu_sharing_intra_sm;
+    unsigned gpgpu_sharing_intra_sm;
     char *max_sm_in_stream;
     std::vector<std::tuple<unsigned, unsigned> > inter_sm_id_range;
 

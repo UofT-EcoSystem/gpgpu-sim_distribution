@@ -287,6 +287,7 @@ stream_manager::stream_manager(gpgpu_sim *gpu, bool cuda_launch_blocking) {
     m_gpu = gpu;
     m_service_stream_zero = false;
     m_cuda_launch_blocking = cuda_launch_blocking;
+    m_previous_stream_idx = 0;
     pthread_mutex_init(&m_lock, NULL);
 }
 
@@ -409,11 +410,13 @@ stream_operation stream_manager::front() {
     }
 
     if (!m_service_stream_zero) {
-        std::list<struct CUstream_st *>::iterator s;
-        for (s = m_streams.begin(); s != m_streams.end(); s++) {
-            CUstream_st *stream = *s;
+        for (unsigned idx = 0; idx < m_streams.size(); idx++) {
+            unsigned adjusted_idx =
+                (idx + m_previous_stream_idx + 1) % m_streams.size();
+            CUstream_st *stream = m_streams[idx];
             if (!stream->busy() && !stream->empty()) {
                 result = stream->next();
+                m_previous_stream_idx = idx;
                 if (result.is_kernel()) {
                     unsigned grid_id = result.get_kernel()->get_uid();
                     m_grid_id_to_stream[grid_id] = stream;
@@ -437,8 +440,7 @@ void stream_manager::destroy_stream(CUstream_st *stream) {
     pthread_mutex_lock(&m_lock);
     while (!stream->empty())
         ;
-    std::list<CUstream_st *>::iterator s;
-    for (s = m_streams.begin(); s != m_streams.end(); s++) {
+    for (auto s = m_streams.begin(); s != m_streams.end(); s++) {
         if (*s == stream) {
             m_streams.erase(s);
 
@@ -454,8 +456,7 @@ bool stream_manager::concurrent_streams_empty() {
     if (m_streams.empty())
         return true;
     // called by gpu simulation thread
-    std::list<struct CUstream_st *>::iterator s;
-    for (s = m_streams.begin(); s != m_streams.end(); ++s) {
+    for (auto s = m_streams.begin(); s != m_streams.end(); ++s) {
         struct CUstream_st *stream = *s;
         if (!stream->empty()) {
             // stream->print(stdout);
@@ -493,8 +494,7 @@ void stream_manager::print(FILE *fp) {
 }
 void stream_manager::print_impl(FILE *fp) {
     fprintf(fp, "GPGPU-Sim API: Stream Manager State\n");
-    std::list<struct CUstream_st *>::iterator s;
-    for (s = m_streams.begin(); s != m_streams.end(); ++s) {
+    for (auto s = m_streams.begin(); s != m_streams.end(); ++s) {
         struct CUstream_st *stream = *s;
         if (!stream->empty())
             stream->print(fp);
@@ -552,8 +552,7 @@ void stream_manager::push(stream_operation op) {
 
 void stream_manager::pushCudaStreamWaitEventToAllStreams(CUevent_st *e,
                                                          unsigned int flags) {
-    std::list<CUstream_st *>::iterator s;
-    for (s = m_streams.begin(); s != m_streams.end(); s++) {
+    for (auto s = m_streams.begin(); s != m_streams.end(); s++) {
         stream_operation op(*s, e, flags);
         push(op);
     }

@@ -2041,10 +2041,10 @@ shader_core_ctx::translate_local_memaddr(address_type localaddr, unsigned tid,
         from_top = kernel->allocate_from_top();
         adjusted_tid = from_top ? tid : m_config->n_thread_per_shader - 1 - tid;
 
-        if (m_config->gpgpu_sharing_intra_sm) {
+        if (m_config->gpgpu_sharing_intra_sm == sharing_option_t::INTRA) {
             // intra-SM sharing, we should find cta quota
             max_cta_per_shader = kernel->get_cta_quota();
-        } else {
+        } else if (m_config->gpgpu_sharing_intra_sm == sharing_option_t::INTER) {
             // inter-SM sharing
             std::tuple<unsigned, unsigned> sm_range =
                 m_config->inter_sm_id_range[kernel->get_stream_id()];
@@ -2052,6 +2052,8 @@ shader_core_ctx::translate_local_memaddr(address_type localaddr, unsigned tid,
 
             adjusted_sid = from_top ? m_sid : num_shader - 1 - m_sid;
         }
+
+        // FIXME: potential problem with default CUDA stream behavior here...
     }
 
     address_type thread_base = 0;
@@ -4011,8 +4013,10 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
     }
 
     // only set volta config here if concurrent kernel (intra SM) is OFF
-    bool concurrent_kernel_intra_sm =
-        (gpgpu_concurrent_kernel_sm && gpgpu_sharing_intra_sm);
+    const bool concurrent_kernel_intra_sm =
+        (gpgpu_concurrent_kernel_sm &&
+         (gpgpu_sharing_intra_sm == sharing_option_t::INTRA));
+
     if (!concurrent_kernel_intra_sm && adaptive_volta_cache_config &&
         !k.volta_cache_config_set) {
         // in case it's inter-SM sharing
@@ -5137,7 +5141,7 @@ unsigned simt_core_cluster::issue_block2core() {
         kernel_info_t *kernel = nullptr;
         // Jin: fetch kernel according to concurrent kernel setting
         if (m_config->gpgpu_concurrent_kernel_sm) { // concurrent kernel on sm
-            if (m_config->gpgpu_sharing_intra_sm) {
+            if (m_config->gpgpu_sharing_intra_sm == sharing_option_t::INTRA) {
                 // first, check if there is a candidate kernel that should
                 // initiate preemption
                 kernel_info_t *victim = NULL;
@@ -5151,7 +5155,8 @@ unsigned simt_core_cluster::issue_block2core() {
                     m_core[core]->preempt_ctas(victim);
                 }
 
-            } else {
+            } else if (m_config->gpgpu_sharing_intra_sm
+                       == sharing_option_t::INTER) {
                 // inter SM sharing, find out which stream can run on this core
                 const int sid = m_config->cid_to_sid(core, this->m_cluster_id);
                 const int stream_id = m_config->sid_to_stream_id_inter_sm(sid);
@@ -5185,6 +5190,10 @@ unsigned simt_core_cluster::issue_block2core() {
                     // continue to the next SM
                     continue;
                 }
+            } else {
+                // Default CUDA stream behavior
+                // Always select latest issued kernel
+                kernel = m_gpu->select_kernel();
             }
         } else {
             // first select core kernel, if no more cta, get a new kernel
