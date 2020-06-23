@@ -336,10 +336,6 @@ enum cache_request_status tag_array::probe(new_addr_type addr, unsigned &idx,
 
             } else if (line->is_valid_line() &&
                        line->get_status(mask) == INVALID) {
-                if (m_type_id == NORMAL) {
-                    assert(line->get_stream_id(mask) == stream_id);
-                }
-
                 idx = index;
                 return SECTOR_MISS;
             } else {
