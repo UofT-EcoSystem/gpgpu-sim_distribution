@@ -191,7 +191,9 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
             gpu->set_cache_config(m_kernel->name());
             gpu->functional_launch(m_kernel);
         } else { // Performance Sim
-            if (gpu->can_start_kernel() && m_kernel->m_launch_latency == 0) {
+            if (gpu->can_start_kernel() &&
+                (gpu_sim_cycle + gpu_tot_sim_cycle) >= m_kernel->m_launch_latency)
+            {
                 if (g_debug_execution >= 3) {
                     printf("kernel %d: \'%s\' transfer to GPU hardware "
                            "scheduler\n",
@@ -208,13 +210,13 @@ bool stream_operation::do_operation(gpgpu_sim *gpu) {
 
                 gpu->launch(m_kernel);
             } else {
-                if (m_kernel->m_launch_latency)
-                    m_kernel->m_launch_latency--;
-                if (g_debug_execution >= 3)
+                if (g_debug_execution >= 3) {
                     printf("kernel %d: \'%s\', latency %u not ready to "
                            "transfer to GPU hardware scheduler\n",
                            m_kernel->get_uid(), m_kernel->name().c_str(),
                            m_kernel->m_launch_latency);
+                }
+
                 return false;
             }
         }
