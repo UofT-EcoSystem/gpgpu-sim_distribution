@@ -413,7 +413,7 @@ stream_operation stream_manager::front() {
         for (unsigned idx = 0; idx < m_streams.size(); idx++) {
             unsigned adjusted_idx =
                 (idx + m_previous_stream_idx + 1) % m_streams.size();
-            CUstream_st *stream = m_streams[idx];
+            CUstream_st *stream = m_streams[adjusted_idx];
             if (!stream->busy() && !stream->empty()) {
                 result = stream->next();
                 m_previous_stream_idx = idx;
