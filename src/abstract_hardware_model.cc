@@ -813,7 +813,7 @@ kernel_info_t::kernel_info_t(
     m_parent_kernel = NULL;
 
     // Jin: launch latency management
-    m_launch_latency = g_kernel_launch_latency;
+    m_launch_latency = g_kernel_launch_latency[stream_id];
     launch_cycle = 0;
     start_cycle = 0;
     end_cycle = 0;
