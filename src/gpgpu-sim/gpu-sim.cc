@@ -1208,10 +1208,11 @@ void gpgpu_sim::set_kernel_done(kernel_info_t *kernel, bool has_completed) {
 
     m_shader_stats->collect_warp_state_stats(stream_id);
 
-    printf(
-        ">>>>>>>> kernel %s launched @ %llu, started @ %llu, ended @ %llu. \n",
-        kernel->name().c_str(), kernel->launch_cycle, kernel->start_cycle,
-        kernel->end_cycle);
+    printf(">>>>>>>> Stream %u kernel %s launched @ %llu, "
+           "started @ %llu, ended @ %llu. \n",
+           kernel->get_stream_id(),
+           kernel->name().c_str(), kernel->launch_cycle, kernel->start_cycle,
+           kernel->end_cycle);
 }
 
 void gpgpu_sim::stop_all_running_kernels() {
