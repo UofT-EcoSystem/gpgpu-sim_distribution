@@ -83,6 +83,16 @@ unsigned cache_config::get_assoc_stream(unsigned int stream_id) {
     }
 }
 
+unsigned l1d_cache_config::set_bank(new_addr_type addr) const {
+    // For sector cache, we select one sector per bank (sector interleaving)
+    // This is what was found in Volta (one sector per bank, sector interleaving)
+    // otherwise, line interleaving
+    if (m_cache_type == SECTOR)
+        return (addr >> m_sector_sz_log2) & (l1_banks - 1);
+    else
+        return (addr >> m_line_sz_log2) & (l1_banks - 1);
+}
+
 unsigned l1d_cache_config::set_index(new_addr_type addr) const {
     unsigned set_index = m_nset; // Default to linear set index function
     unsigned lower_xor = 0;

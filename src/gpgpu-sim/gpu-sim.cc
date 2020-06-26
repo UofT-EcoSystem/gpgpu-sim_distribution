@@ -285,6 +285,8 @@ void shader_core_config::reg_options(class OptionParser *opp) {
                            " {<nsets>:<bsize>:<assoc>,<rep>:<wr>:<alloc>:<wr_"
                            "alloc>,<mshr>:<N>:<merge>,<mq> | none}",
                            "none");
+    option_parser_register(opp, "-l1_banks", OPT_UINT32, &m_L1D_config.l1_banks,
+                           "The number of L1 cache banks", "1");
     option_parser_register(opp, "-l1_latency", OPT_UINT32,
                            &m_L1D_config.l1_latency, "L1 Hit Latency", "0");
     option_parser_register(opp, "-smem_latency", OPT_UINT32, &smem_latency,
@@ -358,7 +360,7 @@ void shader_core_config::reg_options(class OptionParser *opp) {
     option_parser_register(
         opp, "-gpgpu_shmem_size", OPT_UINT32, &gpgpu_shmem_size,
         "Size of shared memory per shader core (default 16kB)", "16384");
-    option_parser_register(opp, "-adaptive_volta_cache_config", OPT_BOOL,
+    option_parser_register(opp, "-adaptive_cache_config", OPT_BOOL,
                            &adaptive_volta_cache_config,
                            "adaptive_volta_cache_config", "0");
     option_parser_register(
@@ -976,8 +978,6 @@ void gpgpu_sim::reset_volta_l1_cache(float tot_smem) {
             ceil(tot_smem * shader_config->gpgpu_shmem_size);
         assert(total_shmed_bytes >= 0 &&
                total_shmed_bytes <= shader_config->gpgpu_shmem_size);
-        assert(shader_config->m_L1D_config.get_nset() ==
-               4); // Volta L1 has four sets
 
         if (total_shmed_bytes == 0)
             shader_config->m_L1D_config.set_assoc(256); // L1 is 128KB ans shd=0
