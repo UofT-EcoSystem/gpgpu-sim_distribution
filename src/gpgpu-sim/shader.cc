@@ -2393,8 +2393,6 @@ ldst_unit::process_memory_access_queue_l1cache(l1_cache *cache,
     if (inst.accessq_empty())
         return result;
 
-    mem_fetch *mf = m_mf_allocator->alloc(inst, inst.accessq_back());
-
     if (m_config->m_L1D_config.l1_latency > 0) {
         for (int j = 0; j < m_config->m_L1D_config.l1_banks; j++) {
             if (inst.accessq_empty()) return result;
@@ -2432,6 +2430,9 @@ ldst_unit::process_memory_access_queue_l1cache(l1_cache *cache,
             result = COAL_STALL;
         return result;
     } else {
+        mem_fetch *mf =
+            m_mf_allocator->alloc(inst, inst.accessq_back());
+
         std::list<cache_event> events;
         enum cache_request_status status = cache->access(
             mf->get_addr(), mf, gpu_sim_cycle + gpu_tot_sim_cycle, events);
