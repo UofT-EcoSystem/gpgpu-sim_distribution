@@ -2003,6 +2003,7 @@ class shader_core_stats : public shader_core_stats_pod {
                 state_array[i] += rhs.state_array[i];
             }
             total_cycles += rhs.total_cycles;
+            not_selected_cycles += rhs.not_selected_cycles;
 
             return *this;
         }
