@@ -1515,8 +1515,10 @@ struct shader_core_config : public core_config {
 
             assert(sum <= this->num_shader());
 
-            // L1D config will also change accordingly
-            m_L1D_config.resize_assoc_stream(inter_sm_id_range.size());
+            if (adaptive_volta_cache_config) {
+                // L1D config will also change accordingly
+                m_L1D_config.resize_assoc_stream(inter_sm_id_range.size());
+            }
         }
 
         m_valid = true;

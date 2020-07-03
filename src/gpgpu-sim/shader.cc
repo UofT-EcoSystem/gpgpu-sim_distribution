@@ -4048,7 +4048,7 @@ unsigned int shader_core_config::max_cta(const kernel_info_t &k) const {
         //    	unsigned total_shmed = 69632 * result;
         assert(total_shmed >= 0 && total_shmed <= gpgpu_shmem_size);
         assert(gpgpu_shmem_size == 98304);    // Volta has 96 KB shared
-        assert(m_L1D_config.get_nset() == 4); // Volta L1 has four sets
+//        assert(m_L1D_config.get_nset() == 4); // Volta L1 has four sets
         if (total_shmed < gpgpu_shmem_size) {
             if (total_shmed == 0)
                 m_L1D_config.set_assoc_stream(stream_id,
