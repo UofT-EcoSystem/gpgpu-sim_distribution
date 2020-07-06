@@ -5500,7 +5500,7 @@ void shader_core_ctx::checkExecutionStatusAndUpdate(warp_inst_t &inst,
         unsigned num_addrs;
         num_addrs = translate_local_memaddr(
             inst.get_addr(t), tid,
-            m_config->n_simt_clusters * m_config->n_simt_cores_per_cluster,
+            m_config->get_num_active_shader(),
             inst.data_size, (new_addr_type *)localaddrs);
         inst.set_addr(t, (new_addr_type *)localaddrs, num_addrs);
     }

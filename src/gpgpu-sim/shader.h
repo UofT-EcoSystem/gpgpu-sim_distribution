@@ -1514,6 +1514,7 @@ struct shader_core_config : public core_config {
             }
 
             assert(sum <= this->num_shader());
+            num_active_shader = sum;
 
             if (adaptive_volta_cache_config) {
                 // L1D config will also change accordingly
@@ -1527,6 +1528,14 @@ struct shader_core_config : public core_config {
     unsigned max_cta(const kernel_info_t &k) const;
     unsigned num_shader() const {
         return n_simt_clusters * n_simt_cores_per_cluster;
+    }
+    unsigned get_num_active_shader() const {
+        if (gpgpu_concurrent_kernel_sm &&
+            (gpgpu_sharing_intra_sm == sharing_option_t::INTER)) {
+            return num_active_shader;
+        } else {
+            return n_simt_clusters * n_simt_cores_per_cluster;
+        }
     }
     unsigned sid_to_cluster(unsigned sid) const {
         return sid / n_simt_cores_per_cluster;
@@ -1655,6 +1664,8 @@ struct shader_core_config : public core_config {
     bool adpative_volta_cache_config;
 
     unsigned warp_state_sample_cta;
+
+    unsigned num_active_shader;
 };
 
 struct shader_core_stats_pod {
