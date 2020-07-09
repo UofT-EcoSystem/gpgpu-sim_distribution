@@ -293,6 +293,8 @@ class stream_manager {
     void stop_all_running_kernels();
     bool should_record_stat(unsigned stream_id);
     unsigned next_grid_uid_in_stream(unsigned stream_id);
+    bool should_print_stats();
+    void device_sync_called();
 
   private:
     void print_impl(FILE *fp);
@@ -305,6 +307,8 @@ class stream_manager {
     CUstream_st m_stream_zero;
     bool m_service_stream_zero;
     pthread_mutex_t m_lock;
+    bool m_print_at_device_sync;
+    bool m_device_sync_called;
 };
 
 #endif

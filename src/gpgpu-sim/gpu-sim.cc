@@ -716,6 +716,10 @@ void gpgpu_sim_config::reg_options(option_parser_t opp) {
         "<priority in stream 0>:<in_stream_1>:<in_stream_2>, higher number "
         "indicates higher priority",
         "1:1:1");
+
+    option_parser_register(opp, "-print_at_device_sync", OPT_BOOL,
+                           &g_print_at_device_sync,
+                           "Only print stats when device sync is called", "0");
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -1170,6 +1174,10 @@ void gpgpu_sim::update_executed_kernel(kernel_info_t *kernel) {
         m_executed_kernel_uids.push_back(launch_uid);
         m_executed_kernel_names.push_back(kernel->name());
     }
+}
+
+bool gpgpu_sim::print_at_device_sync() {
+    return m_config.g_print_at_device_sync;
 }
 
 unsigned gpgpu_sim::finished_kernel() {

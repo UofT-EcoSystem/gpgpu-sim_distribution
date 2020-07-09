@@ -86,7 +86,6 @@ pthread_mutex_t g_sim_lock = PTHREAD_MUTEX_INITIALIZER;
 bool g_sim_active = false;
 bool g_sim_done = true;
 bool break_limit = false;
-bool done_one_kernel = false;
 
 static void termination_callback() {
     printf("GPGPU-Sim: *** exit detected ***\n");
@@ -127,29 +126,11 @@ void *gpgpu_sim_thread_concurrent(void *) {
             // happens to be another kernel, the gpu is not re-initialized and
             // the inter-kernel behaviour may be incorrect. Check that a kernel
             // has finished and no other kernel is currently running.
-            if (g_stream_manager->operation(&sim_cycles) &&
-                !g_the_gpu->active())
-                break;
+//            if (g_stream_manager->operation(&sim_cycles) &&
+//                !g_the_gpu->active())
+//                break;
 
-            //            if (g_the_gpu->config_finish_first_kernel()
-            //            		&&
-            //            g_stream_manager->all_stream_done_one_kernel()) {
-            //            	// this is a small hack in the simulator to kill
-            //            the simulation
-            //            	// as along as we have each kernel finishes the
-            //            first run
-            //            	// when one kernel completes before the other
-            //            kernel,
-            //            	// we will continue launching that kernel
-            //            instance in that stream
-            //            	// to make sure we get the concurrent kernel
-            //            performance
-            //
-            //            	// this ignores the kernel launched in default
-            //            stream if any
-            //            	g_stream_manager->cancel_remaining_kernels();
-            //                done_one_kernel = true;
-            //            }
+            g_stream_manager->operation(&sim_cycles);
 
             // functional simulation
             if (g_the_gpu->is_functional_sim()) {
@@ -172,8 +153,12 @@ void *gpgpu_sim_thread_concurrent(void *) {
                 }
             }
 
-            active =
-                g_the_gpu->active() || !g_stream_manager->empty_protected();
+            // Active flag is set if we have more work in the plate OR
+            // we only want to exit this loop when device sync is called
+            // to avoid multiple stats block.
+            active = g_the_gpu->active()
+                     || !g_stream_manager->empty_protected()
+                     || !g_stream_manager->should_print_stats();
 
         } while (active && !g_sim_done);
         if (g_debug_execution >= 3) {
@@ -200,11 +185,6 @@ void *gpgpu_sim_thread_concurrent(void *) {
         exit(1);
     }
 
-    if (done_one_kernel) {
-        printf("GPGPU-Sim: ** exit because we already finished one kernel "
-               "instance in each stream.\n");
-    }
-
     sem_post(&g_sim_signal_exit);
     return NULL;
 }
@@ -212,6 +192,7 @@ void *gpgpu_sim_thread_concurrent(void *) {
 void synchronize() {
     printf("GPGPU-Sim: synchronize waiting for inactive GPU simulation\n");
     g_stream_manager->print(stdout);
+    g_stream_manager->device_sync_called();
     fflush(stdout);
     //    sem_wait(&g_sim_signal_finish);
     bool done = false;

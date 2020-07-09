@@ -560,6 +560,8 @@ class gpgpu_sim_config : public power_config,
     char *icnt_priority_str;
     std::vector<int> icnt_priority_per_stream;
 
+    bool g_print_at_device_sync;
+
     friend class gpgpu_sim;
 };
 
@@ -688,6 +690,7 @@ class gpgpu_sim : public gpgpu_t {
     }
     void update_executed_kernel(kernel_info_t *kernel);
 
+    bool print_at_device_sync();
   private:
     // clocks
     void reinit_clock_domains(void);

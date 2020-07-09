@@ -290,6 +290,8 @@ stream_manager::stream_manager(gpgpu_sim *gpu, bool cuda_launch_blocking) {
     m_service_stream_zero = false;
     m_cuda_launch_blocking = cuda_launch_blocking;
     m_previous_stream_idx = 0;
+    m_print_at_device_sync = gpu->print_at_device_sync();
+    m_device_sync_called = false;
     pthread_mutex_init(&m_lock, NULL);
 }
 
@@ -392,6 +394,20 @@ unsigned stream_manager::next_grid_uid_in_stream(unsigned stream_id) {
 
         return (*it)->get_next_grid_id();
     }
+}
+
+bool stream_manager::should_print_stats() {
+    if (m_print_at_device_sync) {
+        return m_device_sync_called;
+    } else {
+        // If config is not set, always true
+        return true;
+    }
+}
+
+void stream_manager::device_sync_called() {
+    std::cout << "Device sync called!" << std::endl;
+    m_device_sync_called = true;
 }
 
 stream_operation stream_manager::front() {
