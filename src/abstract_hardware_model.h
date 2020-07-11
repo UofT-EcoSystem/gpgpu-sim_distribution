@@ -182,6 +182,7 @@ extern std::map<void *, size_t> pinned_memory_size;
 struct preempted_cta_context {
     dim3 cta_id3d;
     std::vector<char *> regs;      // per thread
+    std::vector<unsigned> local_mem_stack_pointer; // per thread
     std::vector<char *> local_mem; // per thread
     char *shared_mem;              // per block
 

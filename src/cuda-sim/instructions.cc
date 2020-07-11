@@ -171,7 +171,8 @@ ptx_reg_t srcOperandModifiers(ptx_reg_t opData, operand_info opInfo,
 
 void sign_extend(ptx_reg_t &data, unsigned src_size, const operand_info &dst);
 
-void ptx_thread_info::set_reg(const symbol *reg, const ptx_reg_t &value) {
+void ptx_thread_info::set_reg(const symbol *reg, const ptx_reg_t &value,
+    bool is_generic, _memory_space_t space) {
     assert(reg != NULL);
     if (reg->name() == "_")
         return;
@@ -181,6 +182,17 @@ void ptx_thread_info::set_reg(const symbol *reg, const ptx_reg_t &value) {
     if (m_enable_debug_trace)
         m_debug_trace_regs_modified.back()[reg] = value;
     m_last_set_operand_value = value;
+
+    if (is_generic) {
+        // insert it into the generic map
+        m_generic_types[reg] = space;
+    } else {
+        // remove from generic map if exists
+        auto it = m_generic_types.find(reg);
+        if (it != m_generic_types.end()) {
+            m_generic_types.erase(it);
+        }
+    }
 }
 
 void ptx_thread_info::print_reg_thread(char *fname) {
@@ -222,17 +234,54 @@ void ptx_thread_info::print_reg_thread_strbuf(char *&buf) {
 
         reg_map_t::const_iterator it;
         for (it = reg.begin(); it != reg.end(); ++it) {
-            const std::string &name = it->first->name();
-            const std::string &dec = it->first->decl_location();
-            unsigned size = it->first->get_size_in_bytes();
+            const symbol* reg_symbol = it->first;
+            ptx_reg_t reg_value = it->second;
 
-            const unsigned buf_size = 256;
+            const std::string &name = reg_symbol->name();
+            const std::string &dec = reg_symbol->decl_location();
+            unsigned size = reg_symbol->get_size_in_bytes();
+
+            const unsigned buf_size = 512;
             char buffer[buf_size];
-
             memset(buffer, 0, buf_size);
-            int length = snprintf(buffer, buf_size, "%s %llu %s %d\n",
-                                  name.c_str(), it->second, dec.c_str(), size);
-            assert(length < buf_size);
+
+            auto generic_it = m_generic_types.find(reg_symbol);
+
+            if (generic_it != m_generic_types.end()) {
+                // This register contains a generic address,
+                // must be converted back into its own state space before storing
+                addr_t from_addr_hw = (addr_t)reg_value.u64;
+                addr_t to_addr_hw = 0;
+                unsigned smid = this->get_hw_sid();
+                unsigned hwtid = this->get_hw_tid();
+
+                switch (generic_it->second) {
+                case shared_space:
+                    to_addr_hw = generic_to_shared(smid, from_addr_hw);
+                    break;
+                case local_space:
+                    to_addr_hw = generic_to_local(smid, hwtid, from_addr_hw);
+                    break;
+                case global_space:
+                    to_addr_hw = generic_to_global(from_addr_hw);
+                    break;
+                default:
+                    abort();
+                }
+
+                reg_value.u64 = to_addr_hw;
+
+                int length = snprintf(buffer, buf_size, "%s %llu %s %d %d\n",
+                                      name.c_str(), reg_value.u64, dec.c_str(),
+                                      size, (int)(generic_it->second));
+
+                assert(length < buf_size);
+            } else {
+                int length = snprintf(buffer, buf_size, "%s %llu %s %d %d\n",
+                                      name.c_str(), reg_value.u64, dec.c_str(),
+                                      size, 0);
+                assert(length < buf_size);
+            }
 
             ss << buffer;
         }
@@ -279,22 +328,62 @@ void ptx_thread_info::resume_reg_thread_strbuf(char *buf,
     for (line = strtok_r(buf, "\n", &line_saved); line;
          line = strtok_r(NULL, "\n", &line_saved)) /* read a line */
     {
-        symbol *reg;
         char *pch, *saved;
-        unsigned size;
+
+        // item 0
         pch = strtok_r(line, " ", &saved);
         char *name = pch;
-        reg = symtab->lookup(name);
-        ptx_reg_t data;
+        symbol *reg = symtab->lookup(name);
+
+        // item 1
         pch = strtok_r(NULL, " ", &saved);
-        data = atoi(pch);
+        ptx_reg_t data = atoi(pch);
+
+        // item 2
         pch = strtok_r(NULL, " ", &saved);
         char *decl = pch;
+
+        // item 3
         pch = strtok_r(NULL, " ", &saved);
-        size = atoi(pch);
+        unsigned size = atoi(pch);
+
+        // item 4
+        pch = strtok_r(NULL, " ", &saved);
+        _memory_space_t space = static_cast<_memory_space_t >(atoi(pch));
+
+        if (space != _memory_space_t::undefined_space) {
+            // Need to restore its original generic address
+            unsigned smid = this->get_hw_sid();
+            unsigned hwtid = this->get_hw_tid();
+            addr_t from_addr_hw = (addr_t)data.u64;
+            addr_t to_addr_hw;
+
+            switch (space) {
+            case shared_space:
+                to_addr_hw = shared_to_generic(smid, from_addr_hw);
+                break;
+            case local_space:
+                to_addr_hw = local_to_generic(smid, hwtid, from_addr_hw) +
+                             this->get_local_mem_stack_pointer();
+                break; // add stack ptr here so that it can be passed as a pointer
+                // at function call
+            case global_space:
+                to_addr_hw = global_to_generic(from_addr_hw);
+                break;
+            default:
+                abort();
+            }
+
+            data.u64 = to_addr_hw;
+            m_generic_types[reg] = space;
+        }
 
         m_regs.back()[reg] = data;
     }
+}
+
+void ptx_thread_info::set_local_mem_stack_pointer(unsigned mem_pointer) {
+    m_local_mem_stack_pointer = mem_pointer;
 }
 
 ptx_reg_t ptx_thread_info::get_reg(const symbol *reg) {
@@ -3244,7 +3333,8 @@ void cvta_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
 
     ptx_reg_t to_addr;
     to_addr.u64 = to_addr_hw;
-    thread->set_reg(dst.get_symbol(), to_addr);
+    thread->set_reg(dst.get_symbol(), to_addr,
+        !to_non_generic, space.get_type());
 }
 
 void div_impl(const ptx_instruction *pI, ptx_thread_info *thread) {

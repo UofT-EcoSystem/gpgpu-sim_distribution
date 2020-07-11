@@ -306,11 +306,14 @@ class ptx_thread_info {
     void ptx_exec_inst(warp_inst_t &inst, unsigned lane_id);
 
     const ptx_version &get_ptx_version() const;
-    void set_reg(const symbol *reg, const ptx_reg_t &value);
+    void set_reg(const symbol *reg, const ptx_reg_t &value,
+            bool is_generic=false,
+            _memory_space_t space=_memory_space_t::undefined_space);
     void print_reg_thread(char *fname);
     void print_reg_thread_strbuf(char *&buf);
     void resume_reg_thread(char *fname, symbol_table *symtab);
     void resume_reg_thread_strbuf(char *buf, symbol_table *symtab);
+    void set_local_mem_stack_pointer(unsigned mem_pointer);
     ptx_reg_t get_reg(const symbol *reg);
     ptx_reg_t get_operand_value(const operand_info &op, operand_info dstInfo,
                                 unsigned opType, ptx_thread_info *thread,
@@ -509,7 +512,9 @@ class ptx_thread_info {
     unsigned m_local_mem_stack_pointer;
 
     typedef tr1_hash_map<const symbol *, ptx_reg_t> reg_map_t;
+    typedef tr1_hash_map<const symbol *, _memory_space_t> generic_map_t;
     std::list<reg_map_t> m_regs;
+    generic_map_t m_generic_types;
     std::list<reg_map_t> m_debug_trace_regs_modified;
     std::list<reg_map_t> m_debug_trace_regs_read;
     bool m_enable_debug_trace;

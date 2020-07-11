@@ -3290,6 +3290,8 @@ bool shader_core_ctx::store_preempted_context(unsigned cta_num,
 
         m_thread[hwtid]->m_local_mem->print("%08x", lmem_buf);
         context.local_mem.push_back(lmem_buf);
+        context.local_mem_stack_pointer.push_back(
+            m_thread[hwtid]->get_local_mem_stack_pointer());
 
         // thread's pcs
         context.pcs.push_back(m_thread[hwtid]->get_pc());
