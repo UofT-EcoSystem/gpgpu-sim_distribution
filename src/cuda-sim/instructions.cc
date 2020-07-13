@@ -172,7 +172,7 @@ ptx_reg_t srcOperandModifiers(ptx_reg_t opData, operand_info opInfo,
 void sign_extend(ptx_reg_t &data, unsigned src_size, const operand_info &dst);
 
 void ptx_thread_info::set_reg(const symbol *reg, const ptx_reg_t &value,
-    bool is_generic, _memory_space_t space) {
+                              _memory_space_t generic_space) {
     assert(reg != NULL);
     if (reg->name() == "_")
         return;
@@ -183,16 +183,31 @@ void ptx_thread_info::set_reg(const symbol *reg, const ptx_reg_t &value,
         m_debug_trace_regs_modified.back()[reg] = value;
     m_last_set_operand_value = value;
 
-    if (is_generic) {
-        // insert it into the generic map
-        m_generic_types[reg] = space;
-    } else {
+    if (generic_space == _memory_space_t::undefined_space) {
         // remove from generic map if exists
         auto it = m_generic_types.find(reg);
         if (it != m_generic_types.end()) {
             m_generic_types.erase(it);
         }
+    } else {
+        // insert it into the generic map
+        m_generic_types[reg] = generic_space;
     }
+}
+
+// Return space for the first occurring register that has a valid generic space
+_memory_space_t ptx_thread_info::get_symbol_generic_space(
+    std::vector<const symbol*> regs) const {
+
+    for (auto & reg_symbol : regs) {
+        auto it = m_generic_types.find(reg_symbol);
+
+        if (it != m_generic_types.end()) {
+            return it->second;
+        }
+    }
+
+    return _memory_space_t::undefined_space;
 }
 
 void ptx_thread_info::print_reg_thread(char *fname) {
@@ -727,8 +742,9 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
                                         const ptx_reg_t &data, unsigned type,
                                         ptx_thread_info *thread,
                                         const ptx_instruction *pI, int overflow,
-                                        int carry) {
-    thread->set_operand_value(dst, data, type, thread, pI);
+                                        int carry,
+                                        _memory_space_t generic_space) {
+    thread->set_operand_value(dst, data, type, thread, pI, generic_space);
 
     if (dst.get_double_operand_type() == -2) {
         ptx_reg_t predValue;
@@ -750,7 +766,8 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
 void ptx_thread_info::set_operand_value(const operand_info &dst,
                                         const ptx_reg_t &data, unsigned type,
                                         ptx_thread_info *thread,
-                                        const ptx_instruction *pI) {
+                                        const ptx_instruction *pI,
+                                        _memory_space_t generic_space) {
     ptx_reg_t dstData;
     memory_space *mem = NULL;
     size_t size;
@@ -777,8 +794,8 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
                 setValue2.u32 = (setValue.u64 == 0) ? 0xFFFFFFFF : 0;
             }
 
-            set_reg(name1, setValue);
-            set_reg(name2, setValue2);
+            set_reg(name1, setValue, generic_space);
+            set_reg(name2, setValue2, generic_space);
         }
 
         // Double destination in cvt,shr,mul,etc. instruction ($p0|$r4) - second
@@ -869,7 +886,7 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
             }
 
             set_reg(predName, predValue);
-            set_reg(regName, setValue);
+            set_reg(regName, setValue, generic_space);
         } else if (type == BB128_TYPE) {
             // b128 stuff here.
             ptx_reg_t setValue2, setValue3, setValue4;
@@ -889,10 +906,10 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
             name3 = dst.vec_symbol(2);
             name4 = dst.vec_symbol(3);
 
-            set_reg(name1, setValue);
-            set_reg(name2, setValue2);
-            set_reg(name3, setValue3);
-            set_reg(name4, setValue4);
+            set_reg(name1, setValue, generic_space);
+            set_reg(name2, setValue2, generic_space);
+            set_reg(name3, setValue3, generic_space);
+            set_reg(name4, setValue4, generic_space);
         } else if (type == BB64_TYPE || type == FF64_TYPE) {
             // ptxplus version of storing 64 bit values to registers stores to
             // two adjacent registers
@@ -908,8 +925,8 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
             name1 = dst.vec_symbol(0);
             name2 = dst.vec_symbol(1);
 
-            set_reg(name1, setValue);
-            set_reg(name2, setValue2);
+            set_reg(name1, setValue, generic_space);
+            set_reg(name2, setValue2, generic_space);
         } else {
             if (dst.get_operand_lohi() == 1) {
                 setValue.u64 =
@@ -920,7 +937,7 @@ void ptx_thread_info::set_operand_value(const operand_info &dst,
                     ((m_regs.back()[dst.get_symbol()].u64) & (~(0xFFFF0000))) +
                     ((data.u64 << 16) & 0xFFFF0000);
             }
-            set_reg(dst.get_symbol(), setValue);
+            set_reg(dst.get_symbol(), setValue, generic_space);
         }
     }
 
@@ -1183,6 +1200,12 @@ void add_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     src1_data = thread->get_operand_value(src1, dst, i_type, thread, 1);
     src2_data = thread->get_operand_value(src2, dst, i_type, thread, 1);
 
+    std::vector<const symbol*> symbols;
+    symbols.push_back(src1.get_symbol());
+    symbols.push_back(src2.get_symbol());
+
+    _memory_space_t dst_space = thread->get_symbol_generic_space(symbols);
+
     unsigned rounding_mode = pI->rounding_mode();
     int orig_rm = fegetround();
     switch (rounding_mode) {
@@ -1268,7 +1291,8 @@ void add_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     }
     fesetround(orig_rm);
 
-    thread->set_operand_value(dst, data, i_type, thread, pI, overflow, carry);
+    thread->set_operand_value(dst, data, i_type, thread, pI,
+                              overflow, carry, dst_space);
 }
 
 void addc_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
@@ -3333,8 +3357,9 @@ void cvta_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
 
     ptx_reg_t to_addr;
     to_addr.u64 = to_addr_hw;
-    thread->set_reg(dst.get_symbol(), to_addr,
-        !to_non_generic, space.get_type());
+    const _memory_space_t dst_space = to_non_generic ?
+                                _memory_space_t::undefined_space : space.get_type();
+    thread->set_reg(dst.get_symbol(), to_addr, dst_space);
 }
 
 void div_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
@@ -6050,6 +6075,12 @@ void sub_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
     ptx_reg_t src2_data =
         thread->get_operand_value(src2, dst, i_type, thread, 1);
 
+    std::vector<const symbol*> symbols;
+    symbols.push_back(src1.get_symbol());
+    symbols.push_back(src2.get_symbol());
+
+    _memory_space_t dst_space = thread->get_symbol_generic_space(symbols);
+
     // performs addition. Sets carry and overflow if needed.
     // the constant is added in during subtraction so the carry bit is set
     // properly.
@@ -6122,7 +6153,8 @@ void sub_impl(const ptx_instruction *pI, ptx_thread_info *thread) {
         break;
     }
 
-    thread->set_operand_value(dst, data, i_type, thread, pI, overflow, carry);
+    thread->set_operand_value(dst, data, i_type, thread, pI,
+                              overflow, carry, dst_space);
 }
 
 void nop_impl(const ptx_instruction *pI, ptx_thread_info *thread) {

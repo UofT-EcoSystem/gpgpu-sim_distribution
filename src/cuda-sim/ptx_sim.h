@@ -307,8 +307,8 @@ class ptx_thread_info {
 
     const ptx_version &get_ptx_version() const;
     void set_reg(const symbol *reg, const ptx_reg_t &value,
-            bool is_generic=false,
-            _memory_space_t space=_memory_space_t::undefined_space);
+            _memory_space_t generic_space=_memory_space_t::undefined_space);
+    _memory_space_t get_symbol_generic_space(std::vector<const symbol*> regs) const;
     void print_reg_thread(char *fname);
     void print_reg_thread_strbuf(char *&buf);
     void resume_reg_thread(char *fname, symbol_table *symtab);
@@ -320,10 +320,14 @@ class ptx_thread_info {
                                 int derefFlag);
     void set_operand_value(const operand_info &dst, const ptx_reg_t &data,
                            unsigned type, ptx_thread_info *thread,
-                           const ptx_instruction *pI);
+                           const ptx_instruction *pI,
+                           _memory_space_t generic_space=
+                           _memory_space_t::undefined_space);
     void set_operand_value(const operand_info &dst, const ptx_reg_t &data,
                            unsigned type, ptx_thread_info *thread,
-                           const ptx_instruction *pI, int overflow, int carry);
+                           const ptx_instruction *pI, int overflow, int carry,
+                           _memory_space_t generic_space=
+                           _memory_space_t::undefined_space);
     void get_vector_operand_values(const operand_info &op, ptx_reg_t *ptx_regs,
                                    unsigned num_elements);
     void set_vector_operand_values(const operand_info &dst,
