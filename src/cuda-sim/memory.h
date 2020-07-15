@@ -46,7 +46,8 @@
 #include <map>
 #include <stdlib.h>
 
-typedef address_type mem_addr_t;
+//typedef address_type mem_addr_t;
+typedef new_addr_type mem_addr_t;
 
 #define MEM_BLOCK_SIZE (4 * 1024)
 
