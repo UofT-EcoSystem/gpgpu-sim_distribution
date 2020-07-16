@@ -3314,8 +3314,6 @@ bool shader_core_ctx::store_preempted_context(unsigned cta_num,
 
         m_simt_stack[warp_id]->print_context(stack_buf);
         context.simt_stack.push_back(stack_buf);
-
-
     }
 
     // store barrier info
@@ -3355,6 +3353,7 @@ void shader_core_ctx:: clean_up_preempted_cta(unsigned int cta_num,
         // Warps might be preempted when reached a barrier with remaining
         // instructions in ibuffer
         m_warp[warp_id].ibuffer_flush();
+        m_warp[warp_id].set_preempted();
     }
 
     m_barriers.clean_up_preempted_context(cta_num);
@@ -4654,10 +4653,10 @@ void shader_core_ctx::get_icnt_power_stats(long &n_simt_to_mem,
 
 void shd_warp_t::reset() {
     assert(m_stores_outstanding == 0);
-    if (m_inst_in_pipeline != 0) {
+    if (!m_preempted && (m_inst_in_pipeline != 0)) {
         printf("shader id: %u, warp_id: %u\n", m_shader->get_sid(), m_warp_id);
     }
-    assert(m_inst_in_pipeline == 0);
+    assert(m_preempted || (m_inst_in_pipeline == 0));
     m_imiss_pending = false;
     m_warp_id = (unsigned)-1;
     m_dynamic_warp_id = (unsigned)-1;
@@ -4669,6 +4668,7 @@ void shd_warp_t::reset() {
     m_next = 0;
     m_inst_at_barrier = NULL;
     m_done_inst = 0;
+    m_preempted = false;
 
     // Jin: cdp support
     m_cdp_latency = 0;

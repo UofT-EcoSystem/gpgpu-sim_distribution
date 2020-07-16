@@ -125,6 +125,7 @@ class shd_warp_t {
         m_inst_in_pipeline = 0;
         m_logical_cta_id = 0; // this is a valid value, but oh wells
         m_stream_id = -1;
+        m_preempted = false;
         reset();
     }
     void reset();
@@ -260,6 +261,8 @@ class shd_warp_t {
     bool should_track_stats() const { return m_should_track_state; }
     unsigned get_stat_idx() const { return m_stat_idx; }
 
+    void set_preempted() { m_preempted = true; }
+
   private:
     static const unsigned IBUFFER_SIZE = 2;
     class shader_core_ctx *m_shader;
@@ -305,6 +308,8 @@ class shd_warp_t {
     int m_stream_id;
     bool m_should_track_state;
     unsigned m_stat_idx;
+
+    bool m_preempted;
 
   public:
     // Jin: cdp support
