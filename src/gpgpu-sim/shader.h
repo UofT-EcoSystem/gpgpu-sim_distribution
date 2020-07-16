@@ -2130,6 +2130,7 @@ class shader_core_ctx : public core_t {
                                  unsigned *rpc) const;
     float get_current_occupancy(unsigned long long &active,
                                 unsigned long long &total) const;
+    unsigned get_num_running_cta(kernel_info_t* kernel) const;
 
     // used by pipeline timing model components:
     // modifiers

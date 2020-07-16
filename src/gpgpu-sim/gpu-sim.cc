@@ -2656,6 +2656,17 @@ bool shader_core_ctx::should_preempt_kernel(kernel_info_t *&victim,
     const std::vector<kernel_info_t *> &running_kernels =
         m_gpu->get_running_kernels();
 
+    const unsigned last_issued_idx = m_gpu->get_last_issued_kernel();
+    kernel_info_t* last_kernel = running_kernels[last_issued_idx];
+
+    // If the last issue kernel is running below its cta, keep this as candidate
+    if (last_kernel &&
+        m_gpu->kernel_more_cta_left(last_kernel) &&
+        get_num_running_cta(last_kernel) < last_kernel->get_cta_quota()) {
+        found_candidate = true;
+        candidate = last_kernel;
+    }
+
     // Candidate kernel is the first kernel in the list that 1) has more ctas
     // 2) running ctas is less than its quota
     // Victim kernel is the first kernel in the list that has more running ctas
@@ -2668,16 +2679,14 @@ bool shader_core_ctx::should_preempt_kernel(kernel_info_t *&victim,
         }
 
         // calculate normalized cta usage
-        const unsigned running_cta =
-            m_kernel2ctas.count(current_kernel->get_uid()) == 0
-                ? 0
-                : m_kernel2ctas[current_kernel->get_uid()].size();
+        const unsigned running_cta = get_num_running_cta(current_kernel);
 
         // always pick the kernel with the least number of running ctas
         if (!found_candidate && m_gpu->kernel_more_cta_left(current_kernel) &&
             running_cta < current_kernel->get_cta_quota()) {
             candidate = current_kernel;
             found_candidate = true;
+            m_gpu->set_last_issued_kernel(idx);
         }
 
         if (!found_victim && running_cta > current_kernel->get_cta_quota()) {

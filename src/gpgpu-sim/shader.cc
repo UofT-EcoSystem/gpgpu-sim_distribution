@@ -692,6 +692,14 @@ float shader_core_ctx::get_current_occupancy(unsigned long long &active,
     }
 }
 
+unsigned shader_core_ctx::get_num_running_cta(kernel_info_t *kernel) const {
+    if (m_kernel2ctas.count(kernel->get_uid()) == 0) {
+        return 0;
+    } else {
+        return m_kernel2ctas.at(kernel->get_uid()).size();
+    }
+}
+
 extern bool break_limit;
 void shader_core_stats::print(FILE *fout) const {
     unsigned long long thread_icount_uarch = 0;

@@ -688,6 +688,15 @@ class gpgpu_sim : public gpgpu_t {
     const std::vector<kernel_info_t *> &get_running_kernels() {
         return m_running_kernels;
     }
+
+    unsigned get_last_issued_kernel() const {
+        return m_last_issued_kernel;
+    }
+
+    void set_last_issued_kernel(unsigned idx) {
+        m_last_issued_kernel = idx;
+    }
+
     void update_executed_kernel(kernel_info_t *kernel);
 
     bool print_at_device_sync();
