@@ -221,7 +221,7 @@ gpgpu_t::gpgpu_t(const gpgpu_functional_sim_config &config)
             fopen(m_function_model_config.get_ptx_inst_debug_file(), "w");
 }
 
-address_type line_size_based_tag_func(new_addr_type address,
+new_addr_type line_size_based_tag_func(new_addr_type address,
                                       new_addr_type line_size) {
     // gives the tag for an address based on a given line size
     return address & ~(line_size - 1);
@@ -563,7 +563,7 @@ void warp_inst_t::memory_coalescing_arch(bool is_write,
                  access++) {
                 new_addr_type addr =
                     m_per_scalar_thread[thread].memreqaddr[access];
-                unsigned block_address =
+                new_addr_type block_address =
                     line_size_based_tag_func(addr, segment_size);
                 unsigned chunk = (addr & 127) /
                                  32; // which 32-byte chunk within in a 128-byte
@@ -571,9 +571,22 @@ void warp_inst_t::memory_coalescing_arch(bool is_write,
                 transaction_info &info = subwarp_transactions[block_address];
 
                 // can only write to one segment
-                assert(block_address ==
-                       line_size_based_tag_func(addr + data_size_coales - 1,
-                                                segment_size));
+                if (block_address != line_size_based_tag_func(
+                    addr + data_size_coales - 1,
+                    segment_size)) {
+                    std::cout << "memory_coalescing_arch writes "
+                                 "to more than one segment." << std::endl;
+                    std::cout << "block_address: " << block_address << std::endl;
+                    std::cout << "addr: " << addr << std::endl;
+                    std::cout << "data_size_coales: " << data_size_coales
+                              << std::endl;
+                    std::cout << "segment_size: " << segment_size << std::endl;
+                    std::cout << "rhs: " << line_size_based_tag_func(
+                        addr + data_size_coales - 1,
+                        segment_size) << std::endl;
+
+                    abort();
+                }
 
                 info.chunks.set(chunk);
                 info.active.set(thread);
